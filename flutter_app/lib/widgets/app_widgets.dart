@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
@@ -324,7 +325,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
       ),
       child: Row(
         children: [
-          Icon(Icons.search_rounded, color: iconColor, size: 22),
+          Icon(CupertinoIcons.search, color: iconColor, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -364,7 +365,7 @@ class _AppSearchFieldState extends State<AppSearchField> {
                 shape: const CircleBorder(),
                 padding: EdgeInsets.zero,
               ),
-              icon: Icon(Icons.clear_rounded, color: iconColor, size: 18),
+              icon: Icon(CupertinoIcons.clear_circled_solid, color: iconColor, size: 18),
               onPressed: _clear,
             ),
           ],
@@ -1188,7 +1189,7 @@ class AppActionButton extends StatelessWidget {
                   ),
                 ),
                 Icon(
-                  Icons.arrow_forward_ios_rounded,
+                  CupertinoIcons.chevron_right,
                   color: isDark ? const Color(0xFF98989D) : const Color(0xFF94A3B8),
                   size: 14,
                 ),
@@ -1987,77 +1988,35 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return AppBar(
-      title: title != null
-          ? DefaultTextStyle.merge(
-              style: GoogleFonts.kantumruyPro(
-                color: foregroundColor ?? AppTheme.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-              child: title!,
-            )
-          : null,
-      actions: actions,
-      leading: leading,
-      leadingWidth: leadingWidth,
-      centerTitle: centerTitle,
-      elevation: elevation,
-      bottom: bottom,
-      titleSpacing: titleSpacing,
-      iconTheme: iconTheme ?? IconThemeData(color: foregroundColor ?? AppTheme.textPrimary),
-      foregroundColor: foregroundColor ?? AppTheme.textPrimary,
-      toolbarHeight: toolbarHeight,
-      shape: shape,
-      automaticallyImplyLeading: automaticallyImplyLeading,
-      scrolledUnderElevation: scrolledUnderElevation,
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      toolbarHeight: toolbarHeight ?? 60.0,
+      automaticallyImplyLeading: false,
+      titleSpacing: 0,
       systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.dark : Brightness.light,
-        statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
-      flexibleSpace: ClipRect(
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: backgroundColor != null
-                  ? null
-                  : LinearGradient(
-                      begin: const Alignment(-0.5, -1.0),
-                      end: const Alignment(0.5, 1.0),
-                      colors: Theme.of(context).brightness == Brightness.dark
-                          ? [
-                              Colors.white.withValues(alpha: 0.18),
-                              const Color(0xFF18181A).withValues(alpha: 0.65),
-                              const Color(0xFF0F172A).withValues(alpha: 0.75),
-                            ]
-                          : [
-                              Colors.white.withValues(alpha: 0.78),
-                              Colors.white.withValues(alpha: 0.42),
-                              const Color(0xFFF8FAFC).withValues(alpha: 0.30),
-                            ],
-                      stops: const [0.0, 0.35, 1.0],
-                    ),
-              color: backgroundColor,
-              border: Border(
-                bottom: BorderSide(
-                  color: (Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white.withValues(alpha: 0.18)
-                          : Colors.white.withValues(alpha: 0.70)),
-                  width: 1.0,
-                ),
-              ),
-            ),
-          ),
+      title: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14.0),
+        child: VvcFloatingHeaderPods(
+          titleWidget: title,
+          leading: leading,
+          actions: actions,
         ),
       ),
+      bottom: bottom,
     );
   }
 
   @override
-  Size get preferredSize => Size.fromHeight((toolbarHeight ?? kToolbarHeight) + (bottom?.preferredSize.height ?? 0.0));
+  Size get preferredSize => Size.fromHeight((toolbarHeight ?? 60.0) + (bottom?.preferredSize.height ?? 0.0));
 }
 
 /// A sleek, animated splash screen shown immediately on startup

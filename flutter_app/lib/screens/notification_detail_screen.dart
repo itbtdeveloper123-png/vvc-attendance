@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/notification_model.dart';
 import '../utils/app_theme.dart';
@@ -136,7 +137,7 @@ class NotificationDetailSheet extends StatelessWidget {
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                Icons.notifications_rounded,
+                                CupertinoIcons.bell_fill,
                                 color: AppTheme.primary,
                                 size: 20,
                               ),
@@ -172,7 +173,7 @@ class NotificationDetailSheet extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Icon(
-                              Icons.access_time_rounded,
+                              CupertinoIcons.clock,
                               color: AppTheme.textSecondary,
                               size: 14,
                             ),
@@ -205,7 +206,7 @@ class NotificationDetailSheet extends StatelessWidget {
                             ),
                           );
                         },
-                        icon: const Icon(Icons.list_alt_rounded),
+                        icon: const Icon(CupertinoIcons.list_bullet_below_rectangle),
                         label: Text(
                           "មើលបញ្ជីសំណើ",
                           style: GoogleFonts.kantumruyPro(
@@ -242,7 +243,7 @@ class NotificationDetailSheet extends StatelessWidget {
                             ),
                           );
                         },
-                        icon: const Icon(Icons.map_rounded),
+                        icon: const Icon(CupertinoIcons.map_fill),
                         label: Text(
                           "តាមដានផែនទីដំណើរ",
                           style: GoogleFonts.kantumruyPro(

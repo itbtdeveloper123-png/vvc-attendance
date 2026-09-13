@@ -461,9 +461,9 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
                   child: const Center(
                     child: Icon(
-                      Icons.smart_toy_rounded,
+                      CupertinoIcons.sparkles,
                       color: Colors.white,
-                      size: 23,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -533,7 +533,7 @@ class HomeScreenState extends State<HomeScreen> {
                   ),
                   child: const Center(
                     child: Icon(
-                      Icons.chat_bubble_rounded,
+                      CupertinoIcons.chat_bubble_2_fill,
                       color: Colors.white,
                       size: 22,
                     ),
@@ -1632,7 +1632,7 @@ class _HomeContentState extends State<HomeContent> {
                             ],
                           ),
                           child: Icon(
-                            Icons.history_rounded,
+                            CupertinoIcons.clock_fill,
                             color: isDark ? Colors.white70 : const Color(0xFF1E293B),
                             size: 18,
                           ),
@@ -1658,7 +1658,7 @@ class _HomeContentState extends State<HomeContent> {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          gradient: isNextCheckIn
+                           gradient: isNextCheckIn
                               ? const LinearGradient(
                                   colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
                                 )
@@ -1682,8 +1682,8 @@ class _HomeContentState extends State<HomeContent> {
                           children: [
                             Icon(
                               isNextCheckIn
-                                  ? Icons.qr_code_scanner_rounded
-                                  : Icons.logout_rounded,
+                                  ? CupertinoIcons.qrcode_viewfinder
+                                  : CupertinoIcons.square_arrow_right,
                               color: Colors.white,
                               size: 20,
                             ),
@@ -1734,7 +1734,7 @@ class _HomeContentState extends State<HomeContent> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.location_on_rounded,
+                              CupertinoIcons.location_solid,
                               color: theme.brand == CompanyBrand.vvc
                                   ? const Color(0xFF0284C7)
                                   : theme.cardPrimary,
@@ -1777,7 +1777,7 @@ class _HomeContentState extends State<HomeContent> {
         Expanded(
           child: _buildBentoMediumCard(
             theme: theme,
-            icon: Icons.beach_access_rounded,
+            icon: CupertinoIcons.calendar_badge_minus,
             iconColor: theme.cardPrimary,
             title: 'AL នៅសល់',
             value: '$leaveBalanceStr ថ្ងៃ',
@@ -1797,7 +1797,7 @@ class _HomeContentState extends State<HomeContent> {
         Expanded(
           child: _buildBentoMediumCard(
             theme: theme,
-            icon: Icons.assignment_turned_in_rounded,
+            icon: CupertinoIcons.doc_checkmark_fill,
             iconColor: theme.cardPrimary,
             title: 'ផ្ញើទៅ Telegram',
             value: 'ធ្វើរបាយការណ៍',
@@ -1960,7 +1960,7 @@ class _HomeContentState extends State<HomeContent> {
         Expanded(
           child: _buildBentoMiniCard(
             theme: theme,
-            icon: Icons.checklist_rtl_rounded,
+            icon: CupertinoIcons.checkmark_square_fill,
             color: theme.cardPrimary,
             title: 'Checklist',
             subtitle: 'ការងារថ្ងៃនេះ',
@@ -1978,7 +1978,7 @@ class _HomeContentState extends State<HomeContent> {
         Expanded(
           child: _buildBentoMiniCard(
             theme: theme,
-            icon: Icons.groups_rounded,
+            icon: CupertinoIcons.person_3_fill,
             color: theme.cardPrimary,
             title: 'ការប្រជុំ',
             subtitle: 'កំណត់ត្រា AI',
@@ -1996,7 +1996,7 @@ class _HomeContentState extends State<HomeContent> {
         Expanded(
           child: _buildBentoMiniCard(
             theme: theme,
-            icon: Icons.campaign_rounded,
+            icon: CupertinoIcons.speaker_2_fill,
             color: theme.cardPrimary,
             title: 'ដំណឹងថ្មី',
             subtitle: '$announcementsCount ដំណឹង',
@@ -2708,7 +2708,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "Check-In ខាងក្រៅ",
             subtitle: "Check-in ទីតាំងអតិថិជន",
-            icon: Icons.location_on_rounded,
+            icon: CupertinoIcons.location_solid,
             color: Colors.redAccent,
             onTap: () {
               _hapticLight();
@@ -2733,7 +2733,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "វគ្គបណ្ដុះបណ្ដាល",
             subtitle: "ឆ្លើយសំណួរដើម្បីទទួលបានមេដាយ",
-            icon: Icons.psychology_rounded,
+            icon: CupertinoIcons.lightbulb_fill,
             color: Colors.orangeAccent,
             onTap:
                 () => Navigator.push(
@@ -2749,7 +2749,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "វិភាគផលិតផល",
             subtitle: "ថតរូប ឬ Scan Barcode ដើម្បីឱ្យ AI វិភាគ",
-            icon: Icons.document_scanner_rounded,
+            icon: CupertinoIcons.barcode_viewfinder,
             color: AppTheme.primary,
             onTap:
                 () => Navigator.push(
@@ -2767,7 +2767,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: (user.isHRM || user.isAdmin) ? "គ្រប់គ្រងការបោះឆ្នោត" : "បោះឆ្នោតបុគ្គលិក",
             subtitle: (user.isHRM || user.isAdmin) ? "គ្រប់គ្រង និងមើលលទ្ធផលបោះឆ្នោត" : "ចូលរួមបោះឆ្នោតបុគ្គលិកល្អ",
-            icon: Icons.how_to_vote_rounded,
+            icon: CupertinoIcons.chart_bar_square_fill,
             color: AppTheme.primary,
             onTap: () {
               _hapticLight();
@@ -2792,7 +2792,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ការជូនដំណឹង",
             subtitle: "គ្រប់គ្រង និងប្រកាសព័ត៌មានទូទៅ",
-            icon: Icons.campaign_rounded,
+            icon: CupertinoIcons.speaker_2_fill,
             color: Colors.deepPurpleAccent,
             onTap:
                 () => Navigator.push(
@@ -2810,7 +2810,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "កិច្ចប្រជុំ",
             subtitle: "រៀបចំ និងកំណត់កាលវិភាគប្រជុំ",
-            icon: Icons.groups_rounded,
+            icon: CupertinoIcons.person_3_fill,
             color: Colors.indigoAccent,
             onTap:
                 () => Navigator.push(
@@ -2826,7 +2826,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "បញ្ជីការងារ",
             subtitle: "តាមដានកិច្ចការងារប្រចាំថ្ងៃ",
-            icon: Icons.checklist_rounded,
+            icon: CupertinoIcons.checkmark_square_fill,
             color: Colors.tealAccent,
             onTap:
                 () => Navigator.push(
@@ -2842,7 +2842,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "របាយការណ៍ប្រចាំថ្ងៃ",
             subtitle: "បញ្ជូនរបាយការណ៍ការងារប្រចាំថ្ងៃ",
-            icon: Icons.summarize_rounded,
+            icon: CupertinoIcons.doc_text_fill,
             color: Colors.lightGreenAccent,
             onTap:
                 () => Navigator.push(
@@ -2858,7 +2858,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "លិខិតបេសកកម្ម",
             subtitle: "ស្នើសុំចេញបេសកកម្មខាងក្រៅ",
-            icon: Icons.map_rounded,
+            icon: CupertinoIcons.paperplane_fill,
             color: Colors.blueAccent,
             onTap:
                 () => Navigator.push(
@@ -2874,7 +2874,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "គ្រប់គ្រងបុគ្គលិក",
             subtitle: "បន្ថែម កែប្រែ និងពិនិត្យទិន្នន័យបុគ្គលិក",
-            icon: Icons.people_alt_rounded,
+            icon: CupertinoIcons.person_2_fill,
             color: AppTheme.primary,
             onTap:
                 () => Navigator.push(
@@ -2892,7 +2892,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "បញ្ជីសំណើ",
             subtitle: "គ្រប់គ្រងសំណើច្បាប់ឈប់សម្រាក",
-            icon: Icons.list_alt_rounded,
+            icon: CupertinoIcons.list_bullet_below_rectangle,
             color: AppTheme.primary,
             onTap:
                 () => Navigator.push(
@@ -2914,7 +2914,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "របាយការណ៍វត្តមាន",
             subtitle: "ពិនិត្យរបាយការណ៍វត្តមាន និងអវត្តមាន",
-            icon: Icons.insert_chart_rounded,
+            icon: CupertinoIcons.chart_bar_fill,
             color: AppTheme.primary,
             onTap:
                 () => Navigator.push(
@@ -2932,7 +2932,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ស្នើសុំសម្ភារៈ",
             subtitle: "ស្នើសុំសម្ភារៈប្រើប្រាស់ក្នុងស្តុក",
-            icon: Icons.inventory_2_rounded,
+            icon: CupertinoIcons.archivebox_fill,
             color: Colors.cyanAccent,
             onTap:
                 () => Navigator.push(
@@ -2950,7 +2950,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ផ្ញើការជូនដំណឹង",
             subtitle: "Push notification ទៅបុគ្គលិក",
-            icon: Icons.send_rounded,
+            icon: CupertinoIcons.paperplane_fill,
             color: Colors.orangeAccent,
             onTap:
                 () => Navigator.push(
@@ -2968,7 +2968,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ប្រវត្តិជូនដំណឹង",
             subtitle: "ពិនិត្យប្រវត្តិទទួលបានដំណឹង",
-            icon: Icons.notifications_rounded,
+            icon: CupertinoIcons.bell_fill,
             color: Colors.orangeAccent,
             onTap:
                 () => Navigator.push(
@@ -2984,7 +2984,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "របាយការណ៍វត្តមាន",
             subtitle: "ពិនិត្យរបាយការណ៍វត្តមានប្រចាំសាខា",
-            icon: Icons.recent_actors_rounded,
+            icon: CupertinoIcons.person_crop_rectangle_fill,
             color: Colors.pinkAccent,
             onTap:
                 () => Navigator.push(
@@ -3002,7 +3002,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ការធ្វើដំណើរ",
             subtitle: "តាមដាន និងកត់ត្រាការចុះជួបអតិថិជន",
-            icon: Icons.directions_car_rounded,
+            icon: CupertinoIcons.car_detailed,
             color: AppTheme.primary,
             onTap: () {
               if (user.isHRM || user.isAdmin) {
@@ -3026,7 +3026,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ប្រាក់បៀវត្ស",
             subtitle: "ពិនិត្យមើលប្រវត្តិបើកប្រាក់ខែ",
-            icon: Icons.payments_rounded,
+            icon: CupertinoIcons.money_dollar_circle_fill,
             color: AppTheme.primaryDark,
             onTap: () {
               _hapticLight();
@@ -3048,7 +3048,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ការវាយតម្លៃ KPI/OKR",
             subtitle: "តាមដាន និងវាយតម្លៃការងារ",
-            icon: Icons.auto_graph_rounded,
+            icon: CupertinoIcons.graph_circle_fill,
             color: AppTheme.primary,
             onTap: () {
               _hapticLight();
@@ -3066,7 +3066,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ស្កេនឯកសារ",
             subtitle: "ស្កេនឯកសារអាជីព",
-            icon: Icons.document_scanner_outlined,
+            icon: CupertinoIcons.viewfinder_circle_fill,
             color: Colors.orange,
             onTap: () {
               _hapticLight();
@@ -3084,7 +3084,7 @@ class _HomeContentState extends State<HomeContent> {
             user: user,
             label: "ការកំណត់កម្មវិធី",
             subtitle: "គ្រប់គ្រងការបង្ហាញមុខងារ",
-            icon: Icons.settings_rounded,
+            icon: CupertinoIcons.gear_alt_fill,
             color: Colors.grey.shade700,
             onTap: () {
               _hapticLight();
@@ -3585,7 +3585,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                   onTap: () => _showQuickRequestSheet(context, isDark, primaryGold),
                   child: const Center(
                     child: Icon(
-                      Icons.add_rounded,
+                      CupertinoIcons.plus,
                       color: primaryGold,
                       size: 24.0,
                     ),
@@ -3629,7 +3629,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                     children: [
                       const Center(
                         child: Icon(
-                          Icons.notifications_rounded,
+                          CupertinoIcons.bell_fill,
                           color: primaryGold,
                           size: 22.0,
                         ),
@@ -3716,7 +3716,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       color: primaryGold.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.post_add_rounded, color: primaryGold, size: 22),
+                    child: Icon(CupertinoIcons.doc_text_fill, color: primaryGold, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -3748,7 +3748,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 ctx: ctx,
                 title: 'ស្នើសុំច្បាប់ឈប់សម្រាក (Leave Request)',
                 subtitle: 'ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ ឬ ឈឺ',
-                icon: Icons.beach_access_rounded,
+                icon: CupertinoIcons.calendar_badge_minus,
                 iconColor: primaryGold,
                 isDark: isDark,
                 isPrimary: true,
@@ -3763,7 +3763,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 ctx: ctx,
                 title: 'ស្នើសុំសម្ភារៈការិយាល័យ (Material Request)',
                 subtitle: 'សម្ភារៈ និងបរិក្ខារប្រើប្រាស់',
-                icon: Icons.inventory_2_rounded,
+                icon: CupertinoIcons.archivebox_fill,
                 iconColor: const Color(0xFF38BDF8),
                 isDark: isDark,
                 onTap: () {
@@ -3776,7 +3776,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 ctx: ctx,
                 title: 'ស្នើសុំបេសកកម្មការងារ (Mission)',
                 subtitle: 'ចុះបំពេញបេសកកម្មការងារក្រៅ',
-                icon: Icons.flight_takeoff_rounded,
+                icon: CupertinoIcons.paperplane_fill,
                 iconColor: const Color(0xFF34D399),
                 isDark: isDark,
                 onTap: () {
@@ -3789,7 +3789,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 ctx: ctx,
                 title: 'សំណើផ្សេងៗទាំងអស់ (All Requests)',
                 subtitle: 'ពិនិត្យប្រវត្តិ និងបញ្ជីសំណើទាំងអស់',
-                icon: Icons.assignment_rounded,
+                icon: CupertinoIcons.doc_plaintext,
                 iconColor: const Color(0xFFA78BFA),
                 isDark: isDark,
                 onTap: () {
@@ -3873,9 +3873,9 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
               ),
             ),
             Icon(
-              Icons.chevron_right_rounded,
+              CupertinoIcons.chevron_right,
               color: isDark ? Colors.white38 : Colors.black38,
-              size: 20,
+              size: 16,
             ),
           ],
         ),

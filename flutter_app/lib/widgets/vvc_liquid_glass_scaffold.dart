@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_theme.dart';
@@ -544,7 +545,345 @@ class VvcLiquidGlassPinnedHeader extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 5. GLOBAL LIQUID GLASS SCAFFOLD (Reusable Master Shell for all Screens)
+// 5. GLOBAL FLOATING HEADER PODS (Segmented Three-Islands Apple Glass Header)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class VvcFloatingHeaderPods extends StatelessWidget {
+  final String? title;
+  final Widget? titleWidget;
+  final Widget? leading;
+  final List<Widget>? actions;
+  final VoidCallback? onLeadingTap;
+  final Color? backgroundColor;
+  final Color? borderColor;
+  final double height;
+
+  const VvcFloatingHeaderPods({
+    super.key,
+    this.title,
+    this.titleWidget,
+    this.leading,
+    this.actions,
+    this.onLeadingTap,
+    this.backgroundColor,
+    this.borderColor,
+    this.height = 48.0,
+  });
+
+  Widget _buildLeftPod(
+    BuildContext context,
+    bool isDark,
+    Color headerBgColor,
+    Color effectiveBorder,
+  ) {
+    final canPop = ModalRoute.of(context)?.canPop ?? false;
+    if (leading == null && !canPop) {
+      return const SizedBox.shrink();
+    }
+
+    Widget content;
+    VoidCallback? tapHandler;
+
+    if (leading != null) {
+      if (leading is IconButton) {
+        final btn = leading as IconButton;
+        tapHandler = btn.onPressed;
+        content = IconTheme(
+          data: IconThemeData(
+            size: 20.0,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+          child: btn.icon,
+        );
+      } else {
+        content = leading!;
+      }
+    } else {
+      tapHandler = () => Navigator.maybePop(context);
+      content = Icon(
+        CupertinoIcons.chevron_back,
+        size: 20.0,
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
+      );
+    }
+
+    final podWidget = Container(
+      width: height,
+      height: height,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: headerBgColor,
+        border: Border.all(color: effectiveBorder, width: 1.2),
+      ),
+      child: Center(child: content),
+    );
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        if (tapHandler != null) {
+          tapHandler();
+        } else if (onLeadingTap != null) {
+          onLeadingTap!();
+        } else {
+          Navigator.maybePop(context);
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: height,
+        height: height,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+              blurRadius: 14.0,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(height / 2),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            child: podWidget,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCenterPod(
+    BuildContext context,
+    bool isDark,
+    Color headerBgColor,
+    Color effectiveBorder,
+  ) {
+    Widget titleContent;
+    if (titleWidget != null) {
+      titleContent = DefaultTextStyle.merge(
+        style: GoogleFonts.kantumruyPro(
+          fontWeight: FontWeight.bold,
+          fontSize: 16.0,
+          color: isDark ? Colors.white : const Color(0xFF0F172A),
+        ),
+        child: titleWidget!,
+      );
+    } else {
+      titleContent = Text(
+        title ?? '',
+        style: GoogleFonts.kantumruyPro(
+          fontWeight: FontWeight.bold,
+          fontSize: 16.0,
+          color: isDark ? Colors.white : const Color(0xFF0F172A),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(height / 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 14.0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+          child: Container(
+            height: height,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            decoration: BoxDecoration(
+              color: headerBgColor,
+              borderRadius: BorderRadius.circular(height / 2),
+              border: Border.all(color: effectiveBorder, width: 1.2),
+            ),
+            child: Center(child: titleContent),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRightPod(
+    BuildContext context,
+    bool isDark,
+    Color headerBgColor,
+    Color effectiveBorder,
+    bool hasLeftPod,
+  ) {
+    if (actions == null || actions!.isEmpty) {
+      if (hasLeftPod) {
+        return SizedBox(width: height);
+      }
+      return const SizedBox.shrink();
+    }
+
+    if (actions!.length == 1) {
+      final act = actions!.first;
+      Widget actChild = act;
+      if (act is IconButton) {
+        actChild = GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            act.onPressed?.call();
+          },
+          behavior: HitTestBehavior.opaque,
+          child: Center(
+            child: IconTheme(
+              data: IconThemeData(
+                size: 20.0,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              child: act.icon,
+            ),
+          ),
+        );
+      }
+
+      final singlePod = Container(
+        width: height,
+        height: height,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: headerBgColor,
+          border: Border.all(color: effectiveBorder, width: 1.2),
+        ),
+        child: Center(child: actChild),
+      );
+
+      return Container(
+        width: height,
+        height: height,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+              blurRadius: 14.0,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(height / 2),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            child: singlePod,
+          ),
+        ),
+      );
+    }
+
+    // Multiple actions -> Capsule Pod
+    final actionItems = actions!.map<Widget>((act) {
+      if (act is IconButton) {
+        return SizedBox(
+          width: 38.0,
+          height: 38.0,
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            iconSize: 20.0,
+            icon: IconTheme(
+              data: IconThemeData(
+                size: 20.0,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+              child: act.icon,
+            ),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              act.onPressed?.call();
+            },
+            tooltip: act.tooltip,
+          ),
+        );
+      }
+      return act;
+    }).toList();
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(height / 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 14.0,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(height / 2),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+          child: Container(
+            height: height,
+            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+            decoration: BoxDecoration(
+              color: headerBgColor,
+              borderRadius: BorderRadius.circular(height / 2),
+              border: Border.all(color: effectiveBorder, width: 1.2),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: actionItems,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final canPop = ModalRoute.of(context)?.canPop ?? false;
+    final hasLeft = leading != null || canPop;
+
+    final headerBgColor = backgroundColor ??
+        (isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF1F3F6));
+
+    final effectiveBorder = borderColor ??
+        (isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (hasLeft) ...[
+          _buildLeftPod(context, isDark, headerBgColor, effectiveBorder),
+          const SizedBox(width: 8.0),
+        ],
+        Expanded(
+          child: _buildCenterPod(context, isDark, headerBgColor, effectiveBorder),
+        ),
+        if (hasLeft || (actions != null && actions!.isNotEmpty)) ...[
+          const SizedBox(width: 8.0),
+          _buildRightPod(
+            context,
+            isDark,
+            headerBgColor,
+            effectiveBorder,
+            hasLeft,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 6. GLOBAL LIQUID GLASS SCAFFOLD (Reusable Master Shell for all Screens)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class VvcLiquidGlassScaffold extends StatefulWidget {
@@ -585,30 +924,6 @@ class VvcLiquidGlassScaffold extends StatefulWidget {
 
 class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
   bool _isScrolled = false;
-
-  Widget _buildLeading(BuildContext context, bool isDark) {
-    if (widget.leading != null) {
-      if (widget.leading is IconButton) {
-        final btn = widget.leading as IconButton;
-        return VvcLiquidGlassCircleButton(
-          onTap: btn.onPressed,
-          child: btn.icon,
-        );
-      }
-      return widget.leading!;
-    }
-    final canPop = ModalRoute.of(context)?.canPop ?? false;
-    if (!canPop) return const SizedBox(width: 38.0);
-
-    return VvcLiquidGlassCircleButton(
-      onTap: () => Navigator.maybePop(context),
-      child: Icon(
-        Icons.arrow_back_ios_new_rounded,
-        size: 15.0,
-        color: isDark ? Colors.white : const Color(0xFF0F172A),
-      ),
-    );
-  }
 
   Widget _buildTopTransitionZone(BuildContext context, bool isDark) {
     final topInset = MediaQuery.paddingOf(context).top;
@@ -674,72 +989,15 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
   Widget _buildFloatingGlassHeader(BuildContext context, bool isDark) {
     final topInset = MediaQuery.paddingOf(context).top;
 
-    final effectiveBorder = isDark
-        ? Colors.white.withValues(alpha: 0.12)
-        : const Color(0xFFE2E8F0);
-
-    final headerBgColor = isDark
-        ? const Color(0xFF222630)
-        : const Color(0xFFF1F3F6);
-
     return Positioned(
       top: topInset + 6.0,
-      left: 16.0,
-      right: 16.0,
-      child: Container(
-        height: 58.0,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(32.0),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-              blurRadius: 16.0,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(32.0),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-            child: Container(
-              height: 58.0,
-              padding: const EdgeInsets.symmetric(horizontal: 10.0),
-              decoration: BoxDecoration(
-                color: headerBgColor,
-                borderRadius: BorderRadius.circular(32.0),
-                border: Border.all(
-                  color: effectiveBorder,
-                  width: 1.2,
-                ),
-              ),
-              child: Row(
-                children: [
-                  _buildLeading(context, isDark),
-                  Expanded(
-                    child: Center(
-                      child: widget.titleWidget ??
-                          Text(
-                            widget.title ?? '',
-                            style: GoogleFonts.kantumruyPro(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16.5,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                    ),
-                  ),
-                  if (widget.actions != null && widget.actions!.isNotEmpty)
-                    Row(mainAxisSize: MainAxisSize.min, children: widget.actions!)
-                  else
-                    const SizedBox(width: 38.0),
-                ],
-              ),
-            ),
-          ),
-        ),
+      left: 14.0,
+      right: 14.0,
+      child: VvcFloatingHeaderPods(
+        title: widget.title,
+        titleWidget: widget.titleWidget,
+        leading: widget.leading,
+        actions: widget.actions,
       ),
     );
   }

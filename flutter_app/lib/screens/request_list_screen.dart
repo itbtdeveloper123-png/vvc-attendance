@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -305,12 +306,12 @@ class _RequestListScreenState extends State<RequestListScreen> {
       title: _isViewingTrash ? "ប៊ូតុងស្តារ" : "បញ្ជីសំណើ",
       actions: [
         IconButton(
-          icon: const Icon(Icons.refresh_rounded),
+          icon: const Icon(CupertinoIcons.arrow_clockwise),
           onPressed: _loadData,
           tooltip: 'ផ្ទុកឡើងវិញ',
         ),
         IconButton(
-          icon: Icon(_isViewingTrash ? Icons.list_alt : Icons.restore_from_trash_outlined),
+          icon: Icon(_isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash),
           onPressed: () => _viewTrash(),
           tooltip: _isViewingTrash ? 'បញ្ជីសំណើ' : 'ប៊ូតុងស្តារ',
         ),

@@ -193,20 +193,12 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      appBar: VvcAppBar(
-        title: Text(
-          'ប្រវត្តិស្កេនវត្តមាន',
-          style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppTheme.bgDark.withValues(alpha: 0.95),
-        elevation: 0,
-        centerTitle: true,
-      ),
+    return DynamicAppBarWrapper(
+      title: 'ប្រវត្តិស្កេនវត្តមាន',
       body: AppBackgroundShell(
         child: Column(
           children: [
+            SizedBox(height: MediaQuery.paddingOf(context).top + 60),
             _buildFilterBar(),
             Expanded(
               child: RefreshIndicator(

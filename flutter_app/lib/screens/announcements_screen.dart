@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../services/api_service.dart';
@@ -74,7 +75,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       title: "ការជូនដំណឹង",
       leading: Navigator.canPop(context)
           ? IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              icon: const Icon(CupertinoIcons.chevron_back),
               onPressed: () => Navigator.pop(context),
             )
           : null,
@@ -115,7 +116,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.campaign_outlined,
+            CupertinoIcons.speaker_2,
             color: AppTheme.textPrimary.withValues(alpha: 0.10),
             size: 80,
           ),
@@ -189,9 +190,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.campaign_rounded,
+                  CupertinoIcons.speaker_2_fill,
                   color: AppTheme.primary,
-                  size: 24,
+                  size: 22,
                 ),
               ),
               const SizedBox(width: 12),
@@ -211,7 +212,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       Row(
                         children: [
                           Icon(
-                            Icons.access_time_rounded,
+                            CupertinoIcons.clock,
                             color: AppTheme.textPrimary.withValues(alpha: 0.38),
                             size: 12,
                           ),

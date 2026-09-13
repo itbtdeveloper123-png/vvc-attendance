@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -239,7 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: isMe ? "ប្រវត្តិរូបសង្ខេប" : "ព័ត៌មានបុគ្គលិក",
       leading: canPop
           ? IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
+              icon: const Icon(CupertinoIcons.chevron_back),
               onPressed: () => Navigator.pop(context),
             )
           : null,
@@ -958,7 +959,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label: "កូដផ្ទៀងផ្ទាត់ 2FA (Authenticator)",
             color: const Color(0xFF0284C7),
             trailingWidget: const Icon(
-              Icons.arrow_forward_ios_rounded,
+              CupertinoIcons.chevron_right,
               size: 14,
               color: Colors.grey,
             ),
@@ -994,7 +995,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: AppTheme.primary,
             onTap: () => _showAccountSwitchSheet(context, user),
             trailingWidget: Icon(
-              Icons.arrow_forward_ios_rounded,
+              CupertinoIcons.chevron_right,
               size: 14,
               color: AppTheme.textPrimary.withValues(alpha: 0.25),
             ),
@@ -1006,7 +1007,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             endIndent: 16,
           ),
           _buildSwitchMenuItem(
-            icon: user.isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+            icon: user.isDarkMode ? CupertinoIcons.moon_fill : CupertinoIcons.sun_max_fill,
             label: "ទម្រង់ងងឹត (Dark Mode)",
             color: const Color(0xFFF3D010),
             value: user.isDarkMode,
@@ -1142,7 +1143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               trailingWidget ??
                   Icon(
-                    Icons.arrow_forward_ios_rounded,
+                    CupertinoIcons.chevron_right,
                     size: 14,
                     color: AppTheme.textPrimary.withValues(alpha: 0.25),
                   ),
@@ -1202,7 +1203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                  child: const Icon(CupertinoIcons.sparkles, color: Colors.white, size: 20),
                 ),
                 title: Text('✨ កាត់ Background ដោយ AI (Remove.bg)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
                 subtitle: Text('កាត់ផ្ទៃខាងក្រោយឱ្យថ្លា ស្អាតកម្រិត Studio HD', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),
@@ -1216,7 +1217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: AppTheme.isDarkMode ? const Color(0xFF2C2C2E) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.image_rounded, color: AppTheme.textSecondary, size: 20),
+                  child: Icon(CupertinoIcons.photo, color: AppTheme.textSecondary, size: 20),
                 ),
                 title: Text('រក្សារូបភាពដើម (Original Photo)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 subtitle: Text('ប្រើរូបភាពដើមទាំងស្រុងដោយមិនកាត់', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),

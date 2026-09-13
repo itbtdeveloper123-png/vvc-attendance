@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -61,7 +62,7 @@ class RequestsScreen extends StatelessWidget {
                               ),
                             ),
                             icon: Icon(
-                              Icons.history_rounded,
+                              CupertinoIcons.list_bullet_below_rectangle,
                               size: 18,
                               color: AppTheme.primary,
                             ),
@@ -139,35 +140,35 @@ class RequestsScreen extends StatelessWidget {
     _RequestItem(
       title: "ច្បាប់ឈប់សម្រាក",
       subtitle: "ស្នើសំណើច្បាប់ប្រចាំឆ្នាំ, ឈប់ជំងឺ ឬឈប់ផ្ទាល់",
-      icon: Icons.beach_access_rounded,
+      icon: CupertinoIcons.calendar_badge_minus,
       color: Colors.pinkAccent,
       screen: const LeaveRequestScreen(),
     ),
     _RequestItem(
       title: "ថែមម៉ោង (OT)",
       subtitle: "ស្នើសំណើថែមម៉ោងធ្វើការ",
-      icon: Icons.bolt_rounded,
+      icon: CupertinoIcons.bolt_fill,
       color: Colors.amberAccent,
       screen: const OtRequestScreen(),
     ),
     _RequestItem(
       title: "ភ្លេចស្កេន",
       subtitle: "ដាក់ពាក្យស្នើ Check-In/Out ដែលភ្លេច",
-      icon: Icons.history_rounded,
+      icon: CupertinoIcons.hand_raised_fill,
       color: Colors.purpleAccent,
       screen: const ForgetScanScreen(),
     ),
     _RequestItem(
       title: "មកថ្ងៃត្រូវវែ (Late)",
       subtitle: "ស្នើបញ្ជាក់ហេតុផលមកយឺត",
-      icon: Icons.access_time_rounded,
+      icon: CupertinoIcons.clock_fill,
       color: Colors.orangeAccent,
       screen: const LateRequestScreen(),
     ),
     _RequestItem(
       title: "ប្តូរថ្ងៃ OFF",
       subtitle: "ស្នើប្តូរថ្ងៃឈប់សម្រាក",
-      icon: Icons.swap_horiz_rounded,
+      icon: CupertinoIcons.arrow_2_squarepath,
       color: Colors.tealAccent,
       screen: const ChangeDayOffScreen(),
     ),
