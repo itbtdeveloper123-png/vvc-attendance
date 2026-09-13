@@ -105,6 +105,7 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   bool _isUpdateDialogVisible = false;
+  bool _isScrolled = false;
 
   List<Widget> _getScreens(UserProvider user) {
     return [
@@ -359,11 +360,14 @@ class HomeScreenState extends State<HomeScreen> {
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
       bottomInset: bottomInset,
-      backgroundColor: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF1F3F6),
+      isScrolled: _isScrolled,
+      backgroundColor: isDark
+          ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+          : const Color(0xFFF1F3F6).withValues(alpha: 0.92),
       accentColor: const Color(0xFF0A84FF),
-      trailingAction: const Icon(
+      trailingAction: Icon(
         CupertinoIcons.qrcode_viewfinder,
-        color: Colors.white,
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
         size: 26.0,
       ),
       onTrailingActionTap: () {
@@ -405,20 +409,31 @@ class HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         extendBody: true,
         backgroundColor: theme.backgroundColor,
-        body: Stack(
-          children: [
-            // 1. Content Screens
-            IndexedStack(index: _currentIndex, children: screens),
+        body: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.metrics.axis == Axis.vertical) {
+              final scrolled = notification.metrics.pixels > 6.0;
+              if (scrolled != _isScrolled) {
+                setState(() => _isScrolled = scrolled);
+              }
+            }
+            return false;
+          },
+          child: Stack(
+            children: [
+              // 1. Content Screens
+              IndexedStack(index: _currentIndex, children: screens),
 
-            // 2. Scroll-Aware Localized Fade & Blur Transition Zone (Requirements 3-7)
-            scrollAwareNavBar.buildTransitionZone(
-              context: context,
-              maskColor: theme.backgroundColor,
-            ),
+              // 2. Scroll-Aware Localized Fade & Blur Transition Zone (Requirements 3-7)
+              scrollAwareNavBar.buildTransitionZone(
+                context: context,
+                maskColor: theme.backgroundColor,
+              ),
 
-            // 3. Floating Quick Action Bubbles (AI Assistant & Chat)
-            _buildFloatingActionBubbles(bottomInset),
-          ],
+              // 3. Floating Quick Action Bubbles (AI Assistant & Chat)
+              _buildFloatingActionBubbles(bottomInset),
+            ],
+          ),
         ),
         bottomNavigationBar: scrollAwareNavBar.buildFloatingDock(context: context),
       ),

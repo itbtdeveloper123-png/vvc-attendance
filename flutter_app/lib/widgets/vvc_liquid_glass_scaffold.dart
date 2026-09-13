@@ -45,6 +45,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
   final Widget? trailingAction;
   final VoidCallback? onTrailingActionTap;
   final bool isScrolled;
+  final bool alwaysShowGlass;
 
   const VvcLiquidGlassBottomBar({
     super.key,
@@ -62,6 +63,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     this.trailingAction,
     this.onTrailingActionTap,
     this.isScrolled = false,
+    this.alwaysShowGlass = true,
   });
 
   VvcLiquidGlassBottomBar copyWith({
@@ -79,6 +81,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     Widget? trailingAction,
     VoidCallback? onTrailingActionTap,
     bool? isScrolled,
+    bool? alwaysShowGlass,
   }) {
     return VvcLiquidGlassBottomBar(
       currentIndex: currentIndex ?? this.currentIndex,
@@ -95,6 +98,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
       trailingAction: trailingAction ?? this.trailingAction,
       onTrailingActionTap: onTrailingActionTap ?? this.onTrailingActionTap,
       isScrolled: isScrolled ?? this.isScrolled,
+      alwaysShowGlass: alwaysShowGlass ?? this.alwaysShowGlass,
     );
   }
 
@@ -111,6 +115,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     final effectiveMask = maskColor ??
         (isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC));
     final double totalHeight = transitionHeight + bottomInset;
+    final hasMask = isScrolled;
 
     return Positioned(
       left: 0,
@@ -121,7 +126,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
-          opacity: isScrolled ? 0.92 : 0.0,
+          opacity: hasMask ? 0.92 : 0.0,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -152,6 +157,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     final effectiveMask = maskColor ??
         (isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC));
     final double topInset = MediaQuery.paddingOf(context).top;
+    final hasMask = isScrolled;
 
     return Positioned(
       left: 0,
@@ -162,7 +168,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
-          opacity: isScrolled ? 0.92 : 0.0,
+          opacity: hasMask ? 0.92 : 0.0,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -188,23 +194,27 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     final effectiveAccent = accentColor ?? const Color(0xFF0A84FF); // Apple Blue
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const double dockHeight = 64.0;
+    final hasGlass = alwaysShowGlass || isScrolled;
 
     final targetBorder = borderColor ??
         (isDark
             ? const Color(0x38545458)
             : const Color(0xFFE2E8F0));
 
-    final targetBg = backgroundColor ??
-        (isDark
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
-            : const Color(0xFFF1F3F6).withValues(alpha: 0.82));
+    final targetBg = backgroundColor != null
+        ? (backgroundColor!.a >= 0.99
+            ? backgroundColor!.withValues(alpha: isDark ? 0.88 : 0.92)
+            : backgroundColor!)
+        : (isDark
+            ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+            : const Color(0xFFF1F3F6).withValues(alpha: 0.92));
 
-    final effectiveBorder = isScrolled ? targetBorder : Colors.transparent;
-    final effectiveBg = isScrolled ? targetBg : Colors.transparent;
-    final effectiveShadow = isScrolled
+    final effectiveBorder = hasGlass ? targetBorder : Colors.transparent;
+    final effectiveBg = hasGlass ? targetBg : Colors.transparent;
+    final effectiveShadow = hasGlass
         ? [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+              color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.08),
               blurRadius: 18.0,
               offset: const Offset(0, 4),
             ),
@@ -218,58 +228,58 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
         children: [
           // 1. LEFT MAIN NAVIGATION DOCK CAPSULE
           Expanded(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 0.0, end: isScrolled ? blurSigma : 0.0),
+            child: AnimatedContainer(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeInOutCubic,
-              builder: (context, blur, child) {
-                if (blur <= 0.05) {
-                  return child!;
-                }
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(36.0),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                    child: child,
-                  ),
-                );
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeInOutCubic,
-                height: dockHeight,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(36.0),
-                  boxShadow: effectiveShadow,
-                ),
-                child: Container(
-                  height: dockHeight,
-                  padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
-                  decoration: BoxDecoration(
-                    color: effectiveBg,
-                    borderRadius: BorderRadius.circular(36.0),
-                    border: Border.all(
-                      color: effectiveBorder,
-                      width: 1.2,
+              height: dockHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(36.0),
+                boxShadow: effectiveShadow,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(36.0),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeInOutCubic,
+                  builder: (context, blur, child) {
+                    if (blur <= 0.05) {
+                      return child!;
+                    }
+                    return BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    height: dockHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
+                    decoration: BoxDecoration(
+                      color: effectiveBg,
+                      borderRadius: BorderRadius.circular(36.0),
+                      border: Border.all(
+                        color: effectiveBorder,
+                        width: 1.2,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: List.generate(items.length, (index) {
-                      final item = items[index];
-                      final isSelected = index == currentIndex;
-                      return Expanded(
-                        child: _buildDockItem(
-                          context: context,
-                          item: item,
-                          isSelected: isSelected,
-                          activeColor: effectiveAccent,
-                          onItemTap: () {
-                            _triggerHaptic();
-                            onTap(index);
-                          },
-                        ),
-                      );
-                    }),
+                    child: Row(
+                      children: List.generate(items.length, (index) {
+                        final item = items[index];
+                        final isSelected = index == currentIndex;
+                        return Expanded(
+                          child: _buildDockItem(
+                            context: context,
+                            item: item,
+                            isSelected: isSelected,
+                            activeColor: effectiveAccent,
+                            onItemTap: () {
+                              _triggerHaptic();
+                              onTap(index);
+                            },
+                          ),
+                        );
+                      }),
+                    ),
                   ),
                 ),
               ),
@@ -285,36 +295,43 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
                 onTrailingActionTap?.call();
               },
               behavior: HitTestBehavior.opaque,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0.0, end: isScrolled ? blurSigma : 0.0),
+              child: AnimatedContainer(
                 duration: const Duration(milliseconds: 240),
                 curve: Curves.easeInOutCubic,
-                builder: (context, blur, child) {
-                  if (blur <= 0.05) {
-                    return child!;
-                  }
-                  return ClipOval(
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                      child: child,
+                width: dockHeight,
+                height: dockHeight,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: effectiveShadow,
+                ),
+                child: ClipOval(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    builder: (context, blur, child) {
+                      if (blur <= 0.05) {
+                        return child!;
+                      }
+                      return BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      width: dockHeight,
+                      height: dockHeight,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: effectiveBg,
+                        border: Border.all(
+                          color: effectiveBorder,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Center(child: trailingAction!),
                     ),
-                  );
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeInOutCubic,
-                  width: dockHeight,
-                  height: dockHeight,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: effectiveBg,
-                    border: Border.all(
-                      color: effectiveBorder,
-                      width: 1.2,
-                    ),
-                    boxShadow: effectiveShadow,
                   ),
-                  child: Center(child: trailingAction!),
                 ),
               ),
             ),
@@ -339,8 +356,11 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
 
     // Active pill indicator wrapping both icon and label
     final activePillBg = isDark
-        ? Colors.white.withValues(alpha: 0.12)
-        : Colors.black.withValues(alpha: 0.06);
+        ? Colors.white.withValues(alpha: 0.14)
+        : Colors.black.withValues(alpha: 0.08);
+
+    final unselectedColor = unselectedItemColor ??
+        (isDark ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF64748B));
 
     return GestureDetector(
       onTap: onItemTap,
@@ -364,9 +384,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
               children: [
                 Icon(
                   iconData,
-                  color: isSelected
-                      ? activeColor
-                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                  color: isSelected ? activeColor : unselectedColor,
                   size: 22.0,
                 ),
                 if (hasLabel) ...[
@@ -376,9 +394,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
                     style: GoogleFonts.kantumruyPro(
                       fontSize: 11.0,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected
-                          ? activeColor
-                          : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                      color: isSelected ? activeColor : unselectedColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
