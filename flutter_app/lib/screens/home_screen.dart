@@ -3559,51 +3559,30 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // ── Frosted Scroll Blur & Dissolve Underlay (Active ONLY during scroll, NO background at rest!) ──
-          if (scrollController != null)
-            AnimatedBuilder(
-              animation: scrollController!,
-              builder: (context, _) {
-                final offset = scrollController!.hasClients ? scrollController!.offset : 0.0;
-                final progress = (offset / 32.0).clamp(0.0, 1.0);
-
-                // At rest (offset <= 0): ZERO background! The 3 Pods float completely cleanly.
-                if (progress <= 0.0) {
-                  return const SizedBox.shrink();
-                }
-
-                return Positioned.fill(
-                  child: IgnorePointer(
-                    child: Opacity(
-                      opacity: progress,
-                      child: ClipRect(
-                        child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(
-                            sigmaX: 18.0 * progress,
-                            sigmaY: 18.0 * progress,
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  theme.backgroundColor,
-                                  theme.backgroundColor.withValues(alpha: 0.95),
-                                  theme.backgroundColor.withValues(alpha: 0.45),
-                                  theme.backgroundColor.withValues(alpha: 0.0),
-                                ],
-                                stops: const [0.0, 0.35, 0.72, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+          // ── Scroll-Aware Top Transition Zone (Clear, matching Bottom Navigation Bar Transition Zone - NO background blur) ──
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: topPadding + 68.0,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      theme.backgroundColor.withValues(alpha: 0.98),
+                      theme.backgroundColor.withValues(alpha: 0.75),
+                      theme.backgroundColor.withValues(alpha: 0.30),
+                      theme.backgroundColor.withValues(alpha: 0.0),
+                    ],
+                    stops: const [0.0, 0.40, 0.75, 1.0],
                   ),
-                );
-              },
+                ),
+              ),
             ),
+          ),
 
           // ── Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island) ──
           Positioned(
