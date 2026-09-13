@@ -96,6 +96,41 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     );
   }
 
+  /// Top Edge Ambient Transition Zone (Smooth Apple iOS Top Ambient Fade)
+  Widget buildTopTransitionZone({
+    required BuildContext context,
+    Color? maskColor,
+    double height = 48.0,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveMask = maskColor ??
+        (isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC));
+    final double topInset = MediaQuery.paddingOf(context).top;
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      height: topInset + height,
+      child: IgnorePointer(
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                effectiveMask.withValues(alpha: 0.40),
+                effectiveMask.withValues(alpha: 0.15),
+                effectiveMask.withValues(alpha: 0.0),
+              ],
+              stops: const [0.0, 0.55, 1.0],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 2. Floating Liquid Glass Dock Container (Apple iOS Liquid Glass Refraction & Caustics)
   Widget buildFloatingDock({required BuildContext context}) {
     final double bottomMargin = bottomInset > 0 ? bottomInset + 4.0 : 14.0;

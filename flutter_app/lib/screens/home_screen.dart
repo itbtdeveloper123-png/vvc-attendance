@@ -627,6 +627,10 @@ class _HomeContentState extends State<HomeContent> {
   Timer? _bannerAutoTimer;
   List<dynamic> _banners = [];
 
+  // ===== Apple iOS Scroll Frosted Glass Header Tracking =====
+  late final ScrollController _homeScrollController;
+  bool _isHeaderScrolled = false;
+
   // ===== Feature #1: Live Work Timer =====
   DateTime? _checkInTime;
   Timer? _liveTimerTick;
@@ -655,9 +659,21 @@ class _HomeContentState extends State<HomeContent> {
     setState(fn);
   }
 
+  void _onHomeScroll() {
+    if (!_homeScrollController.hasClients) return;
+    final scrolled = _homeScrollController.offset > 4.0;
+    if (scrolled != _isHeaderScrolled) {
+      _safeSetState(() {
+        _isHeaderScrolled = scrolled;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _homeScrollController = ScrollController();
+    _homeScrollController.addListener(_onHomeScroll);
     _loadStats();
     _loadNextAction();
     _loadStreak();
@@ -972,6 +988,8 @@ class _HomeContentState extends State<HomeContent> {
     _liveTimerTick?.cancel();
     _statsController.dispose();
     _bannerController.dispose();
+    _homeScrollController.removeListener(_onHomeScroll);
+    _homeScrollController.dispose();
     super.dispose();
   }
 
@@ -1157,6 +1175,7 @@ class _HomeContentState extends State<HomeContent> {
             color: theme.cardPrimary,
             backgroundColor: theme.backgroundColor,
             child: CustomScrollView(
+              controller: _homeScrollController,
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
@@ -1170,6 +1189,7 @@ class _HomeContentState extends State<HomeContent> {
                     unreadNotifications: _unreadNotifications,
                     onProfileTap: widget.onProfileTap,
                     topPadding: MediaQuery.paddingOf(context).top,
+                    isScrolled: _isHeaderScrolled,
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -3493,6 +3513,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
   final int unreadNotifications;
   final VoidCallback? onProfileTap;
   final double topPadding;
+  final bool isScrolled;
 
   _HomeHeaderDelegate({
     required this.user,
@@ -3501,6 +3522,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.unreadNotifications,
     this.onProfileTap,
     required this.topPadding,
+    this.isScrolled = false,
   });
 
   @override
@@ -3515,19 +3537,19 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final isScrolled = overlapsContent || shrinkOffset > 2.0;
+    final effectiveScrolled = isScrolled || overlapsContent || shrinkOffset > 2.0;
     final isDark = theme.isDarkTheme;
     const primaryGold = Color(0xFFF3D010);
 
     final headerBgColor = isDark
-        ? const Color(0xFF1E293B).withValues(alpha: isScrolled ? 0.65 : 0.50)
-        : const Color(0xFFE2E8F0).withValues(alpha: isScrolled ? 0.45 : 0.35);
+        ? const Color(0xFF1E293B).withValues(alpha: effectiveScrolled ? 0.65 : 0.50)
+        : const Color(0xFFE2E8F0).withValues(alpha: effectiveScrolled ? 0.45 : 0.35);
 
     final effectiveBorder = isDark
-        ? (isScrolled
+        ? (effectiveScrolled
             ? Colors.white.withValues(alpha: 0.35)
             : Colors.white.withValues(alpha: 0.18))
-        : (isScrolled
+        : (effectiveScrolled
             ? Colors.white.withValues(alpha: 0.85)
             : Colors.white.withValues(alpha: 0.65));
 
@@ -3540,7 +3562,88 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island)
+          // ── 1. Authentic Apple iOS Frosted Glass Header Bar (Status Bar + Navigation Bar) ──
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              tween: Tween<double>(begin: 0.0, end: effectiveScrolled ? 1.0 : 0.0),
+              builder: (context, animValue, _) {
+                if (animValue <= 0.01) {
+                  return const SizedBox.shrink();
+                }
+                return ClipRect(
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(
+                      sigmaX: 25.0 * animValue,
+                      sigmaY: 25.0 * animValue,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF0F1115).withValues(alpha: 0.78 * animValue)
+                            : Colors.white.withValues(alpha: 0.82 * animValue),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.12 * animValue)
+                                : const Color(0xFFCBD5E1).withValues(alpha: 0.70 * animValue),
+                            width: 0.8,
+                          ),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: (isDark ? 0.35 : 0.05) * animValue),
+                            blurRadius: 16.0,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // ── 2. Top Ambient Transition Zone below Header (Matches Bottom Transition Zone) ──
+          Positioned(
+            top: topPadding + 68.0,
+            left: 0,
+            right: 0,
+            height: 24.0,
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              tween: Tween<double>(begin: 0.0, end: effectiveScrolled ? 1.0 : 0.0),
+              builder: (context, animValue, _) {
+                if (animValue <= 0.01) {
+                  return const SizedBox.shrink();
+                }
+                final fadeColor = isDark ? const Color(0xFF0F1115) : Colors.white;
+                return IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          fadeColor.withValues(alpha: 0.28 * animValue),
+                          fadeColor.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // ── 3. Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island) ──
           Positioned(
             top: topPadding + 6.0,
             left: 14.0,
@@ -3552,7 +3655,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 _buildCircularGlassPod(
                   size: 48.0,
                   isDark: isDark,
-                  isScrolled: isScrolled,
+                  isScrolled: effectiveScrolled,
                   headerBgColor: headerBgColor,
                   effectiveBorder: effectiveBorder,
                   primaryGold: primaryGold,
@@ -3573,7 +3676,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                   child: _buildProfileCapsulePod(
                     context: context,
                     isDark: isDark,
-                    isScrolled: isScrolled,
+                    isScrolled: effectiveScrolled,
                     headerBgColor: headerBgColor,
                     effectiveBorder: effectiveBorder,
                     primaryGold: primaryGold,
@@ -3586,7 +3689,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 _buildCircularGlassPod(
                   size: 48.0,
                   isDark: isDark,
-                  isScrolled: isScrolled,
+                  isScrolled: effectiveScrolled,
                   headerBgColor: headerBgColor,
                   effectiveBorder: effectiveBorder,
                   primaryGold: primaryGold,
@@ -3867,6 +3970,35 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     required VoidCallback onTap,
     required Widget child,
   }) {
+    final podContent = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: const Alignment(-0.5, -1.0),
+          end: const Alignment(0.5, 1.0),
+          colors: isDark
+              ? [
+                  Colors.white.withValues(alpha: 0.18),
+                  headerBgColor,
+                  const Color(0xFF0F172A).withValues(alpha: isScrolled ? 0.65 : 0.50),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.75),
+                  headerBgColor,
+                  const Color(0xFFCBD5E1).withValues(alpha: isScrolled ? 0.40 : 0.30),
+                ],
+          stops: const [0.0, 0.30, 1.0],
+        ),
+        border: Border.all(
+          color: effectiveBorder,
+          width: 1.2,
+        ),
+      ),
+      child: child,
+    );
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -3891,37 +4023,12 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(size / 2),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: const Alignment(-0.5, -1.0),
-                  end: const Alignment(0.5, 1.0),
-                  colors: isDark
-                      ? [
-                          Colors.white.withValues(alpha: 0.18),
-                          headerBgColor,
-                          const Color(0xFF0F172A).withValues(alpha: isScrolled ? 0.65 : 0.50),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.75),
-                          headerBgColor,
-                          const Color(0xFFCBD5E1).withValues(alpha: isScrolled ? 0.40 : 0.30),
-                        ],
-                  stops: const [0.0, 0.30, 1.0],
+          child: isScrolled
+              ? podContent
+              : BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                  child: podContent,
                 ),
-                border: Border.all(
-                  color: effectiveBorder,
-                  width: 1.2,
-                ),
-              ),
-              child: child,
-            ),
-          ),
         ),
       ),
     );
@@ -3935,38 +4042,16 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     required Color effectiveBorder,
     required Color primaryGold,
   }) {
-    return Container(
-      height: 54.0,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30.0),
-        boxShadow: [
-          BoxShadow(
-            color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.05),
-            blurRadius: 18,
-            spreadRadius: -2,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.06 : 0.02)),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30.0),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
-          child: GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              onProfileTap?.call();
-            },
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              height: 54.0,
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-              decoration: BoxDecoration(
+    final capsuleContent = GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onProfileTap?.call();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 54.0,
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+        decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(30.0),
                 gradient: LinearGradient(
                   begin: const Alignment(-0.5, -1.0),
@@ -4121,8 +4206,34 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 ],
               ),
             ),
+          );
+
+    return Container(
+      height: 54.0,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30.0),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGold.withValues(alpha: isScrolled ? 0.14 : 0.05),
+            blurRadius: 18,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
           ),
-        ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.38 : (isScrolled ? 0.06 : 0.02)),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30.0),
+        child: isScrolled
+            ? capsuleContent
+            : BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
+                child: capsuleContent,
+              ),
       ),
     );
   }
@@ -4148,6 +4259,7 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
         oldDelegate.theme != theme ||
         oldDelegate.greeting != greeting ||
         oldDelegate.unreadNotifications != unreadNotifications ||
-        oldDelegate.topPadding != topPadding;
+        oldDelegate.topPadding != topPadding ||
+        oldDelegate.isScrolled != isScrolled;
   }
 }
