@@ -359,7 +359,7 @@ class HomeScreenState extends State<HomeScreen> {
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
       bottomInset: bottomInset,
-      backgroundColor: isDark ? const Color(0xFF181A20) : const Color(0xFFE2E8F0),
+      backgroundColor: isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6),
       accentColor: const Color(0xFFF3D010),
       items: [
         // 1. Home / Dashboard (Left)
@@ -1149,11 +1149,8 @@ class _HomeContentState extends State<HomeContent> {
     final user = Provider.of<UserProvider>(context);
     final theme = user.companyTheme;
 
-    return GlassOrbBackground(
-      baseColor: theme.backgroundColor,
-      primaryOrbColor: theme.orbPrimary,
-      secondaryOrbColor: theme.orbSecondary,
-      accentOrbColor: theme.orbAccent,
+    return Container(
+      color: theme.backgroundColor,
       child: Stack(
         children: [
           RefreshIndicator(
@@ -3559,6 +3556,32 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          // ── Frosted Scroll Blur & Dissolve Underlay behind the 3 Pods ──
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          theme.backgroundColor,
+                          theme.backgroundColor.withValues(alpha: 0.96),
+                          theme.backgroundColor.withValues(alpha: 0.60),
+                          theme.backgroundColor.withValues(alpha: 0.0),
+                        ],
+                        stops: const [0.0, 0.40, 0.78, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           // ── Three Standalone Floating Glass Pods (Left Island, Center Capsule, Right Island) ──
           Positioned(
             top: topPadding + 6.0,

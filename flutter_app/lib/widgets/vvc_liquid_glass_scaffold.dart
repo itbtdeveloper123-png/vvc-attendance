@@ -141,8 +141,11 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
 
     final effectiveBorder = borderColor ??
         (isDark
-            ? Colors.white.withValues(alpha: 0.22)
-            : Colors.white.withValues(alpha: 0.70));
+            ? Colors.white.withValues(alpha: 0.12)
+            : const Color(0xFFE2E8F0));
+
+    final dockBgColor = backgroundColor ??
+        (isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6));
 
     return Container(
       margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
@@ -150,18 +153,11 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(36.0),
         boxShadow: [
-          // A. Ambient Caustic Under-Glow (Liquid gold refraction)
+          // Deep Ambient Glass Drop Shadow (Clean - NO yellow caustic glow)
           BoxShadow(
-            color: primaryGold.withValues(alpha: isDark ? 0.16 : 0.10),
-            blurRadius: 26.0,
-            spreadRadius: -2.0,
-            offset: const Offset(0, 6),
-          ),
-          // B. Deep Ambient Glass Drop Shadow
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.07),
-            blurRadius: 20.0,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+            blurRadius: 18.0,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -173,23 +169,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
             height: dockHeight,
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             decoration: BoxDecoration(
-              // Specular Top-Rim Light (Authentic Cupertino Liquid Glass)
-              gradient: LinearGradient(
-                begin: const Alignment(-0.5, -1.0),
-                end: const Alignment(0.5, 1.0),
-                colors: isDark
-                    ? [
-                        Colors.white.withValues(alpha: 0.18),
-                        const Color(0xFF1E293B).withValues(alpha: 0.55),
-                        const Color(0xFF0F172A).withValues(alpha: 0.65),
-                      ]
-                    : [
-                        Colors.white.withValues(alpha: 0.75),
-                        const Color(0xFFE2E8F0).withValues(alpha: 0.42),
-                        const Color(0xFFCBD5E1).withValues(alpha: 0.32),
-                      ],
-                stops: const [0.0, 0.25, 1.0],
-              ),
+              color: dockBgColor,
               borderRadius: BorderRadius.circular(36.0),
               border: Border.all(
                 color: effectiveBorder,
