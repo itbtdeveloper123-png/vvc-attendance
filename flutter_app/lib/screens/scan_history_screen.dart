@@ -26,6 +26,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
 
   bool _isLoading = true;
   bool _isLoadingMore = false;
+  bool _isScrolled = false;
   List<dynamic> _logs = [];
   String? _error;
 
@@ -61,6 +62,12 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   }
 
   void _onScroll() {
+    if (_scrollController.hasClients) {
+      final scrolled = _scrollController.offset > 12;
+      if (scrolled != _isScrolled) {
+        setState(() => _isScrolled = scrolled);
+      }
+    }
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       if (!_isLoading && !_isLoadingMore && _hasMore) {
@@ -280,11 +287,22 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
         children: [
           // 1. Scrollable List beneath the floating header
           Positioned.fill(
-            child: RefreshIndicator(
-              onRefresh: _fetchHistory,
-              color: const Color(0xFF0A84FF),
-              edgeOffset: headerTotalHeight,
-              child: _buildBody(topPadding: headerTotalHeight),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics.axis == Axis.vertical) {
+                  final scrolled = notification.metrics.pixels > 12;
+                  if (scrolled != _isScrolled) {
+                    setState(() => _isScrolled = scrolled);
+                  }
+                }
+                return false;
+              },
+              child: RefreshIndicator(
+                onRefresh: _fetchHistory,
+                color: const Color(0xFF0A84FF),
+                edgeOffset: headerTotalHeight,
+                child: _buildBody(topPadding: headerTotalHeight),
+              ),
             ),
           ),
 
@@ -326,21 +344,27 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
             borderRadius: BorderRadius.circular(22),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  color: _isScrolled
+                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.12),
+                    color: _isScrolled
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : Colors.white.withValues(alpha: 0.08),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                      blurRadius: _isScrolled ? 14 : 6,
+                      offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
                 ),
@@ -372,21 +396,27 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
               borderRadius: BorderRadius.circular(22),
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOutCubic,
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                    color: _isScrolled
+                        ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                        : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: _isScrolled
+                          ? Colors.white.withValues(alpha: 0.16)
+                          : Colors.white.withValues(alpha: 0.08),
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                        blurRadius: _isScrolled ? 14 : 6,
+                        offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
                     ],
                   ),
@@ -490,12 +520,16 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFF0A84FF).withValues(alpha: 0.22)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.70),
+                        : _isScrolled
+                            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
+                            : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
                           ? const Color(0xFF0A84FF).withValues(alpha: 0.70)
-                          : Colors.white.withValues(alpha: 0.08),
+                          : _isScrolled
+                              ? Colors.white.withValues(alpha: 0.14)
+                              : Colors.white.withValues(alpha: 0.07),
                       width: isSelected ? 1.2 : 1.0,
                     ),
                     boxShadow: isSelected

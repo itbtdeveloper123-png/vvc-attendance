@@ -44,6 +44,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
   Timer? _pollingTimer;
   bool _isViewingTrash = false; // Track if viewing trash
   String _selectedStatusFilter = 'all'; // 'all', 'pending', 'approved', 'rejected'
+  bool _isScrolled = false;
 
   @override
   void initState() {
@@ -333,69 +334,80 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
           // 2. Main content list smoothly scrolling underneath frosted top components
           Positioned.fill(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF0A84FF),
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _loadData,
-                    color: const Color(0xFF0A84FF),
-                    edgeOffset: headerTotalHeight,
-                    child: _filtered.isEmpty
-                        ? _buildEmptyState(topPadding: headerTotalHeight)
-                        : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
-                            ? GridView.builder(
-                                padding: EdgeInsets.fromLTRB(24, headerTotalHeight + 6, 24, 24),
-                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
-                                  childAspectRatio: 2.1,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 14,
-                                ),
-                                physics: const BouncingScrollPhysics(),
-                                itemCount: _filtered.length,
-                                itemBuilder: (context, index) =>
-                                    _buildRequestCard(_filtered[index], index),
-                              )
-                            : AnimationLimiter(
-                                child: ListView.builder(
-                                  padding: EdgeInsets.fromLTRB(
-                                    AppResponsive.horizontalPadding(context),
-                                    headerTotalHeight + 6,
-                                    AppResponsive.horizontalPadding(context),
-                                    AppResponsive.bottomPadding(
-                                      context,
-                                      hasBottomNav:
-                                          ModalRoute.of(context)?.isFirst ??
-                                          false,
-                                    ),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics.axis == Axis.vertical) {
+                  final scrolled = notification.metrics.pixels > 12;
+                  if (scrolled != _isScrolled) {
+                    _safeSetState(() => _isScrolled = scrolled);
+                  }
+                }
+                return false;
+              },
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF0A84FF),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadData,
+                      color: const Color(0xFF0A84FF),
+                      edgeOffset: headerTotalHeight,
+                      child: _filtered.isEmpty
+                          ? _buildEmptyState(topPadding: headerTotalHeight)
+                          : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
+                              ? GridView.builder(
+                                  padding: EdgeInsets.fromLTRB(24, headerTotalHeight + 6, 24, 24),
+                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+                                    childAspectRatio: 2.1,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 14,
                                   ),
                                   physics: const BouncingScrollPhysics(),
                                   itemCount: _filtered.length,
                                   itemBuilder: (context, index) =>
-                                      AnimationConfiguration.staggeredList(
-                                        position: index,
-                                        duration: const Duration(
-                                          milliseconds: 400,
-                                        ),
-                                        child: SlideAnimation(
-                                          verticalOffset: 50.0,
-                                          child: FadeInAnimation(
-                                            child: AppResponsive.maxWidth(
-                                              context: context,
-                                              child: _buildRequestCard(
-                                                _filtered[index],
-                                                index,
+                                      _buildRequestCard(_filtered[index], index),
+                                )
+                              : AnimationLimiter(
+                                  child: ListView.builder(
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppResponsive.horizontalPadding(context),
+                                      headerTotalHeight + 6,
+                                      AppResponsive.horizontalPadding(context),
+                                      AppResponsive.bottomPadding(
+                                        context,
+                                        hasBottomNav:
+                                            ModalRoute.of(context)?.isFirst ??
+                                            false,
+                                      ),
+                                    ),
+                                    physics: const BouncingScrollPhysics(),
+                                    itemCount: _filtered.length,
+                                    itemBuilder: (context, index) =>
+                                        AnimationConfiguration.staggeredList(
+                                          position: index,
+                                          duration: const Duration(
+                                            milliseconds: 400,
+                                          ),
+                                          child: SlideAnimation(
+                                            verticalOffset: 50.0,
+                                            child: FadeInAnimation(
+                                              child: AppResponsive.maxWidth(
+                                                context: context,
+                                                child: _buildRequestCard(
+                                                  _filtered[index],
+                                                  index,
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                ),
-                              )),
-                  ),
+                                  ),
+                                )),
+                    ),
+            ),
           ),
 
           // 3. Floating Liquid Glass Header Pods + Search Bar + Status Filter Strip
@@ -438,21 +450,27 @@ class _RequestListScreenState extends State<RequestListScreen> {
             borderRadius: BorderRadius.circular(22),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  color: _isScrolled
+                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.10),
+                    color: _isScrolled
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : Colors.white.withValues(alpha: 0.08),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                      blurRadius: _isScrolled ? 14 : 6,
+                      offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
                 ),
@@ -484,21 +502,27 @@ class _RequestListScreenState extends State<RequestListScreen> {
               borderRadius: BorderRadius.circular(22),
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOutCubic,
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                    color: _isScrolled
+                        ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                        : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.10),
+                      color: _isScrolled
+                          ? Colors.white.withValues(alpha: 0.16)
+                          : Colors.white.withValues(alpha: 0.08),
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                        blurRadius: _isScrolled ? 14 : 6,
+                        offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
                     ],
                   ),
@@ -546,20 +570,26 @@ class _RequestListScreenState extends State<RequestListScreen> {
             borderRadius: BorderRadius.circular(22),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  color: _isScrolled
+                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.10),
+                    color: _isScrolled
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : Colors.white.withValues(alpha: 0.08),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                      blurRadius: _isScrolled ? 14 : 6,
+                      offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
                 ),
@@ -634,15 +664,28 @@ class _RequestListScreenState extends State<RequestListScreen> {
         borderRadius: BorderRadius.circular(14),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOutCubic,
             height: 42,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E).withValues(alpha: 0.78),
+              color: _isScrolled
+                  ? const Color(0xFF1C1C1E).withValues(alpha: 0.85)
+                  : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: _isScrolled
+                    ? Colors.white.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.07),
                 width: 1.0,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: _isScrolled ? 0.35 : 0.10),
+                  blurRadius: _isScrolled ? 12 : 4,
+                  offset: Offset(0, _isScrolled ? 3 : 1),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -773,12 +816,16 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? accent.withValues(alpha: 0.22)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.70),
+                        : _isScrolled
+                            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
+                            : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
                           ? accent.withValues(alpha: 0.70)
-                          : Colors.white.withValues(alpha: 0.08),
+                          : _isScrolled
+                              ? Colors.white.withValues(alpha: 0.14)
+                              : Colors.white.withValues(alpha: 0.07),
                       width: isSelected ? 1.2 : 1.0,
                     ),
                     boxShadow: isSelected

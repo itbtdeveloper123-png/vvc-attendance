@@ -25,6 +25,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   final _searchController = TextEditingController();
   List<NotificationModel> _notifications = [];
   bool _isLoading = true;
+  bool _isScrolled = false;
   String? _error;
   String _filter = 'all'; // 'all', 'unread', 'read'
   Timer? _pollingTimer;
@@ -201,18 +202,29 @@ class _NotificationScreenState extends State<NotificationScreen> {
         children: [
           // 1. Main List / Content smoothly scrolling underneath floating pods
           Positioned.fill(
-            child: _isLoading
-                ? _buildShimmerList(topPadding: headerTotalHeight)
-                : _error != null
-                    ? _buildErrorState(topPadding: headerTotalHeight)
-                    : RefreshIndicator(
-                        onRefresh: _fetchNotifications,
-                        color: const Color(0xFFFFCC00),
-                        edgeOffset: headerTotalHeight,
-                        child: _visibleNotifications.isEmpty
-                            ? _buildEmptyState(topPadding: headerTotalHeight)
-                            : _buildList(_visibleNotifications, topPadding: headerTotalHeight),
-                      ),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics.axis == Axis.vertical) {
+                  final scrolled = notification.metrics.pixels > 12;
+                  if (scrolled != _isScrolled) {
+                    setState(() => _isScrolled = scrolled);
+                  }
+                }
+                return false;
+              },
+              child: _isLoading
+                  ? _buildShimmerList(topPadding: headerTotalHeight)
+                  : _error != null
+                      ? _buildErrorState(topPadding: headerTotalHeight)
+                      : RefreshIndicator(
+                          onRefresh: _fetchNotifications,
+                          color: const Color(0xFFFFCC00),
+                          edgeOffset: headerTotalHeight,
+                          child: _visibleNotifications.isEmpty
+                              ? _buildEmptyState(topPadding: headerTotalHeight)
+                              : _buildList(_visibleNotifications, topPadding: headerTotalHeight),
+                        ),
+            ),
           ),
 
           // 2. Floating Liquid Glass Header Pods + Search Bar + Filter Slider
@@ -255,21 +267,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
             borderRadius: BorderRadius.circular(22),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  color: _isScrolled
+                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.10),
+                    color: _isScrolled
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : Colors.white.withValues(alpha: 0.08),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                      blurRadius: _isScrolled ? 14 : 6,
+                      offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
                 ),
@@ -301,21 +319,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
               borderRadius: BorderRadius.circular(22),
               child: BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOutCubic,
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                    color: _isScrolled
+                        ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                        : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.10),
+                      color: _isScrolled
+                          ? Colors.white.withValues(alpha: 0.16)
+                          : Colors.white.withValues(alpha: 0.08),
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                        blurRadius: _isScrolled ? 14 : 6,
+                        offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
                     ],
                   ),
@@ -373,21 +397,27 @@ class _NotificationScreenState extends State<NotificationScreen> {
             borderRadius: BorderRadius.circular(22),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  color: _isScrolled
+                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.10),
+                    color: _isScrolled
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : Colors.white.withValues(alpha: 0.08),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
+                      blurRadius: _isScrolled ? 14 : 6,
+                      offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
                 ),
@@ -426,15 +456,28 @@ class _NotificationScreenState extends State<NotificationScreen> {
         borderRadius: BorderRadius.circular(14),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOutCubic,
             height: 42,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E).withValues(alpha: 0.78),
+              color: _isScrolled
+                  ? const Color(0xFF1C1C1E).withValues(alpha: 0.85)
+                  : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: _isScrolled
+                    ? Colors.white.withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.07),
                 width: 1.0,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: _isScrolled ? 0.35 : 0.10),
+                  blurRadius: _isScrolled ? 12 : 4,
+                  offset: Offset(0, _isScrolled ? 3 : 1),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -527,12 +570,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFFFCC00).withValues(alpha: 0.18)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.70),
+                        : _isScrolled
+                            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
+                            : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
                           ? const Color(0xFFFFCC00).withValues(alpha: 0.65)
-                          : Colors.white.withValues(alpha: 0.08),
+                          : _isScrolled
+                              ? Colors.white.withValues(alpha: 0.14)
+                              : Colors.white.withValues(alpha: 0.07),
                       width: isSelected ? 1.2 : 1.0,
                     ),
                     boxShadow: isSelected
