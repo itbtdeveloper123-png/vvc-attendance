@@ -1,9 +1,17 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
-import '../utils/app_theme.dart';
-import '../widgets/app_widgets.dart';
+
+enum HistoryDateFilter {
+  today,
+  last7Days,
+  thisMonth,
+  custom,
+}
 
 class ScanHistoryScreen extends StatefulWidget {
   const ScanHistoryScreen({super.key});
@@ -26,13 +34,18 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   bool _hasMore = true;
   Timer? _pollingTimer;
 
-  // Date filter
+  // Active filter state
+  HistoryDateFilter _selectedFilter = HistoryDateFilter.thisMonth;
   DateTime? _startDate;
   DateTime? _endDate;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, 1);
+    _endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
     _fetchHistory();
     _scrollController.addListener(_onScroll);
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -62,48 +75,113 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   String _fmtDisplay(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
-  bool get _isFiltered => _startDate != null || _endDate != null;
+  String _getKhmerMonthYear(DateTime d) {
+    const months = [
+      'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា',
+      'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'
+    ];
+    final monthName = months[d.month - 1];
+    return 'ខែ$monthName ${d.year}';
+  }
 
-  Future<void> _pickDate({required bool isStart}) async {
+  String get _activePeriodLabel {
     final now = DateTime.now();
-    final initial = isStart ? (_startDate ?? now) : (_endDate ?? now);
-    final picked = await showDatePicker(
+    switch (_selectedFilter) {
+      case HistoryDateFilter.today:
+        return 'ថ្ងៃនេះ • ${_fmtDisplay(now)}';
+      case HistoryDateFilter.last7Days:
+        return '៧ ថ្ងៃចុងក្រោយ';
+      case HistoryDateFilter.thisMonth:
+        return _getKhmerMonthYear(_startDate ?? now);
+      case HistoryDateFilter.custom:
+        if (_startDate != null && _endDate != null) {
+          if (_startDate!.year == _endDate!.year &&
+              _startDate!.month == _endDate!.month &&
+              _startDate!.day == _endDate!.day) {
+            return _fmtDisplay(_startDate!);
+          }
+          return '${_fmtDisplay(_startDate!)} - ${_fmtDisplay(_endDate!)}';
+        }
+        return 'ចន្លោះថ្ងៃជ្រើសរើស';
+    }
+  }
+
+  void _selectQuickFilter(HistoryDateFilter filter) {
+    HapticFeedback.lightImpact();
+    if (filter == HistoryDateFilter.custom) {
+      _pickCustomDateRange();
+      return;
+    }
+
+    final now = DateTime.now();
+    setState(() {
+      _selectedFilter = filter;
+      switch (filter) {
+        case HistoryDateFilter.today:
+          _startDate = DateTime(now.year, now.month, now.day);
+          _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case HistoryDateFilter.last7Days:
+          final start = now.subtract(const Duration(days: 6));
+          _startDate = DateTime(start.year, start.month, start.day);
+          _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case HistoryDateFilter.thisMonth:
+          _startDate = DateTime(now.year, now.month, 1);
+          _endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+          break;
+        case HistoryDateFilter.custom:
+          break;
+      }
+    });
+    _fetchHistory();
+  }
+
+  Future<void> _pickCustomDateRange() async {
+    HapticFeedback.lightImpact();
+    final now = DateTime.now();
+    final initialRange = (_startDate != null && _endDate != null)
+        ? DateTimeRange(start: _startDate!, end: _endDate!)
+        : DateTimeRange(
+            start: DateTime(now.year, now.month, 1),
+            end: now,
+          );
+
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: initial,
+      initialDateRange: initialRange,
       firstDate: DateTime(2020),
       lastDate: now,
+      helpText: 'ជ្រើសរើសចន្លោះកាលបរិច្ឆេទ',
+      cancelText: 'បោះបង់',
+      confirmText: 'យល់ព្រម',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.dark(
-            primary: AppTheme.primary,
+          colorScheme: const ColorScheme.dark(
+            primary: Color(0xFF0A84FF),
             onPrimary: Colors.white,
-            surface: AppTheme.bgCard,
-            onSurface: AppTheme.textPrimary,
+            surface: Color(0xFF1C1C1E),
+            onSurface: Colors.white,
+          ),
+          scaffoldBackgroundColor: const Color(0xFF000000),
+          dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF1C1C1E)),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF1C1C1E),
+            foregroundColor: Colors.white,
           ),
         ),
         child: child!,
       ),
     );
+
     if (picked != null) {
       setState(() {
-        if (isStart) {
-          _startDate = picked;
-          if (_endDate == null || _endDate!.isBefore(picked)) _endDate = picked;
-        } else {
-          _endDate = picked;
-          if (_startDate == null || _startDate!.isAfter(picked)) _startDate = picked;
-        }
+        _selectedFilter = HistoryDateFilter.custom;
+        _startDate = picked.start;
+        _endDate = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
       });
       _fetchHistory();
     }
-  }
-
-  void _clearFilter() {
-    setState(() {
-      _startDate = null;
-      _endDate = null;
-    });
-    _fetchHistory();
   }
 
   Future<void> _fetchHistorySilently() async {
@@ -193,225 +271,398 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DynamicAppBarWrapper(
-      title: 'ប្រវត្តិស្កេនវត្តមាន',
-      body: AppBackgroundShell(
-        child: Column(
-          children: [
-            SizedBox(height: MediaQuery.paddingOf(context).top + 60),
-            _buildFilterBar(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _fetchHistory,
-                color: AppTheme.primary,
-                child: _buildBody(),
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final headerTotalHeight = topPadding + 6 + 44 + 10 + 36 + 10;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF000000), // Deep Apple OLED Dark
+      body: Stack(
+        children: [
+          // 1. Scrollable List beneath the floating header
+          Positioned.fill(
+            child: RefreshIndicator(
+              onRefresh: _fetchHistory,
+              color: const Color(0xFF0A84FF),
+              edgeOffset: headerTotalHeight,
+              child: _buildBody(topPadding: headerTotalHeight),
+            ),
+          ),
+
+          // 2. Floating Dual-Pod Header + Quick-Filter Strip
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 6),
+                  _buildDualPodHeader(context),
+                  const SizedBox(height: 10),
+                  _buildQuickFilterChips(),
+                  const SizedBox(height: 10),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _isFiltered
-              ? AppTheme.primary.withValues(alpha: 0.5)
-              : AppTheme.borderColor,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.filter_list_rounded,
-                  color: _isFiltered ? AppTheme.primary : AppTheme.textMuted,
-                  size: 16),
-              const SizedBox(width: 6),
-              Text(
-                'តម្រង​ថ្ងៃខែ',
-                style: GoogleFonts.kantumruyPro(
-                  color: _isFiltered ? AppTheme.primary : AppTheme.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              if (_isFiltered)
-                GestureDetector(
-                  onTap: _clearFilter,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.redAccent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.close_rounded,
-                            color: Colors.redAccent, size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          'លុបតម្រង',
-                          style: GoogleFonts.kantumruyPro(
-                            color: Colors.redAccent,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                  child: _buildDateBtn(label: 'ចាប់ពី', date: _startDate, isStart: true)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Icon(Icons.arrow_forward_rounded,
-                    color: AppTheme.textMuted, size: 16),
-              ),
-              Expanded(
-                  child: _buildDateBtn(label: 'ដល់', date: _endDate, isStart: false)),
-            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDateBtn({
-    required String label,
-    required DateTime? date,
-    required bool isStart,
-  }) {
-    final hasDate = date != null;
-    final safeDate = date ?? DateTime.now();
-    return GestureDetector(
-      onTap: () => _pickDate(isStart: isStart),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: hasDate
-              ? AppTheme.primary.withValues(alpha: 0.1)
-              : AppTheme.bgDark.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: hasDate
-                ? AppTheme.primary.withValues(alpha: 0.4)
-                : AppTheme.borderColor,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.calendar_month_rounded,
-                size: 14,
-                color: hasDate ? AppTheme.primary : AppTheme.textMuted),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.textMuted, fontSize: 10)),
-                  Text(
-                    hasDate ? _fmtDisplay(safeDate) : 'ជ្រើសរើស...',
-                    style: GoogleFonts.inter(
-                      color: hasDate ? AppTheme.textPrimary : AppTheme.textMuted,
-                      fontSize: 12,
-                      fontWeight:
-                          hasDate ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+  // ===========================================================================
+  // 1. DYNAMIC LIQUID GLASS DUAL-POD HEADER
+  // ===========================================================================
+  Widget _buildDualPodHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          // Left Pod: Back Capsule (44x44)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    width: 1.0,
                   ),
-                ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(22),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.maybePop(context);
+                    },
+                    child: const Center(
+                      child: Icon(
+                        CupertinoIcons.chevron_back,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+
+          // Right Pod: Title & Filter Capsule (Height: 44)
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Title & Sub-label
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ប្រវត្តិចុះវត្តមាន',
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              _activePeriodLabel,
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white54,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Trailing Action: Interactive Calendar Icon
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: _pickCustomDateRange,
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(
+                              CupertinoIcons.calendar,
+                              color: Color(0xFF0A84FF),
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+  // ===========================================================================
+  // 2. SLEEK QUICK-FILTER CHIPS
+  // ===========================================================================
+  Widget _buildQuickFilterChips() {
+    final chips = [
+      {'filter': HistoryDateFilter.today, 'label': 'ថ្ងៃនេះ'},
+      {'filter': HistoryDateFilter.last7Days, 'label': '៧ ថ្ងៃចុងក្រោយ'},
+      {'filter': HistoryDateFilter.thisMonth, 'label': 'ខែនេះ'},
+      {'filter': HistoryDateFilter.custom, 'label': 'ជ្រើសរើសថ្ងៃ...'},
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: chips.map((item) {
+          final filter = item['filter'] as HistoryDateFilter;
+          final isSelected = _selectedFilter == filter;
+          String label = item['label'] as String;
+
+          if (filter == HistoryDateFilter.custom &&
+              isSelected &&
+              _startDate != null &&
+              _endDate != null) {
+            label = '${_startDate!.day}/${_startDate!.month} - ${_endDate!.day}/${_endDate!.month}';
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF0A84FF).withValues(alpha: 0.22)
+                        : const Color(0xFF1C1C1E).withValues(alpha: 0.70),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? const Color(0xFF0A84FF).withValues(alpha: 0.70)
+                          : Colors.white.withValues(alpha: 0.08),
+                      width: isSelected ? 1.2 : 1.0,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF0A84FF).withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _selectQuickFilter(filter),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (filter == HistoryDateFilter.custom) ...[
+                              Icon(
+                                CupertinoIcons.calendar,
+                                size: 12,
+                                color: isSelected
+                                    ? const Color(0xFF0A84FF)
+                                    : Colors.white.withValues(alpha: 0.65),
+                              ),
+                              const SizedBox(width: 5),
+                            ],
+                            Text(
+                              label,
+                              style: GoogleFonts.kantumruyPro(
+                                color: isSelected
+                                    ? const Color(0xFF38BDF8)
+                                    : Colors.white.withValues(alpha: 0.65),
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 3. BODY & LIST VIEW
+  // ===========================================================================
+  Widget _buildBody({required double topPadding}) {
+    if (_isLoading) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.only(top: topPadding / 2),
+          child: const CircularProgressIndicator(
+            color: Color(0xFF0A84FF),
+            strokeWidth: 2.2,
+          ),
+        ),
+      );
+    }
 
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 64),
-            const SizedBox(height: 16),
-            Text(_error!,
-                style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-                textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _fetchHistory,
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
-              child: Text('ព្យាយាមម្តងទៀត',
-                  style: GoogleFonts.kantumruyPro()),
-            ),
-          ],
+        child: Padding(
+          padding: EdgeInsets.only(top: topPadding / 2),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(CupertinoIcons.exclamationmark_triangle,
+                  color: Colors.redAccent, size: 54),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _fetchHistory,
+                icon: const Icon(CupertinoIcons.refresh, size: 16),
+                label: Text('ព្យាយាមម្តងទៀត',
+                    style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0A84FF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     if (_logs.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off_rounded,
-                color: AppTheme.textMuted, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              _isFiltered
-                  ? 'មិនមានទិន្នន័យក្នុងចន្លោះថ្ងៃដែលបានជ្រើស'
-                  : 'មិនទាន់មានប្រវត្តិស្កេននៅឡើយទេ',
-              style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textMuted, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            if (_isFiltered) ...[
+        child: Padding(
+          padding: EdgeInsets.only(top: topPadding / 2),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                CupertinoIcons.doc_text_search,
+                color: Colors.white.withValues(alpha: 0.3),
+                size: 54,
+              ),
               const SizedBox(height: 16),
+              Text(
+                'មិនមានទិន្នន័យក្នុងចន្លោះពេលនេះ',
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
               TextButton.icon(
-                onPressed: _clearFilter,
-                icon: const Icon(Icons.clear_rounded, size: 16),
-                label: Text('លុបតម្រង',
-                    style: GoogleFonts.kantumruyPro(fontSize: 13)),
-                style: TextButton.styleFrom(foregroundColor: AppTheme.primary),
+                onPressed: () => _selectQuickFilter(HistoryDateFilter.thisMonth),
+                icon: const Icon(CupertinoIcons.calendar_today, size: 16),
+                label: Text(
+                  'បង្ហាញខែនេះ',
+                  style: GoogleFonts.kantumruyPro(
+                      fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A84FF)),
               ),
             ],
-          ],
+          ),
         ),
       );
     }
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      physics:
+          const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      padding: EdgeInsets.fromLTRB(16, topPadding + 4, 16, 24),
       itemCount: _logs.length + (_hasMore ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _logs.length) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFF0A84FF),
+              ),
+            ),
           );
         }
         return _buildLogItem(_logs[index] as Map<String, dynamic>);
@@ -419,22 +670,34 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
     );
   }
 
+  // ===========================================================================
+  // 4. CHECK-IN / CHECK-OUT LOG CARD (APPLE / TELEGRAM DARK STYLE)
+  // ===========================================================================
   Widget _buildLogItem(Map<String, dynamic> log) {
     final bool isCheckIn = log['action_type'] == 'Check-In';
     final Color ac = isCheckIn
-        ? Colors.cyanAccent.shade700
-        : Colors.deepOrangeAccent.shade200;
-    final Color sc =
-        (log['status'] == 'Good' || log['status'] == 'Normal')
-            ? AppTheme.success
-            : Colors.redAccent;
+        ? const Color(0xFF06B6D4) // Cyan / Turquoise
+        : const Color(0xFFF97316); // Orange / Coral
+    final Color sc = (log['status'] == 'Good' || log['status'] == 'Normal')
+        ? const Color(0xFF10B981)
+        : const Color(0xFFEF4444);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
+        color: const Color(0xFF1C1C1E).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -443,13 +706,14 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: ac.withValues(alpha: 0.1),
+                color: ac.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                  isCheckIn ? Icons.login_rounded : Icons.logout_rounded,
-                  color: ac,
-                  size: 20),
+                isCheckIn ? Icons.login_rounded : Icons.logout_rounded,
+                color: ac,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -459,49 +723,77 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(log['action_type'] ?? 'N/A',
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          )),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: sc.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
+                      Text(
+                        log['action_type'] ?? 'N/A',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
                         ),
-                        child: Text(log['status'] ?? 'N/A',
-                            style: GoogleFonts.inter(
-                                color: sc,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold)),
+                      ),
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: sc.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: sc.withValues(alpha: 0.3),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          log['status'] ?? 'N/A',
+                          style: GoogleFonts.inter(
+                            color: sc,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 5),
-                  Row(children: [
-                    Icon(Icons.access_time_rounded,
-                        color: AppTheme.textMuted, size: 13),
-                    const SizedBox(width: 4),
-                    Text(log['log_datetime'] ?? 'N/A',
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.time,
+                        color: Colors.white.withValues(alpha: 0.45),
+                        size: 13,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        log['log_datetime'] ?? 'N/A',
                         style: GoogleFonts.inter(
-                            color: AppTheme.textSecondary, fontSize: 12)),
-                  ]),
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    Icon(Icons.location_on_outlined,
-                        color: AppTheme.textMuted, size: 13),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(log['location_name'] ?? 'Unknown',
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.location_solid,
+                        color: Colors.white.withValues(alpha: 0.45),
+                        size: 13,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          log['location_name'] ?? 'Unknown',
                           style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textMuted, fontSize: 11),
+                            color: Colors.white.withValues(alpha: 0.45),
+                            fontSize: 11,
+                          ),
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                  ]),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

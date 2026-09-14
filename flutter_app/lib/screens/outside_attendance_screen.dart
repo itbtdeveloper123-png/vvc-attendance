@@ -1,7 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,7 @@ import '../services/face_recognizer_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
 import '../utils/image_compress.dart';
+import '../widgets/vvc_liquid_glass_scaffold.dart';
 
 class OutsideAttendanceScreen extends StatefulWidget {
   const OutsideAttendanceScreen({super.key});
@@ -436,9 +438,10 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
         },
         markers: _markers,
         myLocationEnabled: true,
-        myLocationButtonEnabled: true,
+        myLocationButtonEnabled: false,
         zoomControlsEnabled: false,
         mapToolbarEnabled: false,
+        compassEnabled: false,
         mapType: _isMapSatellite ? MapType.satellite : MapType.normal,
       );
     } catch (e) {
@@ -465,216 +468,266 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
     }
   }
 
-  Widget _buildMapTypeToggle() {
-    return Positioned(
-      top: 12,
-      right: 12,
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _isMapSatellite = !_isMapSatellite);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.70),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _isMapSatellite ? Icons.map_outlined : Icons.satellite_alt_outlined,
-                color: Colors.white,
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _isMapSatellite ? 'Normal' : 'Satellite',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontFamily: 'KhmerFont',
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8FAFC),
       body: Stack(
         children: [
-          // Full-screen map
+          // 1. Full-screen Google Map
           Positioned.fill(child: _buildMapWidget()),
 
-          // Map type toggle
-          _buildMapTypeToggle(),
-
-          // Top AppBar overlay
+          // 2. Top Floating Liquid Glass Pods Header
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.70),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.maybePop(context),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "Check-In ខាងក្រៅ",
-                        style: GoogleFonts.kantumruyPro(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 16,
+            top: MediaQuery.paddingOf(context).top + 6.0,
+            left: 14.0,
+            right: 14.0,
+            child: VvcFloatingHeaderPods(
+              height: 42.0,
+              alwaysShowTitle: true,
+              alwaysShowGlass: true,
+              backgroundColor: isDark
+                  ? const Color(0xFF131B2A).withValues(alpha: 0.92)
+                  : Colors.white.withValues(alpha: 0.95),
+              leading: IconButton(
+                icon: const Icon(CupertinoIcons.chevron_back, size: 19),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.maybePop(context);
+                },
+              ),
+              titleWidget: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6.5,
+                        height: 6.5,
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          color: _currentPosition != null
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF59E0B),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_currentPosition != null
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B))
+                                  .withValues(alpha: 0.50),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
+                      Text(
+                        'Check-In ខាងក្រៅ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    _currentPosition != null
+                        ? 'GPS ភ្ជាប់ត្រឹមត្រូវ (High Accuracy)'
+                        : 'កំពុងស្វែងរក GPS...',
+                    style: GoogleFonts.kantumruyPro(
+                      color: isDark
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF64748B),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.refresh_rounded,
-                        color: Colors.white,
-                      ),
-                      onPressed: _determinePosition,
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  tooltip: _isMapSatellite ? 'ផែនទីធម្មតា' : 'ផែនទីផ្កាយរណប',
+                  icon: Icon(
+                    _isMapSatellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                    color: isDark
+                        ? (_isMapSatellite ? const Color(0xFF38BDF8) : Colors.white)
+                        : const Color(0xFF0F172A),
+                    size: 19,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _isMapSatellite = !_isMapSatellite);
+                  },
+                ),
+                IconButton(
+                  tooltip: 'ស្វែងរកទីតាំងឡើងវិញ',
+                  icon: Icon(
+                    Icons.refresh_rounded,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    size: 19,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    _determinePosition();
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // 3. Recenter My Location FAB
+          Positioned(
+            right: 18,
+            bottom: 215,
+            child: _buildRecenterButton(isDark),
+          ),
+
+          // 4. Bottom Floating Liquid Glass Panel
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 16,
+            child: SafeArea(
+              top: false,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
                     ),
                   ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(26),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF0F1523).withValues(alpha: 0.92)
+                            : Colors.white.withValues(alpha: 0.95),
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF2E384D)
+                              : const Color(0xFFE2E8F0),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Top Row: Photo Preview/Capture + Location Info
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              _buildPhotoPickerTile(isDark),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildLocationInputBox(isDark),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          // Action Buttons: Check-In & Check-Out
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildActionButton(
+                                  label: "Check-In",
+                                  khmerSub: "ចូលធ្វើការ",
+                                  icon: Icons.login_rounded,
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF059669), Color(0xFF10B981)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shadowColor: const Color(0xFF10B981).withValues(alpha: 0.35),
+                                  onTap: () => _submitAttendance("Check-In"),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildActionButton(
+                                  label: "Check-Out",
+                                  khmerSub: "ចេញពីការងារ",
+                                  icon: Icons.logout_rounded,
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shadowColor: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                                  onTap: () => _submitAttendance("Check-Out"),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
 
-          // Bottom controls overlay
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 16,
-            child: SafeArea(
+          // 5. Loading Overlay
+          if (_isLoading)
+            Positioned.fill(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.75),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Camera Section
-                    Center(
-                      child: GestureDetector(
-                        onTap: _captureImage,
-                        child: Container(
-                          height: 80,
-                          width: 80,
-                          margin: const EdgeInsets.only(bottom: 14),
-                          decoration: BoxDecoration(
-                            color: AppTheme.bgDark,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 1),
-                            image: _capturedImage != null
-                                ? DecorationImage(
-                                    image: kIsWeb ? NetworkImage(_capturedImage!.path) as ImageProvider : FileImage(File(_capturedImage!.path)),
-                                    fit: BoxFit.cover,
-                                  )
-                                : null,
-                          ),
-                          child: _capturedImage == null
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.camera_alt_rounded, size: 28, color: AppTheme.primary),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "ថតរូបទីតាំង",
-                                      style: GoogleFonts.kantumruyPro(
-                                        color: AppTheme.primary,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Align(
-                                  alignment: Alignment.bottomRight,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(3),
-                                    margin: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
-                                    child: const Icon(Icons.edit, size: 14, color: Colors.white),
-                                  ),
-                                ),
-                        ),
+                color: Colors.black.withValues(alpha: 0.50),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF131B2A) : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                       ),
-                    ),
-
-                    TextField(
-                      controller: _locationController,
-                      style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary),
-                      decoration: InputDecoration(
-                        hintText: "ឧទាហរណ៍: ការដ្ឋានបុរី ឬ ឈ្មោះអតិថិជន...",
-                        hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
-                        filled: true,
-                        fillColor: AppTheme.bgDark,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 16,
                         ),
-                        prefixIcon: Icon(Icons.business_rounded, color: AppTheme.primary),
-                      ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: _buildActionButton(
-                            "Check-In",
-                            Colors.cyanAccent,
-                            Icons.login_rounded,
-                            () => _submitAttendance("Check-In"),
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Color(0xFF10B981),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildActionButton(
-                            "Check-Out",
-                            Colors.orangeAccent,
-                            Icons.logout_rounded,
-                            () => _submitAttendance("Check-Out"),
+                        const SizedBox(width: 14),
+                        Text(
+                          'កំពុងដំណើរការ...',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
                           ),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-
-          if (_isLoading)
-            Container(
-              color: Colors.black.withValues(alpha: 0.6),
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.cyanAccent),
               ),
             ),
         ],
@@ -682,33 +735,262 @@ class _OutsideAttendanceScreenState extends State<OutsideAttendanceScreen> {
     );
   }
 
-  Widget _buildActionButton(String label, Color color, IconData icon, VoidCallback onTap) {
-    return ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withValues(alpha: 0.15),
-        foregroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: color.withValues(alpha: 0.5), width: 1.5),
+  Widget _buildRecenterButton(bool isDark) {
+    return FloatingActionButton.small(
+      heroTag: 'recenter_gps_button',
+      backgroundColor: isDark ? const Color(0xFF131B2A) : Colors.white,
+      foregroundColor: isDark ? const Color(0xFFFCD34D) : const Color(0xFF0F172A),
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+          width: 1.0,
         ),
-        elevation: 0,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      tooltip: 'តម្រង់ទៅទីតាំងខ្ញុំ',
+      onPressed: () {
+        if (_currentPosition != null && _mapController != null) {
+          HapticFeedback.lightImpact();
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+              16.5,
+            ),
+          );
+        } else {
+          _determinePosition();
+        }
+      },
+      child: const Icon(Icons.my_location_rounded, size: 20),
+    );
+  }
+
+  Widget _buildPhotoPickerTile(bool isDark) {
+    final hasPhoto = _capturedImage != null;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _captureImage();
+      },
+      child: Container(
+        width: 76,
+        height: 76,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF182032) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: hasPhoto
+                ? const Color(0xFF10B981)
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            width: hasPhoto ? 1.5 : 1.0,
+          ),
+          image: hasPhoto
+              ? DecorationImage(
+                  image: kIsWeb
+                      ? NetworkImage(_capturedImage!.path) as ImageProvider
+                      : FileImage(File(_capturedImage!.path)),
+                  fit: BoxFit.cover,
+                )
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: hasPhoto
+            ? Align(
+                alignment: Alignment.bottomRight,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_rounded, size: 12, color: Colors.white),
+                ),
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFFF59E0B).withValues(alpha: 0.18)
+                          : const Color(0xFFFFFBEB),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      size: 20,
+                      color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "ថតរូបទីតាំង",
+                    style: GoogleFonts.kantumruyPro(
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildLocationInputBox(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF182032) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2C354A) : const Color(0xFFE2E8F0),
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-              letterSpacing: 0.5,
+          Row(
+            children: [
+              Icon(
+                Icons.location_on_rounded,
+                size: 14,
+                color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'ទីតាំងបច្ចុប្បន្ន',
+                style: GoogleFonts.kantumruyPro(
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              if (_currentPosition != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'GPS ត្រឹមត្រូវ',
+                    style: GoogleFonts.kantumruyPro(
+                      color: const Color(0xFF10B981),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _locationController,
+            maxLines: 2,
+            minLines: 1,
+            style: GoogleFonts.kantumruyPro(
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              filled: false,
+              fillColor: Colors.transparent,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+              hintText: "ឧ. ឈ្មោះអតិថិជន ឬការដ្ឋាន...",
+              hintStyle: GoogleFonts.kantumruyPro(
+                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                fontSize: 12,
+              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required String khmerSub,
+    required IconData icon,
+    required Gradient gradient,
+    required Color shadowColor,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 20, color: Colors.white),
+                const SizedBox(width: 8),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    Text(
+                      khmerSub,
+                      style: GoogleFonts.kantumruyPro(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 9.5,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

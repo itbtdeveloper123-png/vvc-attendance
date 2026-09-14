@@ -43,6 +43,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
   String _errorMessage = '';
   Timer? _pollingTimer;
   bool _isViewingTrash = false; // Track if viewing trash
+  String _selectedStatusFilter = 'all'; // 'all', 'pending', 'approved', 'rejected'
 
   @override
   void initState() {
@@ -79,22 +80,34 @@ class _RequestListScreenState extends State<RequestListScreen> {
   }
 
   void _onSearch() {
-    final q = _searchController.text.toLowerCase();
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    final q = _searchController.text.toLowerCase().trim();
+    final status = _selectedStatusFilter;
+
     _safeSetState(() {
-      if (q.isEmpty) {
-        _filtered = List.from(_requests);
-      } else {
-        _filtered = _requests.where((r) {
+      _filtered = _requests.where((r) {
+        if (status != 'all') {
+          final rStatus = (r['status'] ?? '').toString().toLowerCase();
+          if (rStatus != status) return false;
+        }
+
+        if (q.isNotEmpty) {
           final type = (r['request_type'] ?? '').toString().toLowerCase();
           final name = (r['requester_name'] ?? '').toString().toLowerCase();
           final reason = (r['reason'] ?? '').toString().toLowerCase();
           final dept = (r['department'] ?? '').toString().toLowerCase();
+          final id = (r['id'] ?? r['request_id'] ?? '').toString().toLowerCase();
           return type.contains(q) ||
               name.contains(q) ||
               reason.contains(q) ||
-              dept.contains(q);
-        }).toList();
-      }
+              dept.contains(q) ||
+              id.contains(q);
+        }
+        return true;
+      }).toList();
     });
   }
 
@@ -106,7 +119,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
       if (res['success'] == true) {
         _safeSetState(() {
           _requests = res['requests'] ?? [];
-          _onSearch(); // Reapply search filter to updated list
+          _applyFilters();
         });
       }
     } catch (_) {}
@@ -143,7 +156,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
       _safeSetState(() {
         _requests = res['requests'] ?? [];
-        _filtered = List.from(_requests);
+        _applyFilters();
         _debugInfo = debugStr;
         _isLoading = false;
       });
@@ -302,118 +315,109 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DynamicAppBarWrapper(
-      title: _isViewingTrash ? "ប៊ូតុងស្តារ" : "បញ្ជីសំណើ",
-      actions: [
-        IconButton(
-          icon: const Icon(CupertinoIcons.arrow_clockwise),
-          onPressed: _loadData,
-          tooltip: 'ផ្ទុកឡើងវិញ',
-        ),
-        IconButton(
-          icon: Icon(_isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash),
-          onPressed: () => _viewTrash(),
-          tooltip: _isViewingTrash ? 'បញ្ជីសំណើ' : 'ប៊ូតុងស្តារ',
-        ),
-      ],
-      // Stack to add a hidden PDF report generator
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final headerTotalHeight = topPadding + 6 + 44 + 10 + 42 + 8 + 34 + 10;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF000000), // Deep Apple OLED Dark
       body: Stack(
         children: [
-          // Hidden Report Generator (for capture)
+          // 1. Hidden Report Generator (for capture)
           Positioned(
-            left: -5000, // Off screen
+            left: -5000,
             child: RepaintBoundary(
               key: _reportKey,
               child: _buildHiddenReport(context),
             ),
           ),
-          AppBackgroundShell(
-            child: Column(
-              children: [
-                SizedBox(height: MediaQuery.of(context).padding.top + 70),
-                // Search Bar
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    AppResponsive.horizontalPadding(context),
-                    0,
-                    AppResponsive.horizontalPadding(context),
-                    12,
-                  ),
-                  child: AppSearchField(
-                    controller: _searchController,
-                    hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
-                  ),
-                ),
 
-                // Summary statistics
-                if (!_isLoading && _requests.isNotEmpty) _buildSummaryRow(),
-
-                // Main list
-                Expanded(
-                  child: _isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.primary,
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadData,
-                          color: AppTheme.primary,
-                          child: _filtered.isEmpty
-                              ? _buildEmptyState()
-                              : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
-                                  ? GridView.builder(
-                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
-                                        childAspectRatio: 2.1,
-                                        crossAxisSpacing: 16,
-                                        mainAxisSpacing: 14,
-                                      ),
-                                      physics: const BouncingScrollPhysics(),
-                                      itemCount: _filtered.length,
-                                      itemBuilder: (context, index) =>
-                                          _buildRequestCard(_filtered[index], index),
-                                    )
-                                  : AnimationLimiter(
-                                      child: ListView.builder(
-                                        padding: EdgeInsets.fromLTRB(
-                                          AppResponsive.horizontalPadding(context),
-                                          0,
-                                          AppResponsive.horizontalPadding(context),
-                                          AppResponsive.bottomPadding(
-                                            context,
-                                            hasBottomNav:
-                                                ModalRoute.of(context)?.isFirst ??
-                                                false,
-                                          ),
+          // 2. Main content list smoothly scrolling underneath frosted top components
+          Positioned.fill(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF0A84FF),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: const Color(0xFF0A84FF),
+                    edgeOffset: headerTotalHeight,
+                    child: _filtered.isEmpty
+                        ? _buildEmptyState(topPadding: headerTotalHeight)
+                        : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
+                            ? GridView.builder(
+                                padding: EdgeInsets.fromLTRB(24, headerTotalHeight + 6, 24, 24),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+                                  childAspectRatio: 2.1,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 14,
+                                ),
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: _filtered.length,
+                                itemBuilder: (context, index) =>
+                                    _buildRequestCard(_filtered[index], index),
+                              )
+                            : AnimationLimiter(
+                                child: ListView.builder(
+                                  padding: EdgeInsets.fromLTRB(
+                                    AppResponsive.horizontalPadding(context),
+                                    headerTotalHeight + 6,
+                                    AppResponsive.horizontalPadding(context),
+                                    AppResponsive.bottomPadding(
+                                      context,
+                                      hasBottomNav:
+                                          ModalRoute.of(context)?.isFirst ??
+                                          false,
+                                    ),
+                                  ),
+                                  physics: const BouncingScrollPhysics(),
+                                  itemCount: _filtered.length,
+                                  itemBuilder: (context, index) =>
+                                      AnimationConfiguration.staggeredList(
+                                        position: index,
+                                        duration: const Duration(
+                                          milliseconds: 400,
                                         ),
-                                        physics: const BouncingScrollPhysics(),
-                                        itemCount: _filtered.length,
-                                        itemBuilder: (context, index) =>
-                                            AnimationConfiguration.staggeredList(
-                                              position: index,
-                                              duration: const Duration(
-                                                milliseconds: 400,
-                                              ),
-                                              child: SlideAnimation(
-                                                verticalOffset: 50.0,
-                                                child: FadeInAnimation(
-                                                  child: AppResponsive.maxWidth(
-                                                    context: context,
-                                                    child: _buildRequestCard(
-                                                      _filtered[index],
-                                                      index,
-                                                    ),
-                                                  ),
-                                                ),
+                                        child: SlideAnimation(
+                                          verticalOffset: 50.0,
+                                          child: FadeInAnimation(
+                                            child: AppResponsive.maxWidth(
+                                              context: context,
+                                              child: _buildRequestCard(
+                                                _filtered[index],
+                                                index,
                                               ),
                                             ),
+                                          ),
+                                        ),
                                       ),
-                                    )),
-                        ),
-                ),
-              ],
+                                ),
+                              )),
+                  ),
+          ),
+
+          // 3. Floating Liquid Glass Header Pods + Search Bar + Status Filter Strip
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 6),
+                  _buildHeaderPods(context),
+                  const SizedBox(height: 10),
+                  _buildSearchBar(),
+                  const SizedBox(height: 8),
+                  _buildStatusFilterPills(),
+                  const SizedBox(height: 10),
+                ],
+              ),
             ),
           ),
         ],
@@ -421,90 +425,421 @@ class _RequestListScreenState extends State<RequestListScreen> {
     );
   }
 
-  Widget _buildSummaryRow() {
-    int pending = _requests
-        .where((r) => (r['status'] ?? '') == 'pending')
-        .length;
-    int approved = _requests
-        .where((r) => (r['status'] ?? '') == 'approved')
-        .length;
-    int rejected = _requests
-        .where((r) => (r['status'] ?? '') == 'rejected')
-        .length;
-
+  // ===========================================================================
+  // 1. LIQUID GLASS HEADER PODS
+  // ===========================================================================
+  Widget _buildHeaderPods(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppResponsive.horizontalPadding(context),
-        0,
-        AppResponsive.horizontalPadding(context),
-        12,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          // Left Pod: 44x44 circular frosted glass button with CupertinoIcons.chevron_back
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(22),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.maybePop(context);
+                    },
+                    child: const Center(
+                      child: Icon(
+                        CupertinoIcons.chevron_back,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Center Pod: Title "បញ្ជីសំណើ" (15pt, bold) with subtle counter capsule
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _isViewingTrash ? 'ប៊ូតុងស្តារ' : 'បញ្ជីសំណើ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${_filtered.length}',
+                          style: GoogleFonts.inter(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Right Pod: Capsule height 44px containing Refresh & Trash icons separated by 0.5px vertical divider
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E).withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Refresh button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(22)),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _loadData();
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+                          child: Icon(
+                            CupertinoIcons.arrow_clockwise,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Subtle 0.5px vertical divider
+                    Container(
+                      width: 0.5,
+                      height: 16,
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
+
+                    // Trash / Action button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(22)),
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _viewTrash();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+                          child: Icon(
+                            _isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash,
+                            color: _isViewingTrash
+                                ? const Color(0xFF0A84FF)
+                                : Colors.white.withValues(alpha: 0.85),
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          children: [
-            _buildStatChip(
-              'សរុប ${_requests.length}',
-              Colors.blueAccent,
-              Icons.list_alt_rounded,
+    );
+  }
+
+  // ===========================================================================
+  // 2. TELEGRAM-STYLE SLEEK SEARCH FIELD
+  // ===========================================================================
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E).withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 1.0,
+              ),
             ),
-            const SizedBox(width: 8),
-            _buildStatChip(
-              'រង់ចាំ $pending',
-              const Color(0xFFf59e0b),
-              Icons.pending_outlined,
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Icon(
+                  CupertinoIcons.search,
+                  color: Colors.white.withValues(alpha: 0.45),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                    ),
+                    cursorColor: const Color(0xFF0A84FF),
+                    decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
+                      hintStyle: GoogleFonts.kantumruyPro(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        fontSize: 13,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+                if (_searchController.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _searchController.clear();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Icon(
+                        CupertinoIcons.clear_circled_solid,
+                        color: Colors.white.withValues(alpha: 0.45),
+                        size: 16,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 8),
-            _buildStatChip(
-              'បានអនុម័ត $approved',
-              const Color(0xFF10b981),
-              Icons.check_circle_outline_rounded,
-            ),
-            const SizedBox(width: 8),
-            _buildStatChip(
-              'បដិសេធ $rejected',
-              const Color(0xFFe11d48),
-              Icons.cancel_outlined,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatChip(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
+  // ===========================================================================
+  // 3. DYNAMIC STATUS FILTER PILLS (HORIZONTAL SCROLLABLE STRIP)
+  // ===========================================================================
+  Widget _buildStatusFilterPills() {
+    int pending = _requests
+        .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'pending')
+        .length;
+    int approved = _requests
+        .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'approved')
+        .length;
+    int rejected = _requests
+        .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'rejected')
+        .length;
+
+    final chips = [
+      {
+        'key': 'all',
+        'label': 'ទាំងអស់ ${_requests.length}',
+        'emoji': '',
+        'accent': const Color(0xFF0A84FF),
+        'textColor': const Color(0xFF38BDF8),
+      },
+      {
+        'key': 'pending',
+        'label': 'រង់ចាំ $pending',
+        'emoji': '🟡',
+        'accent': const Color(0xFFF59E0B),
+        'textColor': const Color(0xFFFBBF24),
+      },
+      {
+        'key': 'approved',
+        'label': 'បានអនុម័ត $approved',
+        'emoji': '🟢',
+        'accent': const Color(0xFF10B981),
+        'textColor': const Color(0xFF34D399),
+      },
+      {
+        'key': 'rejected',
+        'label': 'បដិសេធ $rejected',
+        'emoji': '🔴',
+        'accent': const Color(0xFFE11D48),
+        'textColor': const Color(0xFFFB7185),
+      },
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.kantumruyPro(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+        children: chips.map((chip) {
+          final key = chip['key'] as String;
+          final isSelected = _selectedStatusFilter == key;
+          final accent = chip['accent'] as Color;
+          final textColor = chip['textColor'] as Color;
+          final emoji = chip['emoji'] as String;
+          final label = chip['label'] as String;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? accent.withValues(alpha: 0.22)
+                        : const Color(0xFF1C1C1E).withValues(alpha: 0.70),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? accent.withValues(alpha: 0.70)
+                          : Colors.white.withValues(alpha: 0.08),
+                      width: isSelected ? 1.2 : 1.0,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: accent.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _selectedStatusFilter = key;
+                        });
+                        _applyFilters();
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (emoji.isNotEmpty) ...[
+                              Text(emoji, style: const TextStyle(fontSize: 10)),
+                              const SizedBox(width: 5),
+                            ],
+                            Text(
+                              label,
+                              style: GoogleFonts.kantumruyPro(
+                                color: isSelected ? textColor : Colors.white.withValues(alpha: 0.65),
+                                fontSize: 11.5,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({double topPadding = 0}) {
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
       padding: EdgeInsets.only(
+        top: topPadding,
         bottom: AppResponsive.bottomPadding(
           context,
           hasBottomNav: ModalRoute.of(context)?.isFirst ?? false,

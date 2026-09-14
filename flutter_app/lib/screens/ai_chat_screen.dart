@@ -2883,6 +2883,8 @@ class _AiChatScreenState extends State<AiChatScreen>
                       fontWeight: FontWeight.w500,
                     ),
                     decoration: InputDecoration(
+                      filled: false,
+                      fillColor: Colors.transparent,
                       hintText: 'សួរ AI ឬពិនិត្យទិន្នន័យ HRM...',
                       hintStyle: GoogleFonts.kantumruyPro(
                         color: isDark ? const Color(0xFF94A3B8) : AppTheme.textMuted,

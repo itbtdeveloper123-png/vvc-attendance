@@ -703,9 +703,13 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                       onChanged: (value) =>
                           setState(() => _searchQuery = value),
                       decoration: InputDecoration(
+                        filled: false,
+                        fillColor: Colors.transparent,
                         hintText: 'ស្វែងរកសារ...',
                         hintStyle: const TextStyle(color: Colors.white38),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 14,
                         ),
@@ -1513,8 +1517,12 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                             minLines: 1,
                             onChanged: _onTextChanged,
                             decoration: InputDecoration(
+                              filled: false,
+                              fillColor: Colors.transparent,
                               hintText: "សរសេរសារ...",
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
                               hintStyle: GoogleFonts.kantumruyPro(
                                 color: Colors.white38,
                                 fontSize: 14,
