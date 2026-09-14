@@ -336,8 +336,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     final double topSafeArea = MediaQuery.of(context).padding.top;
     final double bottomSafeArea = MediaQuery.of(context).padding.bottom;
 
-    // Top padding: topSafeArea + 44.0 (Pods) + 6.0 + 34.0 (Tabs) + 14.0
-    final double topHeaderHeight = topSafeArea + 98.0;
+    // Top padding: topSafeArea + 44.0 (Pods) + 8.0
+    final double topHeaderHeight = topSafeArea + 52.0;
     // Bottom dock height: (bottomSafeArea + 4.0 or 14.0) + 64.0
     final double bottomBarHeight = (bottomSafeArea > 0 ? bottomSafeArea + 4.0 : 14.0) + 64.0;
     final double listBottomPadding = bottomBarHeight + (_isSearchExpanded ? 64.0 : 12.0);
@@ -376,9 +376,15 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                         listBottomPadding,
                       ),
                       children: [
+                        const SizedBox(height: 6.0),
+
+                        // Centered Folder Filter Tabs (Inside scrollable view, matching HomeScreen!)
+                        _buildFolderTabs(),
+
+                        const SizedBox(height: 12.0),
+
                         // A. Stories horizontal row (Active team online colleagues)
                         if (searchQuery.isEmpty && (_selectedFolder == 'all' || _selectedFolder == 'direct')) ...[
-                          const SizedBox(height: 6.0),
                           _buildStoriesSection(),
                           const SizedBox(height: 10.0),
                         ],
@@ -389,22 +395,29 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                     ),
             ),
 
-            // 2. Localized Bottom Edge Transition Zone (Fades content smoothly under the dock)
+            // 2. Scroll-Aware Top Ambient Transition Zone (Fades content smoothly under the 3 pods)
+            bottomNavBar.buildTopTransitionZone(
+              context: context,
+              maskColor: MessengerTheme.bg,
+              height: 56.0,
+            ),
+
+            // 3. Localized Bottom Edge Transition Zone (Fades content smoothly under the dock)
             bottomNavBar.buildTransitionZone(
               context: context,
               maskColor: MessengerTheme.bg,
             ),
 
-            // 3. Floating Glass Search Bar (Appears smoothly when search button is tapped)
+            // 4. Floating Glass Search Bar (Appears smoothly when search button is tapped)
             if (_isSearchExpanded)
               Positioned(
                 left: 16.0,
                 right: 16.0,
-                bottom: bottomBarHeight + 8.0,
+                bottom: bottomBarHeight + 10.0,
                 child: _buildFloatingGlassSearchBar(isDark),
               ),
 
-            // 4. Bottom Floating Liquid Glass Dock (with Standalone Search Pod)
+            // 5. Bottom Floating Liquid Glass Dock (with Standalone Search Pod)
             Positioned(
               bottom: 0,
               left: 0,
@@ -412,20 +425,12 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               child: bottomNavBar.buildFloatingDock(context: context),
             ),
 
-            // 5. Top Floating 3-Pods Header (Segmented Three-Islands Apple Glass Header)
+            // 6. Top Floating 3-Pods Header (Segmented Three-Islands Apple Glass Header)
             Positioned(
               top: topSafeArea + 6.0,
               left: 14.0,
               right: 14.0,
               child: _buildTopPodsHeader(userProvider, isDark),
-            ),
-
-            // 6. Centered Navtabs / Category Filter Tabs (Floating without background)
-            Positioned(
-              top: topSafeArea + 56.0,
-              left: 0,
-              right: 0,
-              child: _buildFolderTabs(),
             ),
           ],
         ),
@@ -934,37 +939,37 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   // ==========================================
   Widget _buildFloatingGlassSearchBar(bool isDark) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24.0),
+      borderRadius: BorderRadius.circular(23.0),
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
+        filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
         child: Container(
-          height: 48.0,
+          height: 46.0,
           padding: const EdgeInsets.symmetric(horizontal: 14.0),
           decoration: BoxDecoration(
             color: isDark
-                ? const Color(0xFF1E222B).withValues(alpha: 0.92)
-                : Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(24.0),
+                ? const Color(0xFF1E2638).withValues(alpha: 0.95)
+                : Colors.white.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(23.0),
             border: Border.all(
               color: isDark
-                  ? Colors.white.withValues(alpha: 0.18)
-                  : const Color(0xFFE2E8F0),
-              width: 1.2,
+                  ? const Color(0xFF334155)
+                  : const Color(0xFFCBD5E1),
+              width: 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
-                blurRadius: 18.0,
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+                blurRadius: 16.0,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 CupertinoIcons.search,
-                color: Color(0xFFF3D010),
-                size: 20.0,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                size: 19.0,
               ),
               const SizedBox(width: 10.0),
               Expanded(
@@ -975,7 +980,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                   cursorColor: const Color(0xFFF3D010),
                   style: GoogleFonts.kantumruyPro(
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    fontSize: 14.0,
+                    fontSize: 13.5,
                   ),
                   decoration: InputDecoration(
                     hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ផ្នែក ឬសារ...',
@@ -983,7 +988,13 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                       color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                       fontSize: 13.0,
                     ),
+                    filled: false,
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
                   ),

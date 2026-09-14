@@ -147,7 +147,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
   Widget buildTopTransitionZone({
     required BuildContext context,
     Color? maskColor,
-    double height = 48.0,
+    double height = 56.0,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveMask = maskColor ??
@@ -164,18 +164,19 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
-          opacity: hasMask ? 0.92 : 0.0,
+          opacity: hasMask ? 0.96 : 0.0,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  effectiveMask.withValues(alpha: 0.40),
-                  effectiveMask.withValues(alpha: 0.15),
+                  effectiveMask.withValues(alpha: 0.98),
+                  effectiveMask.withValues(alpha: 0.82),
+                  effectiveMask.withValues(alpha: 0.32),
                   effectiveMask.withValues(alpha: 0.0),
                 ],
-                stops: const [0.0, 0.55, 1.0],
+                stops: const [0.0, 0.40, 0.75, 1.0],
               ),
             ),
           ),
@@ -856,7 +857,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     this.onLeadingTap,
     this.backgroundColor,
     this.borderColor,
-    this.height = 48.0,
+    this.height = 42.0,
     this.isScrolled = false,
     this.alwaysShowTitle = false,
     this.alwaysShowGlass = false,
@@ -883,7 +884,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
         tapHandler = btn.onPressed;
         content = IconTheme(
           data: IconThemeData(
-            size: 20.0,
+            size: 19.0,
             color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
           child: btn.icon,
@@ -895,7 +896,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
       tapHandler = () => Navigator.maybePop(context);
       content = Icon(
         CupertinoIcons.chevron_back,
-        size: 20.0,
+        size: 19.0,
         color: isDark ? Colors.white : const Color(0xFF0F172A),
       );
     }
@@ -906,9 +907,10 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     final effectiveShadow = hasGlass
         ? [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-              blurRadius: 14.0,
-              offset: const Offset(0, 4),
+              color: (isDark ? Colors.black : const Color(0xFF0F172A))
+                  .withValues(alpha: isDark ? 0.35 : 0.05),
+              blurRadius: 12.0,
+              offset: const Offset(0, 2),
             ),
           ]
         : <BoxShadow>[];
@@ -946,7 +948,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
           shape: isCapsule ? BoxShape.rectangle : BoxShape.circle,
           borderRadius: isCapsule ? BorderRadius.circular(height / 2) : null,
           color: effectiveBg,
-          border: Border.all(color: effectiveBorder, width: 1.2),
+          border: Border.all(color: effectiveBorder, width: 1.0),
           boxShadow: effectiveShadow,
         ),
         child: Center(child: content),
@@ -984,7 +986,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
       titleContent = DefaultTextStyle.merge(
         style: GoogleFonts.kantumruyPro(
           fontWeight: FontWeight.bold,
-          fontSize: 16.0,
+          fontSize: 14.0,
           color: isDark ? Colors.white : const Color(0xFF0F172A),
         ),
         child: titleWidget!,
@@ -993,8 +995,8 @@ class VvcFloatingHeaderPods extends StatelessWidget {
       titleContent = Text(
         title ?? '',
         style: GoogleFonts.kantumruyPro(
-          fontWeight: FontWeight.bold,
-          fontSize: 16.0,
+          fontWeight: FontWeight.w700,
+          fontSize: 14.5,
           color: isDark ? Colors.white : const Color(0xFF0F172A),
         ),
         maxLines: 1,
@@ -1009,9 +1011,10 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     final effectiveShadow = hasGlass
         ? [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-              blurRadius: 14.0,
-              offset: const Offset(0, 4),
+              color: (isDark ? Colors.black : const Color(0xFF0F172A))
+                  .withValues(alpha: isDark ? 0.35 : 0.05),
+              blurRadius: 12.0,
+              offset: const Offset(0, 2),
             ),
           ]
         : <BoxShadow>[];
@@ -1030,23 +1033,26 @@ class VvcFloatingHeaderPods extends StatelessWidget {
           ),
         );
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeInOutCubic,
-        height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        decoration: BoxDecoration(
-          color: effectiveBg,
-          borderRadius: BorderRadius.circular(height / 2),
-          border: Border.all(color: effectiveBorder, width: 1.2),
-          boxShadow: effectiveShadow,
-        ),
-        child: Center(
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOutCubic,
-            opacity: showTitle ? 1.0 : 0.0,
-            child: titleContent,
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          height: height,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          constraints: const BoxConstraints(minWidth: 42.0),
+          decoration: BoxDecoration(
+            color: effectiveBg,
+            borderRadius: BorderRadius.circular(height / 2),
+            border: Border.all(color: effectiveBorder, width: 1.0),
+            boxShadow: effectiveShadow,
+          ),
+          child: Center(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOutCubic,
+              opacity: showTitle ? 1.0 : 0.0,
+              child: titleContent,
+            ),
           ),
         ),
       ),
@@ -1062,7 +1068,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
   ) {
     if (actions == null || actions!.isEmpty) {
       if (hasLeftPod) {
-        return SizedBox(width: height);
+        return SizedBox(width: leadingWidth ?? height);
       }
       return const SizedBox.shrink();
     }
@@ -1073,9 +1079,10 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     final effectiveShadow = hasGlass
         ? [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-              blurRadius: 14.0,
-              offset: const Offset(0, 4),
+              color: (isDark ? Colors.black : const Color(0xFF0F172A))
+                  .withValues(alpha: isDark ? 0.35 : 0.05),
+              blurRadius: 12.0,
+              offset: const Offset(0, 2),
             ),
           ]
         : <BoxShadow>[];
@@ -1093,7 +1100,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
           child: Center(
             child: IconTheme(
               data: IconThemeData(
-                size: 20.0,
+                size: 19.0,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
               child: act.icon,
@@ -1123,7 +1130,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: effectiveBg,
-            border: Border.all(color: effectiveBorder, width: 1.2),
+            border: Border.all(color: effectiveBorder, width: 1.0),
             boxShadow: effectiveShadow,
           ),
           child: Center(child: actChild),
@@ -1131,32 +1138,50 @@ class VvcFloatingHeaderPods extends StatelessWidget {
       );
     }
 
-    // Multiple actions -> Capsule Pod
-    final actionItems = actions!.map<Widget>((act) {
-      if (act is IconButton) {
-        return SizedBox(
-          width: 38.0,
-          height: 38.0,
-          child: IconButton(
-            padding: EdgeInsets.zero,
-            iconSize: 20.0,
-            icon: IconTheme(
-              data: IconThemeData(
-                size: 20.0,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-              child: act.icon,
-            ),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              act.onPressed?.call();
-            },
-            tooltip: act.tooltip,
+    // Multiple actions -> Unified Swiss Action Capsule Pod
+    final List<Widget> actionWidgets = [];
+    final dividerColor = (isDark ? Colors.white : const Color(0xFF0F172A))
+        .withValues(alpha: isDark ? 0.12 : 0.08);
+
+    for (int i = 0; i < actions!.length; i++) {
+      final act = actions![i];
+      if (i > 0) {
+        actionWidgets.add(
+          Container(
+            width: 1.0,
+            height: height * 0.40,
+            margin: const EdgeInsets.symmetric(horizontal: 1.0),
+            color: dividerColor,
           ),
         );
       }
-      return act;
-    }).toList();
+      if (act is IconButton) {
+        actionWidgets.add(
+          SizedBox(
+            width: height - 6.0,
+            height: height,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 19.0,
+              icon: IconTheme(
+                data: IconThemeData(
+                  size: 19.0,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                child: act.icon,
+              ),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                act.onPressed?.call();
+              },
+              tooltip: act.tooltip,
+            ),
+          ),
+        );
+      } else {
+        actionWidgets.add(act);
+      }
+    }
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
@@ -1186,11 +1211,11 @@ class VvcFloatingHeaderPods extends StatelessWidget {
           decoration: BoxDecoration(
             color: effectiveBg,
             borderRadius: BorderRadius.circular(height / 2),
-            border: Border.all(color: effectiveBorder, width: 1.2),
+            border: Border.all(color: effectiveBorder, width: 1.0),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: actionItems,
+            children: actionWidgets,
           ),
         ),
       ),
@@ -1203,17 +1228,19 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     final canPop = ModalRoute.of(context)?.canPop ?? false;
     final hasLeft = leading != null || canPop;
 
-    final bool effectiveIsDark = backgroundColor != null
+    final bool hasExplicitBg = backgroundColor != null && backgroundColor != Colors.transparent;
+    final bool effectiveIsDark = hasExplicitBg
         ? (backgroundColor!.computeLuminance() < 0.5)
         : (isDark || AppTheme.isDarkMode);
 
-    final targetBg = backgroundColor ??
-        (effectiveIsDark
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
-            : const Color(0xFFF1F3F6).withValues(alpha: 0.82));
+    final targetBg = hasExplicitBg
+        ? backgroundColor!
+        : (effectiveIsDark
+            ? const Color(0xFF131B2A).withValues(alpha: 0.92)
+            : Colors.white);
 
     final targetBorder = borderColor ??
-        (effectiveIsDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
+        (effectiveIsDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0));
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,

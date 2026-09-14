@@ -1424,135 +1424,120 @@ class _AiChatScreenState extends State<AiChatScreen>
     final user = context.watch<UserProvider>();
     final prompts = _quickPrompts(user);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8FAFC),
       appBar: VvcAppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: isDark
+            ? const Color(0xFF131B2A).withValues(alpha: 0.92)
+            : Colors.white.withValues(alpha: 0.95),
         elevation: 0,
         titleSpacing: 0,
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'AI HR Assistant',
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6.5,
+                  height: 6.5,
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.50),
+                        blurRadius: 4,
+                        offset: const Offset(0, 0),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  'AI HR Assistant',
+                  style: GoogleFonts.kantumruyPro(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 1),
             Text(
               _activeSessionTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                color: AppTheme.textSecondary,
-                fontSize: 11,
+              style: GoogleFonts.kantumruyPro(
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                fontSize: 10.5,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
         actions: [
-          // TFLite / Server Engine Capsule Switch
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () {
-                setState(() {
-                  _useLocalEngine = !_useLocalEngine;
-                });
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      _useLocalEngine
-                          ? '⚡ បានប្តូរទៅប្រើ TFLite Local AI (ឥតគិតថ្លៃ & Offline)'
-                          : '☁️ បានប្តូរទៅប្រើ Server AI (Online)',
-                      style: GoogleFonts.kantumruyPro(),
-                    ),
-                    duration: const Duration(seconds: 2),
-                    backgroundColor:
-                        _useLocalEngine ? Colors.green : AppTheme.primary,
+          IconButton(
+            tooltip: _useLocalEngine
+                ? 'TFLite Local AI (Offline) - ចុចដើម្បីប្តូរ'
+                : 'Server AI (Online) - ចុចដើម្បីប្តូរ',
+            onPressed: () {
+              setState(() {
+                _useLocalEngine = !_useLocalEngine;
+              });
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _useLocalEngine
+                        ? '⚡ បានប្តូរទៅប្រើ TFLite Local AI (ឥតគិតថ្លៃ & Offline)'
+                        : '☁️ បានប្តូរទៅប្រើ Server AI (Online)',
+                    style: GoogleFonts.kantumruyPro(),
                   ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _useLocalEngine
-                      ? const Color(0xFFFEF9C3)
-                      : const Color(0xFFE0F2FE),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _useLocalEngine
-                        ? const Color(0xFFFDE047)
-                        : const Color(0xFFBAE6FD),
-                    width: 1,
-                  ),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor:
+                      _useLocalEngine ? Colors.green : AppTheme.primary,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _useLocalEngine
-                          ? Icons.bolt_rounded
-                          : Icons.cloud_done_rounded,
-                      size: 16,
-                      color: _useLocalEngine
-                          ? const Color(0xFFCA8A04)
-                          : const Color(0xFF0284C7),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _useLocalEngine ? 'Local' : 'Server',
-                      style: GoogleFonts.inter(
-                        color: _useLocalEngine
-                            ? const Color(0xFF854D0E)
-                            : const Color(0xFF0369A1),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              );
+            },
+            icon: Icon(
+              _useLocalEngine ? Icons.bolt_rounded : Icons.cloud_done_rounded,
+              color: _useLocalEngine
+                  ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706))
+                  : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7)),
+              size: 19,
             ),
           ),
-          const SizedBox(width: 6),
           IconButton(
             tooltip: 'ប្រវត្តិជជែក',
             onPressed: _openSessionsSheet,
-            icon: Icon(Icons.history_rounded, color: AppTheme.textPrimary),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              tooltip: 'ការជជែកថ្មី',
-              onPressed: _isCreatingSession ? null : _createNewSession,
-              icon: _isCreatingSession
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppTheme.primary,
-                      ),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.add_comment_rounded,
-                        color: Color(0xFF0F172A),
-                        size: 17,
-                      ),
-                    ),
+            icon: Icon(
+              Icons.history_rounded,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              size: 19,
             ),
+          ),
+          IconButton(
+            tooltip: 'ការជជែកថ្មី',
+            onPressed: _isCreatingSession ? null : _createNewSession,
+            icon: _isCreatingSession
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.primary,
+                    ),
+                  )
+                : Icon(
+                    Icons.add_comment_rounded,
+                    color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+                    size: 19,
+                  ),
           ),
         ],
       ),
@@ -1778,26 +1763,31 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildHeaderCard(UserProvider user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final roleLabel = user.systemRoleLabel;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF131B2A) : Colors.white,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: AppTheme.primary.withValues(alpha: 0.40),
+          color: isDark
+              ? const Color(0xFF334155)
+              : const Color(0xFFE2E8F0),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.10),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
+          if (!isDark)
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1807,15 +1797,15 @@ class _AiChatScreenState extends State<AiChatScreen>
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppTheme.primary, AppTheme.primaryDark],
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primary.withValues(alpha: 0.35),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -1823,7 +1813,7 @@ class _AiChatScreenState extends State<AiChatScreen>
             ),
             child: const Icon(
               Icons.smart_toy_rounded,
-              color: Color(0xFF0F172A),
+              color: Colors.white,
               size: 26,
             ),
           ),
@@ -1835,7 +1825,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                 Text(
                   'សួរសំណួរទូទៅ ឬទិន្នន័យ HRM',
                   style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                     fontSize: 14.5,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1846,27 +1836,72 @@ class _AiChatScreenState extends State<AiChatScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.18),
+                        color: isDark
+                            ? const Color(0xFFF59E0B).withValues(alpha: 0.18)
+                            : const Color(0xFFFEF3C7),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: AppTheme.primary.withValues(alpha: 0.35),
+                          color: isDark
+                              ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
+                              : const Color(0xFFFDE047),
                           width: 0.8,
                         ),
                       ),
                       child: Text(
                         roleLabel.isNotEmpty ? roleLabel : 'បុគ្គលិក',
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF854D0E),
+                          color: isDark
+                              ? const Color(0xFFFCD34D)
+                              : const Color(0xFF92400E),
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? (_useLocalEngine ? const Color(0xFFF59E0B).withValues(alpha: 0.18) : const Color(0xFF0284C7).withValues(alpha: 0.18))
+                            : (_useLocalEngine ? const Color(0xFFFEF9C3) : const Color(0xFFE0F2FE)),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isDark
+                              ? (_useLocalEngine ? const Color(0xFFF59E0B).withValues(alpha: 0.40) : const Color(0xFF38BDF8).withValues(alpha: 0.40))
+                              : (_useLocalEngine ? const Color(0xFFFDE047) : const Color(0xFFBAE6FD)),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _useLocalEngine ? Icons.bolt_rounded : Icons.cloud_done_rounded,
+                            size: 11,
+                            color: isDark
+                                ? (_useLocalEngine ? const Color(0xFFFCD34D) : const Color(0xFF38BDF8))
+                                : (_useLocalEngine ? const Color(0xFFCA8A04) : const Color(0xFF0284C7)),
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            _useLocalEngine ? 'Local' : 'Server',
+                            style: GoogleFonts.inter(
+                              color: isDark
+                                  ? (_useLocalEngine ? const Color(0xFFFCD34D) : const Color(0xFF7DD3FC))
+                                  : (_useLocalEngine ? const Color(0xFF854D0E) : const Color(0xFF0369A1)),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text(
                       'AI ឆ្លើយតបរហ័ស ២៤/៧',
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textSecondary,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                         fontSize: 11.5,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1874,6 +1909,18 @@ class _AiChatScreenState extends State<AiChatScreen>
                   ],
                 ),
               ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+              size: 16,
             ),
           ),
         ],
@@ -1893,6 +1940,7 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildMessageArea(List<_PromptOption> prompts) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_messages.isEmpty) {
       final availableCategories = _PromptCategory.values
           .where((category) => prompts.any((item) => item.category == category))
@@ -1913,15 +1961,15 @@ class _AiChatScreenState extends State<AiChatScreen>
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF131B2A) : Colors.white,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: AppTheme.borderColor,
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                 width: 1.2,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
                   blurRadius: 18,
                   offset: const Offset(0, 4),
                 ),
@@ -1935,10 +1983,12 @@ class _AiChatScreenState extends State<AiChatScreen>
                     Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFFBEB),
+                        color: isDark
+                            ? const Color(0xFFF59E0B).withValues(alpha: 0.18)
+                            : const Color(0xFFFFFBEB),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFFFCD34D),
+                          color: isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.40) : const Color(0xFFFCD34D),
                           width: 1,
                         ),
                       ),
@@ -1952,7 +2002,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                     Text(
                       'ចាប់ផ្តើមជាមួយសំណួររហ័ស',
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
                         fontSize: 16.5,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1963,7 +2013,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                 Text(
                   'អ្នកអាចសួរសំណួរទូទៅបានផងដែរ។ សម្រាប់ទិន្នន័យ HRM ដូចជា វត្តមាន ច្បាប់ឈប់ សំណើ និងសេចក្តីសង្ខេបរង់ចាំ AI នឹងប្រើទិន្នន័យប្រព័ន្ធពិតនៅពេលមាន។',
                   style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textSecondary,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     fontSize: 13,
                     height: 1.5,
                   ),
@@ -2007,6 +2057,7 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildPromptCategoryChip(_PromptCategory category) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = category == _selectedPromptCategory;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
@@ -2021,10 +2072,14 @@ class _AiChatScreenState extends State<AiChatScreen>
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
             decoration: BoxDecoration(
-              color: isSelected ? AppTheme.primary : const Color(0xFFF1F5F9),
+              color: isSelected
+                  ? AppTheme.primary
+                  : (isDark ? const Color(0xFF1E293B) : Colors.white),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isSelected ? AppTheme.primaryDark : AppTheme.borderColor,
+                color: isSelected
+                    ? AppTheme.primaryDark
+                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                 width: 1.1,
               ),
               boxShadow: isSelected
@@ -2035,7 +2090,13 @@ class _AiChatScreenState extends State<AiChatScreen>
                         offset: const Offset(0, 2),
                       ),
                     ]
-                  : null,
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.03),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -2043,13 +2104,17 @@ class _AiChatScreenState extends State<AiChatScreen>
                 Icon(
                   _promptCategoryIcon(category),
                   size: 16,
-                  color: isSelected ? const Color(0xFF0F172A) : AppTheme.textSecondary,
+                  color: isSelected
+                      ? const Color(0xFF0F172A)
+                      : (isDark ? Colors.white : const Color(0xFF475569)),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   _promptCategoryLabel(category),
                   style: GoogleFonts.kantumruyPro(
-                    color: isSelected ? const Color(0xFF0F172A) : AppTheme.textSecondary,
+                    color: isSelected
+                        ? const Color(0xFF0F172A)
+                        : (isDark ? Colors.white : const Color(0xFF475569)),
                     fontWeight: FontWeight.w700,
                     fontSize: 12.5,
                   ),
@@ -2063,6 +2128,7 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildPromptChip(String prompt) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2071,15 +2137,15 @@ class _AiChatScreenState extends State<AiChatScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFFBEB),
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFBEB),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: const Color(0xFFFCD34D),
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFFCD34D),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                color: (isDark ? Colors.black : const Color(0xFFF59E0B)).withValues(alpha: isDark ? 0.20 : 0.08),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -2088,17 +2154,17 @@ class _AiChatScreenState extends State<AiChatScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.auto_awesome_rounded,
                 size: 13,
-                color: Color(0xFFD97706),
+                color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
               ),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   prompt,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF92400E),
+                    color: isDark ? Colors.white : const Color(0xFF92400E),
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -2628,8 +2694,8 @@ class _AiChatScreenState extends State<AiChatScreen>
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveForeground = foregroundColor ?? (isDark ? Colors.white : const Color(0xFF0F172A));
-    final effectiveBackground = backgroundColor ?? (isDark ? const Color(0xFF2C3240) : const Color(0xFFF1F5F9));
-    final effectiveBorder = borderColor ?? (isDark ? const Color(0xFF3B4354) : AppTheme.borderColor);
+    final effectiveBackground = backgroundColor ?? (isDark ? const Color(0xFF1E293B) : Colors.white);
+    final effectiveBorder = borderColor ?? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0));
 
     return InkWell(
       borderRadius: BorderRadius.circular(999),
@@ -2641,7 +2707,15 @@ class _AiChatScreenState extends State<AiChatScreen>
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: effectiveBorder,
+            width: 1.0,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2652,8 +2726,8 @@ class _AiChatScreenState extends State<AiChatScreen>
               label,
               style: GoogleFonts.kantumruyPro(
                 color: effectiveForeground,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -2663,20 +2737,21 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildTypingBubble() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF131B2A) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: AppTheme.borderColor,
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
             width: 1.1,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
               blurRadius: 12,
               offset: const Offset(0, 3),
             ),
@@ -2693,7 +2768,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                   Text(
                     'AI កំពុងឆ្លើយ',
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textSecondary,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -2736,10 +2811,10 @@ class _AiChatScreenState extends State<AiChatScreen>
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E222B) : Colors.white,
+            color: isDark ? const Color(0xFF131B2A) : Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: isDark ? const Color(0xFF2C3240) : AppTheme.borderColor,
+              color: isDark ? const Color(0xFF2C3240) : const Color(0xFFE2E8F0),
               width: 1.2,
             ),
             boxShadow: [
@@ -2765,18 +2840,27 @@ class _AiChatScreenState extends State<AiChatScreen>
                     height: 42,
                     decoration: BoxDecoration(
                       color: canUseImage
-                          ? (isDark ? const Color(0xFF2C3240) : const Color(0xFFF1F5F9))
-                          : (isDark ? const Color(0xFF181B22) : const Color(0xFFF8FAFC)),
+                          ? (isDark ? const Color(0xFF1E293B) : Colors.white)
+                          : (isDark ? const Color(0xFF141824) : const Color(0xFFF8FAFC)),
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF3B4354) : AppTheme.borderColor,
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                       ),
+                      boxShadow: canUseImage && !isDark
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                          : null,
                     ),
                     child: Icon(
                       Icons.add_photo_alternate_rounded,
                       color: canUseImage
-                          ? (isDark ? Colors.white : AppTheme.textSecondary)
-                          : (isDark ? const Color(0xFF64748B) : AppTheme.textMuted),
+                          ? (isDark ? Colors.white : const Color(0xFF334155))
+                          : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                       size: 22,
                     ),
                   ),
@@ -2794,7 +2878,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                     minLines: 1,
                     maxLines: 4,
                     style: GoogleFonts.kantumruyPro(
-                      color: isDark ? Colors.white : AppTheme.textPrimary,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -2833,11 +2917,11 @@ class _AiChatScreenState extends State<AiChatScreen>
                     decoration: BoxDecoration(
                       color: canSend
                           ? AppTheme.primary
-                          : (isDark ? const Color(0xFF2C3240) : const Color(0xFFF1F5F9)),
+                          : (isDark ? const Color(0xFF1E293B) : Colors.white),
                       borderRadius: BorderRadius.circular(16),
                       border: canSend
                           ? null
-                          : Border.all(color: isDark ? const Color(0xFF3B4354) : AppTheme.borderColor),
+                          : Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                       boxShadow: canSend
                           ? [
                               BoxShadow(
@@ -2846,7 +2930,15 @@ class _AiChatScreenState extends State<AiChatScreen>
                                 offset: const Offset(0, 2),
                               ),
                             ]
-                          : null,
+                          : (!isDark
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ]
+                              : null),
                     ),
                     child: _isSending
                         ? const Padding(
