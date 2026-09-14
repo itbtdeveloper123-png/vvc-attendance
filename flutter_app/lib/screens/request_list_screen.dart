@@ -337,7 +337,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification.metrics.axis == Axis.vertical) {
-                  final scrolled = notification.metrics.pixels > 12;
+                  final scrolled = notification.metrics.pixels > 4.0;
                   if (scrolled != _isScrolled) {
                     _safeSetState(() => _isScrolled = scrolled);
                   }
@@ -410,7 +410,10 @@ class _RequestListScreenState extends State<RequestListScreen> {
             ),
           ),
 
-          // 3. Floating Liquid Glass Header Pods + Search Bar + Status Filter Strip
+          // 3. Scroll-Aware Top Frosted Glass Shield (Blurs & Fades content under header)
+          _buildTopGlassShield(headerTotalHeight),
+
+          // 4. Floating Liquid Glass Header Pods + Search Bar + Status Filter Strip
           Positioned(
             top: 0,
             left: 0,
@@ -432,7 +435,94 @@ class _RequestListScreenState extends State<RequestListScreen> {
               ),
             ),
           ),
+
+          // 5. Scroll-Aware Bottom Transition Zone (Footer Fade Mask)
+          _buildBottomTransitionZone(context),
         ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // 0. SCROLL-AWARE TRANSITION SHIELDS (HEADER SHIELD & FOOTER MASK)
+  // ===========================================================================
+  Widget _buildTopGlassShield(double height) {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      height: height + 4.0,
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          opacity: _isScrolled ? 1.0 : 0.0,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF000000).withValues(alpha: 0.96),
+                      const Color(0xFF0C0E12).withValues(alpha: 0.90),
+                      const Color(0xFF0C0E12).withValues(alpha: 0.80),
+                      const Color(0xFF0C0E12).withValues(alpha: 0.0),
+                    ],
+                    stops: const [0.0, 0.55, 0.85, 1.0],
+                  ),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomTransitionZone(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final totalHeight = bottomInset + 70.0;
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: totalHeight,
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeInOutCubic,
+          opacity: _isScrolled ? 0.95 : 0.0,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF000000).withValues(alpha: 0.0),
+                      const Color(0xFF000000).withValues(alpha: 0.40),
+                      const Color(0xFF000000).withValues(alpha: 0.80),
+                      const Color(0xFF000000).withValues(alpha: 0.98),
+                    ],
+                    stops: const [0.0, 0.35, 0.70, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -457,19 +547,19 @@ class _RequestListScreenState extends State<RequestListScreen> {
                 height: 44,
                 decoration: BoxDecoration(
                   color: _isScrolled
-                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
+                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.16)
-                        : Colors.white.withValues(alpha: 0.08),
+                        ? Colors.white.withValues(alpha: 0.22)
+                        : Colors.white.withValues(alpha: 0.10),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
-                      blurRadius: _isScrolled ? 14 : 6,
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+                      blurRadius: _isScrolled ? 16 : 4,
                       offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
@@ -509,19 +599,19 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
                     color: _isScrolled
-                        ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
+                        ? const Color(0xFF24272E).withValues(alpha: 0.94)
+                        : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: _isScrolled
-                          ? Colors.white.withValues(alpha: 0.16)
-                          : Colors.white.withValues(alpha: 0.08),
+                          ? Colors.white.withValues(alpha: 0.22)
+                          : Colors.white.withValues(alpha: 0.10),
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
-                        blurRadius: _isScrolled ? 14 : 6,
+                        color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+                        blurRadius: _isScrolled ? 16 : 4,
                         offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
                     ],
@@ -576,19 +666,19 @@ class _RequestListScreenState extends State<RequestListScreen> {
                 height: 44,
                 decoration: BoxDecoration(
                   color: _isScrolled
-                      ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
+                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
+                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
                   borderRadius: BorderRadius.circular(22),
                   border: Border.all(
                     color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.16)
-                        : Colors.white.withValues(alpha: 0.08),
+                        ? Colors.white.withValues(alpha: 0.22)
+                        : Colors.white.withValues(alpha: 0.10),
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.40 : 0.15),
-                      blurRadius: _isScrolled ? 14 : 6,
+                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+                      blurRadius: _isScrolled ? 16 : 4,
                       offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
                   ],
@@ -670,20 +760,20 @@ class _RequestListScreenState extends State<RequestListScreen> {
             height: 42,
             decoration: BoxDecoration(
               color: _isScrolled
-                  ? const Color(0xFF1C1C1E).withValues(alpha: 0.85)
-                  : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
+                  ? const Color(0xFF24272E).withValues(alpha: 0.92)
+                  : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: _isScrolled
-                    ? Colors.white.withValues(alpha: 0.15)
-                    : Colors.white.withValues(alpha: 0.07),
+                    ? Colors.white.withValues(alpha: 0.20)
+                    : Colors.white.withValues(alpha: 0.08),
                 width: 1.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: _isScrolled ? 0.35 : 0.10),
-                  blurRadius: _isScrolled ? 12 : 4,
-                  offset: Offset(0, _isScrolled ? 3 : 1),
+                  color: Colors.black.withValues(alpha: _isScrolled ? 0.45 : 0.10),
+                  blurRadius: _isScrolled ? 14 : 4,
+                  offset: Offset(0, _isScrolled ? 4 : 1),
                 ),
               ],
             ),
