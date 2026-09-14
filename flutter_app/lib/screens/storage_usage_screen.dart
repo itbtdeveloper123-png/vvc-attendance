@@ -254,10 +254,10 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF111827), // Sleek Dark Theme
       appBar: VvcAppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF1F2937).withValues(alpha: 0.92),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -265,7 +265,7 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
           style: GoogleFonts.inter(
             color: Colors.white,
             fontWeight: FontWeight.w600,
-            fontSize: 18,
+            fontSize: 17,
           ),
         ),
         centerTitle: true,

@@ -2009,9 +2009,11 @@ class VvcAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: VvcFloatingHeaderPods(
           titleWidget: title,
           leading: leading,
+          leadingWidth: leadingWidth,
           actions: actions,
           alwaysShowTitle: true,
           alwaysShowGlass: true,
+          backgroundColor: backgroundColor,
         ),
       ),
       bottom: bottom,

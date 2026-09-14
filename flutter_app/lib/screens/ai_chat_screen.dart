@@ -2112,6 +2112,7 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildMessageBubble(_AiMessage message, int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isUser = message.isUser;
     final isError = message.isError;
     final text = message.text.trim();
@@ -2146,7 +2147,7 @@ class _AiChatScreenState extends State<AiChatScreen>
             BoxShadow(
               color: isUser
                   ? AppTheme.primary.withValues(alpha: 0.35)
-                  : const Color(0xFF0F172A).withValues(alpha: 0.05),
+                  : (isDark ? Colors.black.withValues(alpha: 0.30) : const Color(0xFF0F172A).withValues(alpha: 0.05)),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -2157,7 +2158,7 @@ class _AiChatScreenState extends State<AiChatScreen>
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             decoration: BoxDecoration(
-              color: isUser ? null : Colors.white,
+              color: isUser ? null : (isDark ? const Color(0xFF1E222B) : Colors.white),
               gradient: isUser
                   ? LinearGradient(
                       colors: [AppTheme.primary, AppTheme.primaryDark],
@@ -2171,7 +2172,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                     ? AppTheme.danger.withValues(alpha: 0.45)
                     : (isUser
                         ? const Color(0xFFFDE047)
-                        : AppTheme.borderColor),
+                        : (isDark ? const Color(0xFF2C3240) : AppTheme.borderColor)),
                 width: 1.1,
               ),
             ),
@@ -2186,13 +2187,13 @@ class _AiChatScreenState extends State<AiChatScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: message.provider.contains('Local')
-                          ? const Color(0xFFFEF9C3)
-                          : const Color(0xFFEFF6FF),
+                          ? (isDark ? const Color(0xFF854D0E).withValues(alpha: 0.30) : const Color(0xFFFEF9C3))
+                          : (isDark ? const Color(0xFF0369A1).withValues(alpha: 0.30) : const Color(0xFFEFF6FF)),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: message.provider.contains('Local')
-                            ? const Color(0xFFFDE047)
-                            : const Color(0xFFBFDBFE),
+                            ? (isDark ? const Color(0xFFCA8A04) : const Color(0xFFFDE047))
+                            : (isDark ? const Color(0xFF38BDF8) : const Color(0xFFBFDBFE)),
                       ),
                     ),
                     child: Row(
@@ -2204,8 +2205,8 @@ class _AiChatScreenState extends State<AiChatScreen>
                               : Icons.auto_awesome_rounded,
                           size: 11,
                           color: message.provider.contains('Local')
-                              ? const Color(0xFFCA8A04)
-                              : const Color(0xFF0284C7),
+                              ? (isDark ? const Color(0xFFFDE047) : const Color(0xFFCA8A04))
+                              : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0284C7)),
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -2214,8 +2215,8 @@ class _AiChatScreenState extends State<AiChatScreen>
                               : 'AI HR Assistant',
                           style: GoogleFonts.kantumruyPro(
                             color: message.provider.contains('Local')
-                                ? const Color(0xFF854D0E)
-                                : const Color(0xFF0369A1),
+                                ? (isDark ? const Color(0xFFFDE047) : const Color(0xFF854D0E))
+                                : (isDark ? const Color(0xFF7DD3FC) : const Color(0xFF0369A1)),
                             fontSize: 10.5,
                             fontWeight: FontWeight.bold,
                           ),
@@ -2365,7 +2366,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                 style: GoogleFonts.inter(
                   color: isUser
                       ? const Color(0xFF0F172A).withValues(alpha: 0.65)
-                      : AppTheme.textMuted,
+                      : (isDark ? const Color(0xFF94A3B8) : AppTheme.textMuted),
                   fontSize: 10,
                   fontWeight: FontWeight.w500,
                 ),
@@ -2578,15 +2579,16 @@ class _AiChatScreenState extends State<AiChatScreen>
     final RegExp exp = RegExp(r'\*\*(.*?)\*\*');
     int lastIndex = 0;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final defaultStyle = GoogleFonts.kantumruyPro(
-      color: isUser ? const Color(0xFF0F172A) : const Color(0xFF1E293B),
+      color: isUser ? const Color(0xFF0F172A) : (isDark ? Colors.white : const Color(0xFF1E293B)),
       fontSize: 14,
       height: 1.5,
       fontWeight: FontWeight.w400,
     );
 
     final boldStyle = GoogleFonts.kantumruyPro(
-      color: isUser ? const Color(0xFF0F172A) : const Color(0xFF92400E),
+      color: isUser ? const Color(0xFF0F172A) : (isDark ? const Color(0xFFFDE047) : const Color(0xFF92400E)),
       fontSize: 14,
       height: 1.5,
       fontWeight: FontWeight.bold,
@@ -2624,17 +2626,21 @@ class _AiChatScreenState extends State<AiChatScreen>
     Color? backgroundColor,
     Color? borderColor,
   }) {
-    final effectiveForeground = foregroundColor ?? AppTheme.textPrimary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveForeground = foregroundColor ?? (isDark ? Colors.white : const Color(0xFF0F172A));
+    final effectiveBackground = backgroundColor ?? (isDark ? const Color(0xFF2C3240) : const Color(0xFFF1F5F9));
+    final effectiveBorder = borderColor ?? (isDark ? const Color(0xFF3B4354) : AppTheme.borderColor);
+
     return InkWell(
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: backgroundColor ?? const Color(0xFFF1F5F9),
+          color: effectiveBackground,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: borderColor ?? AppTheme.borderColor,
+            color: effectiveBorder,
           ),
         ),
         child: Row(
@@ -2719,6 +2725,7 @@ class _AiChatScreenState extends State<AiChatScreen>
   }
 
   Widget _buildComposer() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final canSend = !_isSending && _hasComposerText;
     final canUseImage = !_isSending;
 
@@ -2729,15 +2736,15 @@ class _AiChatScreenState extends State<AiChatScreen>
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF1E222B) : Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: AppTheme.borderColor,
+              color: isDark ? const Color(0xFF2C3240) : AppTheme.borderColor,
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                color: isDark ? Colors.black.withValues(alpha: 0.40) : const Color(0xFF0F172A).withValues(alpha: 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 4),
               ),
@@ -2758,18 +2765,18 @@ class _AiChatScreenState extends State<AiChatScreen>
                     height: 42,
                     decoration: BoxDecoration(
                       color: canUseImage
-                          ? const Color(0xFFF1F5F9)
-                          : const Color(0xFFF8FAFC),
+                          ? (isDark ? const Color(0xFF2C3240) : const Color(0xFFF1F5F9))
+                          : (isDark ? const Color(0xFF181B22) : const Color(0xFFF8FAFC)),
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: AppTheme.borderColor,
+                        color: isDark ? const Color(0xFF3B4354) : AppTheme.borderColor,
                       ),
                     ),
                     child: Icon(
                       Icons.add_photo_alternate_rounded,
                       color: canUseImage
-                          ? AppTheme.textSecondary
-                          : AppTheme.textMuted,
+                          ? (isDark ? Colors.white : AppTheme.textSecondary)
+                          : (isDark ? const Color(0xFF64748B) : AppTheme.textMuted),
                       size: 22,
                     ),
                   ),
@@ -2787,14 +2794,14 @@ class _AiChatScreenState extends State<AiChatScreen>
                     minLines: 1,
                     maxLines: 4,
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
+                      color: isDark ? Colors.white : AppTheme.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                     decoration: InputDecoration(
                       hintText: 'សួរ AI ឬពិនិត្យទិន្នន័យ HRM...',
                       hintStyle: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textMuted,
+                        color: isDark ? const Color(0xFF94A3B8) : AppTheme.textMuted,
                         fontSize: 13,
                       ),
                       border: InputBorder.none,
@@ -2826,11 +2833,11 @@ class _AiChatScreenState extends State<AiChatScreen>
                     decoration: BoxDecoration(
                       color: canSend
                           ? AppTheme.primary
-                          : const Color(0xFFF1F5F9),
+                          : (isDark ? const Color(0xFF2C3240) : const Color(0xFFF1F5F9)),
                       borderRadius: BorderRadius.circular(16),
                       border: canSend
                           ? null
-                          : Border.all(color: AppTheme.borderColor),
+                          : Border.all(color: isDark ? const Color(0xFF3B4354) : AppTheme.borderColor),
                       boxShadow: canSend
                           ? [
                               BoxShadow(
@@ -2853,7 +2860,7 @@ class _AiChatScreenState extends State<AiChatScreen>
                             Icons.arrow_upward_rounded,
                             color: canSend
                                 ? const Color(0xFF0F172A)
-                                : const Color(0xFF94A3B8),
+                                : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
                             size: 22,
                           ),
                   ),

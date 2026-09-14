@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,20 +23,25 @@ import '../utils/app_theme.dart';
 
 
 // ==========================================
-// COLOR TOKENS (DYNAMIC COMPANY THEME)
+// COLOR TOKENS (DYNAMIC COMPANY THEME - HIGH CONTRAST)
 // ==========================================
 class MessengerTheme {
-  static Color get bg => AppTheme.bgSurface;
-  static Color get cardBg => AppTheme.bgCard;
-  static Color get textPrimary => AppTheme.textPrimary;
-  static Color get textSecondary => AppTheme.textSecondary;
-  static Color get textMuted => AppTheme.textMuted;
-  static Color get activeBlue => AppTheme.primary;
+  static bool _contextDark = false;
+  static void update(BuildContext context) {
+    _contextDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+  }
+  static bool get isDark => _contextDark || AppTheme.isDarkMode;
+  static Color get bg => isDark ? const Color(0xFF0F172A) : AppTheme.bgSurface;
+  static Color get cardBg => isDark ? const Color(0xFF1E222B) : AppTheme.bgCard;
+  static Color get textPrimary => isDark ? Colors.white : AppTheme.textPrimary;
+  static Color get textSecondary => isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+  static Color get textMuted => isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color get activeBlue => const Color(0xFFF3D010);
   static Color get onlineGreen => const Color(0xFF10B981);
-  static Color get actionBtnBg => const Color(0xFFF1F5F9);
-  static Color get adBadgeBg => AppTheme.border;
-  static Color get unreadDot => AppTheme.primary;
-  static Color get border => AppTheme.border;
+  static Color get actionBtnBg => isDark ? const Color(0xFF222630) : const Color(0xFFF1F5F9);
+  static Color get adBadgeBg => isDark ? const Color(0xFF334155) : AppTheme.border;
+  static Color get unreadDot => const Color(0xFFF3D010);
+  static Color get border => isDark ? const Color(0xFF334155) : AppTheme.border;
 }
 
 Color _getAvatarBgColor(String name) {
@@ -81,6 +88,9 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   final ScrollController _scrollController = ScrollController();
   bool _isScrolled = false;
   String _selectedFolder = 'all'; // 'all', 'direct', 'group', 'unread'
+  bool _isSearchExpanded = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   int get _totalUnreadCount {
     int count = 0;
@@ -119,6 +129,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   void dispose() {
     _broomAnimCtrl.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _groupsSubscription?.cancel();
     super.dispose();
   }
@@ -318,92 +330,111 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    MessengerTheme.update(context);
     final userProvider = Provider.of<UserProvider>(context);
+    final isDark = MessengerTheme.isDark;
     final double topSafeArea = MediaQuery.of(context).padding.top;
     final double bottomSafeArea = MediaQuery.of(context).padding.bottom;
 
-    // Top frosted header height: safeArea + top row (46) + search (36) + tabs (32) + vertical paddings (26)
-    final double topHeaderHeight = topSafeArea + 148.0;
-    // Bottom frosted bar height: bottomSafeArea + bar items (52) + vertical padding (14)
-    final double bottomBarHeight = (bottomSafeArea > 0 ? bottomSafeArea : 10.0) + 64.0;
+    // Top padding: topSafeArea + 44.0 (Pods) + 6.0 + 34.0 (Tabs) + 14.0
+    final double topHeaderHeight = topSafeArea + 98.0;
+    // Bottom dock height: (bottomSafeArea + 4.0 or 14.0) + 64.0
+    final double bottomBarHeight = (bottomSafeArea > 0 ? bottomSafeArea + 4.0 : 14.0) + 64.0;
+    final double listBottomPadding = bottomBarHeight + (_isSearchExpanded ? 64.0 : 12.0);
+
+    final bottomNavBar = _buildTelegramFrostedBottomBar(bottomSafeArea, isDark);
 
     return Scaffold(
       backgroundColor: MessengerTheme.bg,
-      body: Stack(
-        children: [
-          // 1. Full-Bleed Scrollable Content Layer (Glides under top and bottom frosted glass bars)
-          Positioned.fill(
-            child: isLoading
-                ? Center(
-                    child: CircularProgressIndicator(
-                      color: MessengerTheme.activeBlue,
-                    ),
-                  )
-                : ListView(
-                    controller: _scrollController,
-                    physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                    padding: EdgeInsets.fromLTRB(
-                      0,
-                      topHeaderHeight,
-                      0,
-                      bottomBarHeight,
-                    ),
-                    children: [
-                      // A. Stories horizontal row (Active team online colleagues)
-                      if (searchQuery.isEmpty && (_selectedFolder == 'all' || _selectedFolder == 'direct')) ...[
-                        const SizedBox(height: 6.0),
-                        _buildStoriesSection(),
-                        const SizedBox(height: 10.0),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification.metrics.axis == Axis.vertical) {
+            final scrolled = notification.metrics.pixels > 6.0;
+            if (scrolled != _isScrolled) {
+              setState(() => _isScrolled = scrolled);
+            }
+          }
+          return false;
+        },
+        child: Stack(
+          children: [
+            // 1. Full-Bleed Scrollable Content Layer (Glides under floating header & dock)
+            Positioned.fill(
+              child: isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: MessengerTheme.activeBlue,
+                      ),
+                    )
+                  : ListView(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                      padding: EdgeInsets.fromLTRB(
+                        0,
+                        topHeaderHeight,
+                        0,
+                        listBottomPadding,
+                      ),
+                      children: [
+                        // A. Stories horizontal row (Active team online colleagues)
+                        if (searchQuery.isEmpty && (_selectedFolder == 'all' || _selectedFolder == 'direct')) ...[
+                          const SizedBox(height: 6.0),
+                          _buildStoriesSection(),
+                          const SizedBox(height: 10.0),
+                        ],
+
+                        // B. Filtered Conversations List
+                        ..._buildFilteredChatItems(),
                       ],
+                    ),
+            ),
 
-                      // B. Filtered Conversations List
-                      ..._buildFilteredChatItems(),
-                    ],
-                  ),
-          ),
+            // 2. Localized Bottom Edge Transition Zone (Fades content smoothly under the dock)
+            bottomNavBar.buildTransitionZone(
+              context: context,
+              maskColor: MessengerTheme.bg,
+            ),
 
-          // 2. Top Floating Frosted Glass Header (Dynamically blurs conversations as they scroll underneath)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildTelegramFrostedHeader(userProvider, topSafeArea),
-          ),
+            // 3. Floating Glass Search Bar (Appears smoothly when search button is tapped)
+            if (_isSearchExpanded)
+              Positioned(
+                left: 16.0,
+                right: 16.0,
+                bottom: bottomBarHeight + 8.0,
+                child: _buildFloatingGlassSearchBar(isDark),
+              ),
 
-          // 3. Bottom Floating Frosted Glass Bar (Authentic Cupertino Liquid Glass)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildTelegramFrostedBottomBar(bottomSafeArea),
-          ),
-        ],
+            // 4. Bottom Floating Liquid Glass Dock (with Standalone Search Pod)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: bottomNavBar.buildFloatingDock(context: context),
+            ),
+
+            // 5. Top Floating 3-Pods Header (Segmented Three-Islands Apple Glass Header)
+            Positioned(
+              top: topSafeArea + 6.0,
+              left: 14.0,
+              right: 14.0,
+              child: _buildTopPodsHeader(userProvider, isDark),
+            ),
+
+            // 6. Centered Navtabs / Category Filter Tabs (Floating without background)
+            Positioned(
+              top: topSafeArea + 56.0,
+              left: 0,
+              right: 0,
+              child: _buildFolderTabs(),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   // ==========================================
-  // TOP FROSTED GLASS HEADER (GLOBAL LIQUID GLASS PINNED)
-  // ==========================================
-  Widget _buildTelegramFrostedHeader(UserProvider user, double topSafeArea) {
-    return VvcLiquidGlassPinnedHeader(
-      isScrolled: _isScrolled,
-      padding: EdgeInsets.fromLTRB(14.0, topSafeArea + 4.0, 14.0, 10.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildTopHeader(user),
-          const SizedBox(height: 6.0),
-          _buildSearchBar(),
-          const SizedBox(height: 8.0),
-          _buildFolderTabs(),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================
-  // TELEGRAM FOLDER FILTER TABS (CATEGORIES)
+  // TELEGRAM FOLDER FILTER TABS (CENTERED NAVTABS)
   // ==========================================
   Widget _buildFolderTabs() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -420,104 +451,159 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     ];
 
     return SizedBox(
-      height: 32.0,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8.0),
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final String id = tab['id'] as String;
-          final String label = tab['label'] as String;
-          final int count = tab['count'] as int;
-          final bool isSelected = _selectedFolder == id;
+      height: 34.0,
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 14.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: tabs.map((tab) {
+              final String id = tab['id'] as String;
+              final String label = tab['label'] as String;
+              final int count = tab['count'] as int;
+              final bool isSelected = _selectedFolder == id;
 
-          return GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              setState(() => _selectedFolder = id);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 5.0),
-              decoration: BoxDecoration(
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
-                      )
-                    : null,
-                color: isSelected
-                    ? null
-                    : (isDark
-                        ? const Color(0xFF1E293B).withValues(alpha: 0.50)
-                        : Colors.white.withValues(alpha: 0.55)),
-                borderRadius: BorderRadius.circular(16.0),
-                border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFFFDE047)
-                      : (isDark
-                          ? Colors.white.withValues(alpha: 0.18)
-                          : Colors.white.withValues(alpha: 0.70)),
-                  width: 1.0,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _selectedFolder = id);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? const LinearGradient(
+                              colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                            )
+                          : null,
+                      color: isSelected
+                          ? null
+                          : (isDark
+                              ? const Color(0xFF1E222B).withValues(alpha: 0.85)
+                              : Colors.white.withValues(alpha: 0.70)),
+                      borderRadius: BorderRadius.circular(18.0),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFFFDE047)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.16)
+                                : Colors.white.withValues(alpha: 0.80)),
+                        width: 1.0,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: GoogleFonts.kantumruyPro(
+                            color: isSelected
+                                ? const Color(0xFF0F172A)
+                                : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                            fontSize: 12.5,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          ),
                         ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: GoogleFonts.kantumruyPro(
-                      color: isSelected ? Colors.white : MessengerTheme.textPrimary,
-                      fontSize: 12.5,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        if (count > 0 && id != 'all') ...[
+                          const SizedBox(width: 6.0),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.black.withValues(alpha: 0.20)
+                                  : (isDark
+                                      ? const Color(0xFF334155)
+                                      : const Color(0xFFFEF3C7)),
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: GoogleFonts.inter(
+                                color: isSelected
+                                    ? const Color(0xFF0F172A)
+                                    : (isDark
+                                        ? const Color(0xFFFDE047)
+                                        : const Color(0xFFB45309)),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  if (count > 0 && id != 'all') ...[
-                    const SizedBox(width: 6.0),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.0),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.white.withValues(alpha: 0.25)
-                            : const Color(0xFFF3D010).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: GoogleFonts.inter(
-                          color: isSelected ? Colors.white : const Color(0xFFB45309),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          );
-        },
+                ),
+              );
+            }).toList(),
+          ),
+        ),
       ),
     );
   }
 
   // ==========================================
-  // BOTTOM FROSTED GLASS BAR (GLOBAL VvcLiquidGlassBottomBar)
+  // BOTTOM FROSTED GLASS BAR (with Standalone Search Pod)
   // ==========================================
-  Widget _buildTelegramFrostedBottomBar(double bottomSafeArea) {
+  VvcLiquidGlassBottomBar _buildTelegramFrostedBottomBar(double bottomSafeArea, bool isDark) {
     return VvcLiquidGlassBottomBar(
       currentIndex: 2,
       bottomInset: bottomSafeArea,
+      isScrolled: _isScrolled,
+      accentColor: const Color(0xFFF3D010),
+      backgroundColor: isDark
+          ? const Color(0xFF181B22).withValues(alpha: 0.90)
+          : const Color(0xFFF1F3F6).withValues(alpha: 0.92),
+      borderColor: isDark
+          ? Colors.white.withValues(alpha: 0.16)
+          : const Color(0xFFE2E8F0),
+      unselectedItemColor: isDark
+          ? const Color(0xFFCBD5E1)
+          : const Color(0xFF64748B),
+      trailingAction: AnimatedRotation(
+        turns: _isSearchExpanded ? 0.25 : 0.0,
+        duration: const Duration(milliseconds: 240),
+        child: Icon(
+          _isSearchExpanded ? CupertinoIcons.xmark : CupertinoIcons.search,
+          color: isDark ? const Color(0xFFF3D010) : const Color(0xFF0F172A),
+          size: 24.0,
+        ),
+      ),
+      onTrailingActionTap: () {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _isSearchExpanded = !_isSearchExpanded;
+          if (!_isSearchExpanded) {
+            searchQuery = '';
+            filteredUsers = usersList;
+            _searchController.clear();
+            _searchFocusNode.unfocus();
+          } else {
+            _searchFocusNode.requestFocus();
+          }
+        });
+      },
       onTap: (index) {
         if (index == 0) {
           HapticFeedback.lightImpact();
@@ -664,84 +750,99 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
   }
 
   // ==========================================
-  // TOP APPMBAR HEADER
+  // TOP 3-PODS FLOATING LIQUID GLASS HEADER
   // ==========================================
-  Widget _buildTopHeader(UserProvider user) {
-    return Row(
-      children: [
-        // Back arrow navigation icon (Frosted Circular Glass)
-        VvcLiquidGlassCircleButton(
-          size: 36.0,
-          onTap: () => Navigator.pop(context),
-          child: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: MessengerTheme.textPrimary,
-            size: 15,
-          ),
-        ),
-        const SizedBox(width: 8.0),
-
-        // User avatar (Clickable to open profile screen)
-        InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const ProfileScreen(),
+  Widget _buildTopPodsHeader(UserProvider user, bool isDark) {
+    return VvcFloatingHeaderPods(
+      height: 42.0,
+      isScrolled: _isScrolled,
+      alwaysShowGlass: true,
+      alwaysShowTitle: true,
+      backgroundColor: isDark
+          ? const Color(0xFF181B22).withValues(alpha: 0.88)
+          : Colors.white.withValues(alpha: 0.86),
+      borderColor: isDark
+          ? Colors.white.withValues(alpha: 0.16)
+          : const Color(0xFFE2E8F0),
+      leadingWidth: 80.0,
+      leading: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Back arrow
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  size: 16.0,
+                ),
               ),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: CircleAvatar(
-            radius: 19.0,
-            backgroundImage:
-                user.avatar != null && user.avatar!.isNotEmpty
+            ),
+            // User avatar (Clickable to open profile screen)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProfileScreen(),
+                  ),
+                );
+              },
+              child: CircleAvatar(
+                radius: 14.5,
+                backgroundImage: user.avatar != null && user.avatar!.isNotEmpty
                     ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
                     : null,
-            backgroundColor: _getAvatarBgColor(user.name ?? ''),
-            child:
-                user.avatar == null || user.avatar!.isEmpty
+                backgroundColor: _getAvatarBgColor(user.name ?? ''),
+                child: user.avatar == null || user.avatar!.isEmpty
                     ? Text(
-                      (user.name ?? 'U').substring(0, 1).toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 13,
-                      ),
-                    )
+                        (user.name ?? 'U').substring(0, 1).toUpperCase(),
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 11.5,
+                        ),
+                      )
                     : null,
-          ),
-        ),
-        const SizedBox(width: 10.0),
-
-        // Title "Chats" (សារ)
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'សារ (Chats)',
-                style: GoogleFonts.kantumruyPro(
-                  fontSize: 19.0,
-                  fontWeight: FontWeight.bold,
-                  color: MessengerTheme.textPrimary,
-                ),
               ),
-              if (_totalUnreadCount > 0)
-                Text(
-                  '$_totalUnreadCount សារមិនទាន់អាន',
-                  style: GoogleFonts.kantumruyPro(
-                    fontSize: 11.0,
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
-
-        // Animated Broom / Clean Storage Action Button
+      ),
+      titleWidget: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'សារ (Chats)',
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 15.0,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            ),
+          ),
+          if (_totalUnreadCount > 0)
+            Text(
+              '$_totalUnreadCount សារមិនទាន់អាន',
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 9.5,
+                color: const Color(0xFFF3D010),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        // Broom cleaner action
         AnimatedBuilder(
           animation: _broomAnimCtrl,
           builder: (context, child) {
@@ -750,10 +851,18 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               scale: _cacheSizeBytes > 15 * 1024 * 1024 ? scale : 1.0,
               child: Stack(
                 clipBehavior: Clip.none,
+                alignment: Alignment.center,
                 children: [
-                  _buildActionButton(
-                    icon: Icons.cleaning_services_rounded,
-                    onTap: () async {
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36.0, minHeight: 36.0),
+                    icon: Icon(
+                      Icons.cleaning_services_rounded,
+                      size: 18.0,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    onPressed: () async {
+                      HapticFeedback.lightImpact();
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -765,22 +874,25 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                   ),
                   if (_cacheSizeText.isNotEmpty)
                     Positioned(
-                      right: -4,
-                      top: -4,
+                      right: -2,
+                      top: 0,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
                         decoration: BoxDecoration(
                           color: _cacheSizeBytes > 30 * 1024 * 1024
                               ? const Color(0xFFEF4444)
                               : const Color(0xFFFF9500),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: MessengerTheme.bg, width: 1.5),
+                          borderRadius: BorderRadius.circular(8.0),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF181B22) : Colors.white,
+                            width: 1.0,
+                          ),
                         ),
                         child: Text(
                           _cacheSizeText,
                           style: GoogleFonts.inter(
                             color: Colors.white,
-                            fontSize: 9,
+                            fontSize: 8.0,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -791,18 +903,24 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             );
           },
         ),
-        const SizedBox(width: 8.0),
-        _buildActionButton(
-          icon: Icons.edit_rounded,
-          onTap: () {
+        // Compose Pen action
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 36.0, minHeight: 36.0),
+          icon: Icon(
+            Icons.edit_rounded,
+            size: 18.0,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
+          ),
+          onPressed: () {
+            HapticFeedback.lightImpact();
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (_) => NewMessageScreen(
-                      allUsers: usersList,
-                      currentUserId: currentUserId,
-                    ),
+                builder: (_) => NewMessageScreen(
+                  allUsers: usersList,
+                  currentUserId: currentUserId,
+                ),
               ),
             );
           },
@@ -811,75 +929,82 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return VvcLiquidGlassCircleButton(
-      size: 36.0,
-      onTap: onTap,
-      child: Icon(icon, size: 18.0, color: MessengerTheme.textPrimary),
-    );
-  }
-
   // ==========================================
-  // SEARCH BAR
+  // FLOATING GLASS SEARCH BAR (EXPANDABLE)
   // ==========================================
-  Widget _buildSearchBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SizedBox(
-      height: 36.0,
-      child: TextField(
-        onChanged: _filterUsers,
-        cursorColor: const Color(0xFFF3D010),
-        style: GoogleFonts.kantumruyPro(
-          color: MessengerTheme.textPrimary,
-          fontSize: 13.5,
-        ),
-        decoration: InputDecoration(
-          hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ឬផ្នែក...',
-          hintStyle: GoogleFonts.kantumruyPro(
-            color: MessengerTheme.textMuted,
-            fontSize: 13.0,
-          ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: MessengerTheme.textMuted,
-            size: 18.0,
-          ),
-          filled: true,
-          fillColor: isDark
-              ? const Color(0xFF1E293B).withValues(alpha: 0.50)
-              : Colors.white.withValues(alpha: 0.45),
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 6.0,
-            horizontal: 12.0,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18.0),
-            borderSide: BorderSide(
+  Widget _buildFloatingGlassSearchBar(bool isDark) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24.0),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
+        child: Container(
+          height: 48.0,
+          padding: const EdgeInsets.symmetric(horizontal: 14.0),
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF1E222B).withValues(alpha: 0.92)
+                : Colors.white.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(24.0),
+            border: Border.all(
               color: isDark
-                  ? Colors.white.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.70),
-              width: 1.0,
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : const Color(0xFFE2E8F0),
+              width: 1.2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.10),
+                blurRadius: 18.0,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18.0),
-            borderSide: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.70),
-              width: 1.0,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18.0),
-            borderSide: const BorderSide(
-              color: Color(0xFFF3D010),
-              width: 1.3,
-            ),
+          child: Row(
+            children: [
+              const Icon(
+                CupertinoIcons.search,
+                color: Color(0xFFF3D010),
+                size: 20.0,
+              ),
+              const SizedBox(width: 10.0),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: _filterUsers,
+                  cursorColor: const Color(0xFFF3D010),
+                  style: GoogleFonts.kantumruyPro(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontSize: 14.0,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'ស្វែងរកឈ្មោះបុគ្គលិក ផ្នែក ឬសារ...',
+                    hintStyle: GoogleFonts.kantumruyPro(
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      fontSize: 13.0,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+              if (_searchController.text.isNotEmpty)
+                GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    _filterUsers('');
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Icon(
+                      CupertinoIcons.clear_circled_solid,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      size: 18.0,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

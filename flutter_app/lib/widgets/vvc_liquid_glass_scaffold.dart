@@ -102,10 +102,6 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
     );
   }
 
-  void _triggerHaptic() {
-    HapticFeedback.lightImpact();
-  }
-
   /// 1. Localized Bottom Edge Transition Zone (Clear at rest -> Animated Fade Mask on scroll)
   Widget buildTransitionZone({
     required BuildContext context,
@@ -190,155 +186,136 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
 
   /// 2. Floating Liquid Glass Dual-Island Dock (Navigation Island Capsule + Standalone Action Pod)
   Widget buildFloatingDock({required BuildContext context}) {
-    final double bottomMargin = bottomInset > 0 ? bottomInset + 4.0 : 14.0;
-    final effectiveAccent = accentColor ?? const Color(0xFF0A84FF); // Apple Blue
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const double dockHeight = 64.0;
-    final hasGlass = alwaysShowGlass || isScrolled;
-
-    final targetBorder = borderColor ??
-        (isDark
-            ? const Color(0x38545458)
-            : const Color(0xFFE2E8F0));
-
-    final targetBg = backgroundColor != null
-        ? (backgroundColor!.a >= 0.99
-            ? backgroundColor!.withValues(alpha: isDark ? 0.88 : 0.92)
-            : backgroundColor!)
-        : (isDark
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
-            : const Color(0xFFF1F3F6).withValues(alpha: 0.92));
-
-    final effectiveBorder = hasGlass ? targetBorder : Colors.transparent;
-    final effectiveBg = hasGlass ? targetBg : Colors.transparent;
-    final effectiveShadow = hasGlass
-        ? [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.08),
-              blurRadius: 18.0,
-              offset: const Offset(0, 4),
-            ),
-          ]
-        : <BoxShadow>[];
-
-    return Container(
-      margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 1. LEFT MAIN NAVIGATION DOCK CAPSULE
-          Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeInOutCubic,
-              height: dockHeight,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(36.0),
-                boxShadow: effectiveShadow,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(36.0),
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeInOutCubic,
-                  builder: (context, blur, child) {
-                    if (blur <= 0.05) {
-                      return child!;
-                    }
-                    return BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    height: dockHeight,
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
-                    decoration: BoxDecoration(
-                      color: effectiveBg,
-                      borderRadius: BorderRadius.circular(36.0),
-                      border: Border.all(
-                        color: effectiveBorder,
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Row(
-                      children: List.generate(items.length, (index) {
-                        final item = items[index];
-                        final isSelected = index == currentIndex;
-                        return Expanded(
-                          child: _buildDockItem(
-                            context: context,
-                            item: item,
-                            isSelected: isSelected,
-                            activeColor: effectiveAccent,
-                            onItemTap: () {
-                              _triggerHaptic();
-                              onTap(index);
-                            },
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 2. RIGHT STANDALONE CIRCULAR ACTION POD (Quick Scan QR / Face)
-          if (trailingAction != null) ...[
-            const SizedBox(width: 10.0),
-            GestureDetector(
-              onTap: () {
-                _triggerHaptic();
-                onTrailingActionTap?.call();
-              },
-              behavior: HitTestBehavior.opaque,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeInOutCubic,
-                width: dockHeight,
-                height: dockHeight,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: effectiveShadow,
-                ),
-                child: ClipOval(
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeInOutCubic,
-                    builder: (context, blur, child) {
-                      if (blur <= 0.05) {
-                        return child!;
-                      }
-                      return BackdropFilter(
-                        filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                        child: child,
-                      );
-                    },
-                    child: Container(
-                      width: dockHeight,
-                      height: dockHeight,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: effectiveBg,
-                        border: Border.all(
-                          color: effectiveBorder,
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Center(child: trailingAction!),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+    return _VvcLiquidGlassFloatingDock(
+      currentIndex: currentIndex,
+      onTap: onTap,
+      items: items,
+      backgroundColor: backgroundColor,
+      accentColor: accentColor,
+      borderColor: borderColor,
+      unselectedItemColor: unselectedItemColor,
+      blurSigma: blurSigma,
+      bottomInset: bottomInset,
+      trailingAction: trailingAction,
+      onTrailingActionTap: onTrailingActionTap,
+      isScrolled: isScrolled,
+      alwaysShowGlass: alwaysShowGlass,
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        buildTransitionZone(context: context),
+        buildFloatingDock(context: context),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 2.1 STATEFUL LIQUID WATER & LENS DOCK (Apple / Telegram iOS Transition)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _VvcLiquidGlassFloatingDock extends StatefulWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final List<LiquidGlassItem> items;
+  final Color? backgroundColor;
+  final Color? accentColor;
+  final Color? borderColor;
+  final Color? unselectedItemColor;
+  final double blurSigma;
+  final double bottomInset;
+  final Widget? trailingAction;
+  final VoidCallback? onTrailingActionTap;
+  final bool isScrolled;
+  final bool alwaysShowGlass;
+
+  const _VvcLiquidGlassFloatingDock({
+    required this.currentIndex,
+    required this.onTap,
+    required this.items,
+    this.backgroundColor,
+    this.accentColor,
+    this.borderColor,
+    this.unselectedItemColor,
+    this.blurSigma = 25.0,
+    this.bottomInset = 0.0,
+    this.trailingAction,
+    this.onTrailingActionTap,
+    this.isScrolled = false,
+    this.alwaysShowGlass = true,
+  });
+
+  @override
+  State<_VvcLiquidGlassFloatingDock> createState() => _VvcLiquidGlassFloatingDockState();
+}
+
+class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  late double _fromIndex;
+  late double _toIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    final initialIndex = widget.items.isEmpty
+        ? 0.0
+        : widget.currentIndex.clamp(0, widget.items.length - 1).toDouble();
+    _fromIndex = initialIndex;
+    _toIndex = initialIndex;
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+
+    _controller.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(covariant _VvcLiquidGlassFloatingDock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _animateTo(widget.currentIndex);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _triggerHaptic() {
+    HapticFeedback.lightImpact();
+  }
+
+  void _animateTo(int targetIndex) {
+    if (widget.items.isEmpty) return;
+    final clamped = targetIndex.clamp(0, widget.items.length - 1).toDouble();
+    if (_toIndex == clamped && (_controller.isAnimating || _controller.value == 1.0)) {
+      return;
+    }
+
+    final currentPosition = ui.lerpDouble(_fromIndex, _toIndex, _animation.value) ?? _toIndex;
+
+    setState(() {
+      _fromIndex = currentPosition;
+      _toIndex = clamped;
+    });
+
+    _controller.forward(from: 0.0);
   }
 
   Widget _buildDockItem({
@@ -354,26 +331,16 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
         : item.icon;
     final hasLabel = item.label != null && item.label!.isNotEmpty;
 
-    // Active pill indicator wrapping both icon and label
-    final activePillBg = isDark
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.black.withValues(alpha: 0.08);
-
-    final unselectedColor = unselectedItemColor ??
+    final unselectedColor = widget.unselectedItemColor ??
         (isDark ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF64748B));
 
     return GestureDetector(
       onTap: onItemTap,
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
+      child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 2.0),
         padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
-        decoration: BoxDecoration(
-          color: isSelected ? activePillBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(26.0),
-        ),
+        color: Colors.transparent,
         child: Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.center,
@@ -382,15 +349,26 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  iconData,
-                  color: isSelected ? activeColor : unselectedColor,
-                  size: 22.0,
+                TweenAnimationBuilder<Color?>(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  tween: ColorTween(
+                    begin: unselectedColor,
+                    end: isSelected ? activeColor : unselectedColor,
+                  ),
+                  builder: (context, color, _) {
+                    return Icon(
+                      iconData,
+                      color: color,
+                      size: 22.0,
+                    );
+                  },
                 ),
                 if (hasLabel) ...[
                   const SizedBox(height: 3.0),
-                  Text(
-                    item.label!,
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
                     style: GoogleFonts.kantumruyPro(
                       fontSize: 11.0,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -398,6 +376,7 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    child: Text(item.label!),
                   ),
                 ],
               ],
@@ -431,12 +410,255 @@ class VvcLiquidGlassBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        buildTransitionZone(context: context),
-        buildFloatingDock(context: context),
-      ],
+    final double bottomMargin = widget.bottomInset > 0 ? widget.bottomInset + 4.0 : 14.0;
+    final effectiveAccent = widget.accentColor ?? const Color(0xFF0A84FF); // Apple Blue
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const double dockHeight = 64.0;
+    final hasGlass = widget.alwaysShowGlass || widget.isScrolled;
+
+    final targetBorder = widget.borderColor ??
+        (isDark
+            ? const Color(0x38545458)
+            : const Color(0xFFE2E8F0));
+
+    final targetBg = widget.backgroundColor != null
+        ? (widget.backgroundColor!.a >= 0.99
+            ? widget.backgroundColor!.withValues(alpha: isDark ? 0.88 : 0.92)
+            : widget.backgroundColor!)
+        : (isDark
+            ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
+            : const Color(0xFFF1F3F6).withValues(alpha: 0.92));
+
+    final effectiveBorder = hasGlass ? targetBorder : Colors.transparent;
+    final effectiveBg = hasGlass ? targetBg : Colors.transparent;
+    final effectiveShadow = hasGlass
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.08),
+              blurRadius: 18.0,
+              offset: const Offset(0, 4),
+            ),
+          ]
+        : <BoxShadow>[];
+
+    final activePillBg = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : Colors.black.withValues(alpha: 0.08);
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 1. LEFT MAIN NAVIGATION DOCK CAPSULE
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeInOutCubic,
+              height: dockHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(36.0),
+                boxShadow: effectiveShadow,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(36.0),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.0, end: hasGlass ? widget.blurSigma : 0.0),
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeInOutCubic,
+                  builder: (context, blur, child) {
+                    if (blur <= 0.05) {
+                      return child!;
+                    }
+                    return BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    height: dockHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
+                    decoration: BoxDecoration(
+                      color: effectiveBg,
+                      borderRadius: BorderRadius.circular(36.0),
+                      border: Border.all(
+                        color: effectiveBorder,
+                        width: 1.2,
+                      ),
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double totalWidth = constraints.maxWidth;
+                        final int count = widget.items.length;
+                        if (count == 0) return const SizedBox.shrink();
+
+                        final double itemWidth = totalWidth / count;
+                        final double itemHeight = constraints.maxHeight;
+
+                        return AnimatedBuilder(
+                          animation: _animation,
+                          builder: (context, _) {
+                            final double t = _animation.value;
+                            final double currentPos =
+                                ui.lerpDouble(_fromIndex, _toIndex, t) ?? _toIndex;
+
+                            // Requirement 2: Mid-point transition factor
+                            final double progress =
+                                (1.0 - (2 * (t - 0.5)).abs()).clamp(0.0, 1.0);
+
+                            // Requirement 2: Horizontal stretching (+16px viscous droplet)
+                            final double basePillWidth =
+                                (itemWidth - 4.0).clamp(24.0, double.infinity);
+                            final double stretch = progress * 16.0;
+                            final double currentPillWidth = basePillWidth + stretch;
+
+                            final double centerX = (currentPos + 0.5) * itemWidth;
+                            final double pillLeft = centerX - (currentPillWidth / 2.0);
+
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                // 1. Moving Active Bubble Indicator Capsule (Apple / Telegram Liquid Water)
+                                Positioned(
+                                  left: pillLeft,
+                                  top: 0.0,
+                                  width: currentPillWidth,
+                                  height: itemHeight,
+                                  child: IgnorePointer(
+                                    child: ClipRRect(
+                                      borderRadius:
+                                          BorderRadius.circular(itemHeight / 2),
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          // Localized dynamic BackdropFilter for water refraction look
+                                          if (progress > 0.01)
+                                            BackdropFilter(
+                                              filter: ui.ImageFilter.blur(
+                                                sigmaX: progress * 8.0,
+                                                sigmaY: progress * 8.0,
+                                              ),
+                                              child: const SizedBox.expand(),
+                                            ),
+
+                                          // Active Pill Capsule Glass Surface
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              color: activePillBg,
+                                              borderRadius: BorderRadius.circular(
+                                                  itemHeight / 2),
+                                              border: Border.all(
+                                                color: isDark
+                                                    ? Colors.white.withValues(
+                                                        alpha: 0.12 + (progress * 0.08))
+                                                    : Colors.white.withValues(
+                                                        alpha: 0.40 + (progress * 0.20)),
+                                                width: 1.0,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: (isDark
+                                                          ? Colors.black
+                                                          : const Color(0xFF64748B))
+                                                      .withValues(
+                                                          alpha: isDark ? 0.25 : 0.08),
+                                                  blurRadius: 8.0 + (progress * 4.0),
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                // 2. Navigation Items Row
+                                Row(
+                                  children: List.generate(count, (index) {
+                                    final item = widget.items[index];
+                                    final isSelected = index == widget.currentIndex;
+                                    return Expanded(
+                                      child: _buildDockItem(
+                                        context: context,
+                                        item: item,
+                                        isSelected: isSelected,
+                                        activeColor: effectiveAccent,
+                                        onItemTap: () {
+                                          _triggerHaptic();
+                                          widget.onTap(index);
+                                          _animateTo(index);
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 2. RIGHT STANDALONE CIRCULAR ACTION POD (Quick Scan QR / Face)
+          if (widget.trailingAction != null) ...[
+            const SizedBox(width: 10.0),
+            GestureDetector(
+              onTap: () {
+                _triggerHaptic();
+                widget.onTrailingActionTap?.call();
+              },
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeInOutCubic,
+                width: dockHeight,
+                height: dockHeight,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: effectiveShadow,
+                ),
+                child: ClipOval(
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(
+                        begin: 0.0, end: hasGlass ? widget.blurSigma : 0.0),
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    builder: (context, blur, child) {
+                      if (blur <= 0.05) {
+                        return child!;
+                      }
+                      return BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      width: dockHeight,
+                      height: dockHeight,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: effectiveBg,
+                        border: Border.all(
+                          color: effectiveBorder,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Center(child: widget.trailingAction!),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -621,6 +843,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
   final bool isScrolled;
   final bool alwaysShowTitle;
   final bool alwaysShowGlass;
+  final double? leadingWidth;
   final double blurSigma;
 
   const VvcFloatingHeaderPods({
@@ -628,6 +851,7 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     this.title,
     this.titleWidget,
     this.leading,
+    this.leadingWidth,
     this.actions,
     this.onLeadingTap,
     this.backgroundColor,
@@ -689,46 +913,64 @@ class VvcFloatingHeaderPods extends StatelessWidget {
           ]
         : <BoxShadow>[];
 
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        if (tapHandler != null) {
-          tapHandler();
-        } else if (onLeadingTap != null) {
-          onLeadingTap!();
-        } else {
-          Navigator.maybePop(context);
-        }
-      },
-      behavior: HitTestBehavior.opaque,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeInOutCubic,
-        builder: (context, blur, child) {
-          if (blur <= 0.05) return child!;
-          return ClipOval(
+    final isCapsule = leadingWidth != null;
+
+    final podBody = TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: hasGlass ? blurSigma : 0.0),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeInOutCubic,
+      builder: (context, blur, child) {
+        if (blur <= 0.05) return child!;
+        if (isCapsule) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(height / 2),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
               child: child,
             ),
           );
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeInOutCubic,
-          width: height,
-          height: height,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: effectiveBg,
-            border: Border.all(color: effectiveBorder, width: 1.2),
-            boxShadow: effectiveShadow,
+        }
+        return ClipOval(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: child,
           ),
-          child: Center(child: content),
+        );
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeInOutCubic,
+        width: leadingWidth ?? height,
+        height: height,
+        decoration: BoxDecoration(
+          shape: isCapsule ? BoxShape.rectangle : BoxShape.circle,
+          borderRadius: isCapsule ? BorderRadius.circular(height / 2) : null,
+          color: effectiveBg,
+          border: Border.all(color: effectiveBorder, width: 1.2),
+          boxShadow: effectiveShadow,
         ),
+        child: Center(child: content),
       ),
     );
+
+    if (tapHandler != null || onLeadingTap != null) {
+      return GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          if (tapHandler != null) {
+            tapHandler();
+          } else if (onLeadingTap != null) {
+            onLeadingTap!();
+          } else {
+            Navigator.maybePop(context);
+          }
+        },
+        behavior: HitTestBehavior.opaque,
+        child: podBody,
+      );
+    }
+
+    return podBody;
   }
 
   Widget _buildCenterPod(
@@ -961,29 +1203,33 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     final canPop = ModalRoute.of(context)?.canPop ?? false;
     final hasLeft = leading != null || canPop;
 
+    final bool effectiveIsDark = backgroundColor != null
+        ? (backgroundColor!.computeLuminance() < 0.5)
+        : (isDark || AppTheme.isDarkMode);
+
     final targetBg = backgroundColor ??
-        (isDark
+        (effectiveIsDark
             ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
             : const Color(0xFFF1F3F6).withValues(alpha: 0.82));
 
     final targetBorder = borderColor ??
-        (isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
+        (effectiveIsDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (hasLeft) ...[
-          _buildLeftPod(context, isDark, targetBg, targetBorder),
+          _buildLeftPod(context, effectiveIsDark, targetBg, targetBorder),
           const SizedBox(width: 8.0),
         ],
         Expanded(
-          child: _buildCenterPod(context, isDark, targetBg, targetBorder),
+          child: _buildCenterPod(context, effectiveIsDark, targetBg, targetBorder),
         ),
         if (hasLeft || (actions != null && actions!.isNotEmpty)) ...[
           const SizedBox(width: 8.0),
           _buildRightPod(
             context,
-            isDark,
+            effectiveIsDark,
             targetBg,
             targetBorder,
             hasLeft,

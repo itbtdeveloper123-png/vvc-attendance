@@ -3,7 +3,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../widgets/responsive_layout.dart';
 import 'leave_request_screen.dart';
@@ -18,6 +17,8 @@ class RequestsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return AppBackgroundShell(
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
@@ -34,7 +35,7 @@ class RequestsScreen extends StatelessWidget {
                       child: Text(
                         "សំណើផ្សេងៗ",
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.textPrimary,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
@@ -49,7 +50,7 @@ class RequestsScreen extends StatelessWidget {
                             child: Text(
                               "ជ្រើសរើសសំណើដែលអ្នកចង់ដាក់",
                               style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textMuted,
+                                color: isDark ? const Color(0xFF98989D) : const Color(0xFF64748B),
                                 fontSize: 14,
                               ),
                             ),

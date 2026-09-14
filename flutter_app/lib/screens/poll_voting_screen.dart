@@ -166,12 +166,13 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       appBar: VvcAppBar(
+        backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.90),
         title: Text(
           'បោះឆ្នោតបុគ្គលិកឆ្នើម',
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-            fontSize: 18,
+            color: Colors.white,
+            fontSize: 17,
           ),
         ),
         actions: [
@@ -290,30 +291,38 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
             ),
           ],
 
-          // Welcome Employee Info Banner
+          // Welcome Employee Info Banner (Obsidian Glass with Gold Accent)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
-                  AppTheme.primary.withValues(alpha: 0.25),
-                  const Color(0xFF111E33),
+                  Color(0xFF1E293B),
+                  Color(0xFF0F172A),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+              border: Border.all(color: const Color(0xFFF3D010).withValues(alpha: 0.35), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.2),
+                    color: const Color(0xFFF3D010).withValues(alpha: 0.15),
                     shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFF3D010).withValues(alpha: 0.35)),
                   ),
-                  child: const Icon(Icons.how_to_vote_rounded, color: Colors.cyanAccent, size: 24),
+                  child: const Icon(Icons.how_to_vote_rounded, color: Color(0xFFF3D010), size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -325,13 +334,13 @@ class _PollVotingScreenState extends State<PollVotingScreen> {
                         style: GoogleFonts.kantumruyPro(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 14.5,
+                          fontSize: 15.0,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         'សូមជ្រើសរើសបេក្ខជនដែលលោកអ្នកពេញចិត្តខាងក្រោម',
-                        style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 12),
+                        style: GoogleFonts.kantumruyPro(color: const Color(0xFFCBD5E1), fontSize: 12.5),
                       ),
                     ],
                   ),

@@ -202,33 +202,42 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
               const SizedBox(height: 20),
 
-              // 1. Name Inputs Card (Matching Screenshot 2)
+              // 1. Name Inputs Card
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF334155), width: 1),
                 ),
                 child: Column(
                   children: [
                     TextField(
                       controller: fnCtrl,
-                      style: GoogleFonts.inter(color: Colors.white),
+                      cursorColor: const Color(0xFF0A84FF),
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
                       decoration: InputDecoration(
                         hintText: 'First Name',
-                        hintStyle: GoogleFonts.inter(color: Colors.white38),
+                        hintStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 15),
+                        filled: false,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
                     ),
                     const Divider(height: 1, color: Color(0xFF334155), indent: 16),
                     TextField(
                       controller: lnCtrl,
-                      style: GoogleFonts.inter(color: Colors.white),
+                      cursorColor: const Color(0xFF0A84FF),
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
                       decoration: InputDecoration(
                         hintText: 'Last Name',
-                        hintStyle: GoogleFonts.inter(color: Colors.white38),
+                        hintStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 15),
+                        filled: false,
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
                     ),
                   ],
@@ -236,27 +245,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 2. Add Notes Card (Matching Screenshot 2)
+              // 2. Add Notes Card
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF334155), width: 1),
                 ),
                 child: TextField(
                   controller: notesCtrl,
-                  style: GoogleFonts.inter(color: Colors.white),
+                  cursorColor: const Color(0xFF0A84FF),
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
                   decoration: InputDecoration(
                     hintText: 'Add Notes',
-                    hintStyle: GoogleFonts.inter(color: Colors.white38),
+                    hintStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 15),
+                    filled: false,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                 ),
               ),
               const SizedBox(height: 4),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Notes are only visible to you.', style: GoogleFonts.inter(color: Colors.white38, fontSize: 12)),
+                child: Text('Notes are only visible to you.', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12)),
               ),
               const SizedBox(height: 16),
 
