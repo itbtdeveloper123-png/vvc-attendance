@@ -1288,6 +1288,7 @@ class VvcLiquidGlassScaffold extends StatefulWidget {
   final Widget Function(BuildContext context, bool isScrolled)? bottomNavigationBarBuilder;
   final bool showTopTransitionZone;
   final bool showBottomTransitionZone;
+  final double? topTransitionZoneHeight;
   final Color? backgroundColor;
   final Color? transitionMaskColor;
   final ValueChanged<bool>? onScrollChanged;
@@ -1308,6 +1309,7 @@ class VvcLiquidGlassScaffold extends StatefulWidget {
     this.bottomNavigationBarBuilder,
     this.showTopTransitionZone = true,
     this.showBottomTransitionZone = true,
+    this.topTransitionZoneHeight,
     this.backgroundColor,
     this.transitionMaskColor,
     this.onScrollChanged,
@@ -1323,8 +1325,9 @@ class _VvcLiquidGlassScaffoldState extends State<VvcLiquidGlassScaffold> {
   Widget _buildTopTransitionZone(BuildContext context, bool isDark) {
     final topInset = MediaQuery.paddingOf(context).top;
     final maskColor = widget.transitionMaskColor ??
+        widget.backgroundColor ??
         (isDark ? const Color(0xFF0F1115) : const Color(0xFFF8FAFC));
-    final double zoneHeight = topInset + 72.0;
+    final double zoneHeight = widget.topTransitionZoneHeight ?? (topInset + 72.0);
 
     return Positioned(
       left: 0,

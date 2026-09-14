@@ -318,9 +318,39 @@ class _RequestListScreenState extends State<RequestListScreen> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final headerTotalHeight = topPadding + 6 + 44 + 10 + 42 + 8 + 34 + 10;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF000000), // Deep Apple OLED Dark
+    return VvcLiquidGlassScaffold(
+      showHeader: true,
+      showTopTransitionZone: true,
+      topTransitionZoneHeight: headerTotalHeight,
+      backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFF8FAFC),
+      onScrollChanged: (scrolled) {
+        if (scrolled != _isScrolled) {
+          _safeSetState(() => _isScrolled = scrolled);
+        }
+      },
+      customHeaderBuilder: (context, isScrolled) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 6),
+              _buildHeaderPods(context),
+              const SizedBox(height: 10),
+              _buildSearchBar(),
+              const SizedBox(height: 8),
+              _buildStatusFilterPills(),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           // 1. Hidden Report Generator (for capture)
@@ -334,195 +364,71 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
           // 2. Main content list smoothly scrolling underneath frosted top components
           Positioned.fill(
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification.metrics.axis == Axis.vertical) {
-                  final scrolled = notification.metrics.pixels > 4.0;
-                  if (scrolled != _isScrolled) {
-                    _safeSetState(() => _isScrolled = scrolled);
-                  }
-                }
-                return false;
-              },
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF0A84FF),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadData,
-                      color: const Color(0xFF0A84FF),
-                      edgeOffset: headerTotalHeight,
-                      child: _filtered.isEmpty
-                          ? _buildEmptyState(topPadding: headerTotalHeight)
-                          : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
-                              ? GridView.builder(
-                                  padding: EdgeInsets.fromLTRB(24, headerTotalHeight + 6, 24, 24),
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
-                                    childAspectRatio: 2.1,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 14,
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF0A84FF),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadData,
+                    color: const Color(0xFF0A84FF),
+                    edgeOffset: headerTotalHeight,
+                    child: _filtered.isEmpty
+                        ? _buildEmptyState(topPadding: headerTotalHeight)
+                        : ((Responsive.isDesktop(context) || Responsive.isTablet(context))
+                            ? GridView.builder(
+                                padding: EdgeInsets.fromLTRB(24, headerTotalHeight + 6, 24, 24),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 3 : 2,
+                                  childAspectRatio: 2.1,
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 14,
+                                ),
+                                physics: const BouncingScrollPhysics(),
+                                itemCount: _filtered.length,
+                                itemBuilder: (context, index) =>
+                                    _buildRequestCard(_filtered[index], index),
+                              )
+                            : AnimationLimiter(
+                                child: ListView.builder(
+                                  padding: EdgeInsets.fromLTRB(
+                                    AppResponsive.horizontalPadding(context),
+                                    headerTotalHeight + 6,
+                                    AppResponsive.horizontalPadding(context),
+                                    AppResponsive.bottomPadding(
+                                      context,
+                                      hasBottomNav:
+                                          ModalRoute.of(context)?.isFirst ??
+                                          false,
+                                    ),
                                   ),
                                   physics: const BouncingScrollPhysics(),
                                   itemCount: _filtered.length,
                                   itemBuilder: (context, index) =>
-                                      _buildRequestCard(_filtered[index], index),
-                                )
-                              : AnimationLimiter(
-                                  child: ListView.builder(
-                                    padding: EdgeInsets.fromLTRB(
-                                      AppResponsive.horizontalPadding(context),
-                                      headerTotalHeight + 6,
-                                      AppResponsive.horizontalPadding(context),
-                                      AppResponsive.bottomPadding(
-                                        context,
-                                        hasBottomNav:
-                                            ModalRoute.of(context)?.isFirst ??
-                                            false,
-                                      ),
-                                    ),
-                                    physics: const BouncingScrollPhysics(),
-                                    itemCount: _filtered.length,
-                                    itemBuilder: (context, index) =>
-                                        AnimationConfiguration.staggeredList(
-                                          position: index,
-                                          duration: const Duration(
-                                            milliseconds: 400,
-                                          ),
-                                          child: SlideAnimation(
-                                            verticalOffset: 50.0,
-                                            child: FadeInAnimation(
-                                              child: AppResponsive.maxWidth(
-                                                context: context,
-                                                child: _buildRequestCard(
-                                                  _filtered[index],
-                                                  index,
-                                                ),
+                                      AnimationConfiguration.staggeredList(
+                                        position: index,
+                                        duration: const Duration(
+                                          milliseconds: 400,
+                                        ),
+                                        child: SlideAnimation(
+                                          verticalOffset: 50.0,
+                                          child: FadeInAnimation(
+                                            child: AppResponsive.maxWidth(
+                                              context: context,
+                                              child: _buildRequestCard(
+                                                _filtered[index],
+                                                index,
                                               ),
                                             ),
                                           ),
                                         ),
-                                  ),
-                                )),
-                    ),
-            ),
+                                      ),
+                                ),
+                              )),
+                  ),
           ),
-
-          // 3. Scroll-Aware Top Frosted Glass Shield (Blurs & Fades content under header)
-          _buildTopGlassShield(headerTotalHeight),
-
-          // 4. Floating Liquid Glass Header Pods + Search Bar + Status Filter Strip
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 6),
-                  _buildHeaderPods(context),
-                  const SizedBox(height: 10),
-                  _buildSearchBar(),
-                  const SizedBox(height: 8),
-                  _buildStatusFilterPills(),
-                  const SizedBox(height: 10),
-                ],
-              ),
-            ),
-          ),
-
-          // 5. Scroll-Aware Bottom Transition Zone (Footer Fade Mask)
-          _buildBottomTransitionZone(context),
         ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // 0. SCROLL-AWARE TRANSITION SHIELDS (HEADER SHIELD & FOOTER MASK)
-  // ===========================================================================
-  Widget _buildTopGlassShield(double height) {
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      height: height + 4.0,
-      child: IgnorePointer(
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeInOutCubic,
-          opacity: _isScrolled ? 1.0 : 0.0,
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      const Color(0xFF000000).withValues(alpha: 0.96),
-                      const Color(0xFF0C0E12).withValues(alpha: 0.90),
-                      const Color(0xFF0C0E12).withValues(alpha: 0.80),
-                      const Color(0xFF0C0E12).withValues(alpha: 0.0),
-                    ],
-                    stops: const [0.0, 0.55, 0.85, 1.0],
-                  ),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      width: 0.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomTransitionZone(BuildContext context) {
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final totalHeight = bottomInset + 70.0;
-
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: totalHeight,
-      child: IgnorePointer(
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeInOutCubic,
-          opacity: _isScrolled ? 0.95 : 0.0,
-          child: ClipRect(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      const Color(0xFF000000).withValues(alpha: 0.0),
-                      const Color(0xFF000000).withValues(alpha: 0.40),
-                      const Color(0xFF000000).withValues(alpha: 0.80),
-                      const Color(0xFF000000).withValues(alpha: 0.98),
-                    ],
-                    stops: const [0.0, 0.35, 0.70, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
