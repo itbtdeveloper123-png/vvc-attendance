@@ -14,6 +14,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_windows
   flutter_secure_storage_windows
   flutter_timezone
+  gal
   geolocator_windows
   iris_method_channel
   isar_flutter_libs

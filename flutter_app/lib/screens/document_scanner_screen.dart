@@ -12,6 +12,9 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as path;
+import 'package:intl/intl.dart';
+import 'package:gal/gal.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/ocr_service.dart' as ocr;
 import '../services/document_history_service.dart';
 import '../widgets/export_modal.dart';
@@ -543,11 +546,42 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         builder: (context) => ExportModal(
           imagePaths: imagePaths,
           ocrText: _ocrResult?.fullText,
-          onExport: (fileName, format, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT'}) =>
+          onExport: (fileName, format, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT', pageSize = PdfPageSize.a4Full}) =>
               _handleExport(fileName, format, imagePaths,
-                  includeWatermark: includeWatermark, watermarkText: watermarkText),
+                  includeWatermark: includeWatermark, watermarkText: watermarkText, pageSize: pageSize),
+          onSaveToPhone: (fileName, format, paths, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT', pageSize = PdfPageSize.a4Full}) =>
+              _handleSaveToPhone(fileName, format, paths,
+                  includeWatermark: includeWatermark, watermarkText: watermarkText, pageSize: pageSize),
         ),
       );
+    }
+  }
+
+  /// Handle direct save to phone based on selected format
+  Future<void> _handleSaveToPhone(
+    String fileName,
+    ExportFormat format,
+    List<String> imagePaths, {
+    bool includeWatermark = false,
+    String watermarkText = 'VVC OFFICIAL DOCUMENT',
+    PdfPageSize pageSize = PdfPageSize.a4Full,
+  }) async {
+    switch (format) {
+      case ExportFormat.images:
+        await _saveImagesToPhone(fileName, imagePaths);
+        break;
+      case ExportFormat.pdf:
+        await _savePDFToPhone(
+          fileName,
+          imagePaths,
+          includeWatermark: includeWatermark,
+          watermarkText: watermarkText,
+          pageSize: pageSize,
+        );
+        break;
+      case ExportFormat.text:
+        await _exportAsText(fileName);
+        break;
     }
   }
 
@@ -558,6 +592,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
+    PdfPageSize pageSize = PdfPageSize.a4Full,
   }) async {
     setState(() {
       _isProcessing = true;
@@ -574,6 +609,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
             processedPaths,
             includeWatermark: includeWatermark,
             watermarkText: watermarkText,
+            pageSize: pageSize,
           );
           break;
         case ExportFormat.images:
@@ -588,10 +624,16 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       await _saveToHistory(fileName, processedPaths);
 
       if (mounted) {
+        final formatText = format == ExportFormat.images
+            ? 'រូបភាព JPG'
+            : format.name.toUpperCase();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Exported successfully as ${format.name.toUpperCase()}'),
-            backgroundColor: Colors.green,
+            content: Text(
+              'នាំចេញបានជោគជ័យជា $formatText',
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: const Color(0xFF16A34A),
           ),
         );
       }
@@ -614,12 +656,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     }
   }
 
-  /// Export as multi-page PDF with optional official watermark
-  Future<void> _exportAsPDF(
-    String fileName,
+  /// Generate PDF Document bytes
+  Future<Uint8List> _generatePdfBytes(
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
+    PdfPageSize pageSize = PdfPageSize.a4Full,
   }) async {
     final pdf = pw.Document();
 
@@ -628,16 +670,56 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       final imageBytes = await imageFile.readAsBytes();
       final pdfImage = pw.MemoryImage(imageBytes);
 
+      // Determine dimensions for auto-orientation & scaling
+      final decoded = img.decodeImage(imageBytes);
+      final int imgW = decoded?.width ?? 1200;
+      final int imgH = decoded?.height ?? 1600;
+      final bool isLandscape = imgW > imgH;
+
+      PdfPageFormat format;
+      pw.BoxFit fitMode;
+      pw.EdgeInsets margin;
+
+      switch (pageSize) {
+        case PdfPageSize.a4Full:
+          format = isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
+          margin = pw.EdgeInsets.zero;
+          final double ratio = isLandscape ? (imgH / imgW) : (imgW / imgH);
+          if (ratio >= 0.62 && ratio <= 0.82) {
+            fitMode = pw.BoxFit.fill;
+          } else {
+            fitMode = pw.BoxFit.contain;
+          }
+          break;
+
+        case PdfPageSize.autoFit:
+          format = PdfPageFormat(imgW.toDouble(), imgH.toDouble(), marginAll: 0);
+          margin = pw.EdgeInsets.zero;
+          fitMode = pw.BoxFit.fill;
+          break;
+
+        case PdfPageSize.a4Margin:
+          format = isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
+          margin = const pw.EdgeInsets.all(8);
+          fitMode = pw.BoxFit.contain;
+          break;
+      }
+
       pdf.addPage(
         pw.Page(
+          pageFormat: format,
+          margin: margin,
           build: (pw.Context context) {
             return pw.Stack(
               alignment: pw.Alignment.center,
               children: [
-                pw.Center(
-                  child: pw.Image(
-                    pdfImage,
-                    fit: pw.BoxFit.contain,
+                pw.FullPage(
+                  ignoreMargins: true,
+                  child: pw.Center(
+                    child: pw.Image(
+                      pdfImage,
+                      fit: fitMode,
+                    ),
                   ),
                 ),
                 if (includeWatermark)
@@ -701,14 +783,247 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       );
     }
 
-    await Printing.sharePdf(bytes: await pdf.save(), filename: '$fileName.pdf');
+    return await pdf.save();
   }
 
-  /// Export as images (individual files)
+  /// Export as multi-page PDF with options for page format and full-bleed fit
+  Future<void> _exportAsPDF(
+    String fileName,
+    List<String> imagePaths, {
+    bool includeWatermark = false,
+    String watermarkText = 'VVC OFFICIAL DOCUMENT',
+    PdfPageSize pageSize = PdfPageSize.a4Full,
+  }) async {
+    final pdfBytes = await _generatePdfBytes(
+      imagePaths,
+      includeWatermark: includeWatermark,
+      watermarkText: watermarkText,
+      pageSize: pageSize,
+    );
+    await Printing.sharePdf(bytes: pdfBytes, filename: '$fileName.pdf');
+  }
+
+  /// Save PDF file to device storage
+  Future<void> _savePDFToPhone(
+    String fileName,
+    List<String> imagePaths, {
+    bool includeWatermark = false,
+    String watermarkText = 'VVC OFFICIAL DOCUMENT',
+    PdfPageSize pageSize = PdfPageSize.a4Full,
+  }) async {
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final pdfBytes = await _generatePdfBytes(
+        imagePaths,
+        includeWatermark: includeWatermark,
+        watermarkText: watermarkText,
+        pageSize: pageSize,
+      );
+
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final File file = File('${appDocDir.path}/$fileName.pdf');
+      await file.writeAsBytes(pdfBytes);
+
+      // Save to history
+      await _saveToHistory(fileName, imagePaths);
+
+      // Also share so user can choose "Save to Files" or any destination
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf', name: '$fileName.pdf')],
+        text: fileName,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'បានរក្សាទុកឯកសារ PDF ដោយជោគជ័យ!',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF059669),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving PDF: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('មិនអាចរក្សាទុក PDF បានទេ: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  /// Export as images (individual files) via native Share Sheet
   Future<void> _exportAsImages(String fileName, List<String> imagePaths) async {
-    // For now, export as PDF since sharing multiple images is complex
-    // This is a simplified version - in production, you'd use platform-specific sharing
-    await _exportAsPDF(fileName, imagePaths);
+    final tempDir = await getTemporaryDirectory();
+    final List<XFile> xFiles = [];
+
+    for (int i = 0; i < imagePaths.length; i++) {
+      final srcFile = File(imagePaths[i]);
+      if (!await srcFile.exists()) continue;
+
+      final String safeName = imagePaths.length == 1
+          ? '$fileName.jpg'
+          : '${fileName}_page_${i + 1}.jpg';
+      final destFile = File('${tempDir.path}/$safeName');
+      await srcFile.copy(destFile.path);
+
+      xFiles.add(XFile(
+        destFile.path,
+        mimeType: 'image/jpeg',
+        name: safeName,
+      ));
+    }
+
+    if (xFiles.isEmpty) {
+      throw Exception('រកមិនឃើញរូបភាពសម្រាប់នាំចេញទេ');
+    }
+
+    // Share via share_plus
+    // On iOS, sharing image/jpeg files natively displays thumbnail + "Save Image" / "Save X Images"
+    await Share.shareXFiles(
+      xFiles,
+      text: 'ឯកសារស្កេន: $fileName',
+      subject: fileName,
+    );
+  }
+
+  /// Directly save scanned images to the phone's Photo Album / Gallery
+  Future<void> _saveImagesToPhone(String fileName, List<String> imagePaths) async {
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      int savedCount = 0;
+      final tempDir = await getTemporaryDirectory();
+
+      for (int i = 0; i < imagePaths.length; i++) {
+        final srcFile = File(imagePaths[i]);
+        if (!await srcFile.exists()) continue;
+
+        final String safeName = imagePaths.length == 1
+            ? '$fileName.jpg'
+            : '${fileName}_${i + 1}.jpg';
+        final destFile = File('${tempDir.path}/$safeName');
+        await srcFile.copy(destFile.path);
+
+        // Put image into native gallery (album: 'VVC Scanner')
+        try {
+          await Gal.putImage(destFile.path, album: 'VVC Scanner');
+        } catch (_) {
+          await Gal.putImage(destFile.path);
+        }
+        savedCount++;
+      }
+
+      if (savedCount == 0) {
+        throw Exception('រកមិនឃើញរូបភាពសម្រាប់រក្សាទុកទេ');
+      }
+
+      // Also save to history
+      await _saveToHistory(fileName, imagePaths);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    savedCount == 1
+                        ? 'បានរក្សាទុករូបភាពក្នុងទូរស័ព្ទ (Photos) ដោយជោគជ័យ!'
+                        : 'បានរក្សាទុកចំនួន $savedCount រូបភាពក្នុងទូរស័ព្ទ (Photos) ដោយជោគជ័យ!',
+                    style: GoogleFonts.kantumruyPro(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF059669),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving to phone: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'មិនអាចរក្សាទុកក្នុងទូរស័ព្ទបានទេ: $e',
+              style: GoogleFonts.kantumruyPro(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  /// Quick save current scanned image(s) to phone gallery from toolbar
+  Future<void> _quickSaveCurrentToPhone() async {
+    final imagePaths = await _prepareProcessedImagePaths();
+    if (!mounted) return;
+    if (imagePaths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'គ្មានរូបភាពសម្រាប់រក្សាទុកទេ',
+            style: GoogleFonts.kantumruyPro(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final formatter = DateFormat('dd-MM-yyyy_HHmm');
+    final fileName = 'Scan_${formatter.format(now)}';
+
+    await _saveImagesToPhone(fileName, imagePaths);
   }
 
   /// Export as text
@@ -2180,16 +2495,16 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     );
   }
 
-  /// Step 2: CamScanner-style Filter Edit Screen
+  /// Step 2: CamScanner-style Filter Edit Screen (Cohesive Obsidian Studio & Electric Blue Palette)
   Widget _buildFilterSelectionStep() {
     return Column(
       children: [
-        // ── 1. Large image preview ──────────────────────────────────────
+        // ── 1. Large image preview (Canvas) ───────────────────────────
         Expanded(
           child: Stack(
             children: [
               Container(
-                color: const Color(0xFF0A0A0A),
+                color: const Color(0xFF090D16), // Deep clean studio canvas
                 child: _scannedImagePaths.isNotEmpty
                     ? PageView.builder(
                         controller: _pageController,
@@ -2207,13 +2522,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                             maxScale: 4.0,
                             child: Center(
                               child: Container(
-                                margin: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.5),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 6),
+                                      color: Colors.black.withValues(alpha: 0.65),
+                                      blurRadius: 24,
+                                      offset: const Offset(0, 8),
                                     ),
                                   ],
                                 ),
@@ -2239,16 +2555,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               ),
 
               // Delete current page button (top-left) - shown when multi-page
-              if (_scannedImagePaths.isNotEmpty)
+              if (_scannedImagePaths.length > 1)
                 Positioned(
-                  top: 12,
-                  left: 12,
+                  top: 14,
+                  left: 14,
                   child: GestureDetector(
                     onTap: () async {
-                      if (_scannedImagePaths.length == 1) {
-                        _resetScanner();
-                        return;
-                      }
                       setState(() {
                         _scannedImagePaths.removeAt(_currentPageIndex);
                         if (_currentPageIndex >= _scannedImagePaths.length) {
@@ -2266,11 +2578,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: const Color(0xFF1E293B).withValues(alpha: 0.9),
                         shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white24),
                       ),
                       child: const Icon(Icons.delete_outline_rounded,
-                          color: Colors.white, size: 22),
+                          color: Colors.redAccent, size: 20),
                     ),
                   ),
                 ),
@@ -2280,15 +2593,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
         // ── 2. Page navigation bar ─────────────────────────────────────
         Container(
-          color: const Color(0xFF1A1A2E),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          color: const Color(0xFF0F172A),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Previous page button
               IconButton(
                 icon: const Icon(Icons.chevron_left_rounded,
-                    color: Colors.white70, size: 28),
+                    color: Colors.white, size: 26),
                 onPressed: _currentPageIndex > 0
                     ? () {
                         _pageController.previousPage(
@@ -2300,11 +2612,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               ),
               // Page count indicator
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF334155)),
                 ),
                 child: Text(
                   _scannedImagePaths.isNotEmpty
@@ -2312,49 +2624,47 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                       : '0/0',
                   style: GoogleFonts.kantumruyPro(
                     color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
               // Next page button
               IconButton(
                 icon: const Icon(Icons.chevron_right_rounded,
-                    color: Colors.white70, size: 28),
-                onPressed:
-                    _currentPageIndex < _scannedImagePaths.length - 1
-                        ? () {
-                            _pageController.nextPage(
-                              duration: const Duration(milliseconds: 250),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        : null,
+                    color: Colors.white, size: 26),
+                onPressed: _currentPageIndex < _scannedImagePaths.length - 1
+                    ? () {
+                        _pageController.nextPage(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    : null,
               ),
               const Spacer(),
-              // "Sort pages" / arrange button
+              // "រៀបចំជួរ" / Arrange pages button
               GestureDetector(
                 onTap: _openNativeScanner,
                 child: Container(
-                  margin: const EdgeInsets.only(right: 16),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15)),
+                    color: const Color(0xFF1E293B),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF334155)),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.view_module_rounded,
-                          color: Colors.white60, size: 16),
+                      const Icon(Icons.grid_view_rounded,
+                          color: Color(0xFF0284C7), size: 15),
                       const SizedBox(width: 6),
                       Text(
-                        'រៀបចំផ្ដូរ',
+                        'រៀបចំជួរ',
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white60,
+                          color: Colors.white,
                           fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -2365,14 +2675,19 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           ),
         ),
 
-        // ── 3. Filter thumbnail strip (like CamScanner) ──────────────
+        // ── 3. Filter thumbnail strip ──────────────────────────────────
         Container(
-          color: const Color(0xFF141428),
-          height: 100,
+          height: 94,
+          decoration: const BoxDecoration(
+            color: Color(0xFF0F172A),
+            border: Border(
+              top: BorderSide(color: Color(0xFF1E293B), width: 1),
+              bottom: BorderSide(color: Color(0xFF1E293B), width: 1),
+            ),
+          ),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             itemCount: ImageFilter.values.length,
             itemBuilder: (context, index) {
               final filter = ImageFilter.values[index];
@@ -2381,22 +2696,30 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               return GestureDetector(
                 onTap: () => _applyFilter(filter),
                 child: Container(
-                  width: 70,
-                  margin: const EdgeInsets.only(right: 8),
+                  width: 68,
+                  margin: const EdgeInsets.only(right: 10),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isSelected
-                          ? const Color(0xFF0D9488)
-                          : Colors.transparent,
-                      width: 2,
+                          ? const Color(0xFF0284C7)
+                          : const Color(0xFF1E293B),
+                      width: isSelected ? 2.5 : 1,
                     ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Stack(
                     children: [
-                      // Filter preview thumbnail
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                         child: _scannedImagePaths.isNotEmpty
                             ? ColorFiltered(
                                 colorFilter: _getColorFilter(filter),
@@ -2404,21 +2727,20 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                                   angle: currentRotation * (math.pi / 180),
                                   child: Image.file(
                                     File(_scannedImagePaths[_currentPageIndex]),
-                                    width: 70,
-                                    height: 80,
+                                    width: 68,
+                                    height: 76,
                                     fit: BoxFit.cover,
                                   ),
                                 ),
                               )
                             : Container(
                                 color: Colors.white.withValues(alpha: 0.05),
-                                width: 70,
-                                height: 80,
+                                width: 68,
+                                height: 76,
                                 child: const Icon(Icons.image_rounded,
                                     color: Colors.white24),
                               ),
                       ),
-                      // Filter name overlay at bottom
                       Positioned(
                         left: 0,
                         right: 0,
@@ -2427,20 +2749,20 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 3),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF0D9488)
-                                : Colors.black.withValues(alpha: 0.65),
+                                ? const Color(0xFF0284C7)
+                                : Colors.black.withValues(alpha: 0.7),
                             borderRadius: const BorderRadius.vertical(
-                                bottom: Radius.circular(6)),
+                                bottom: Radius.circular(8)),
                           ),
                           child: Text(
                             _getFilterLabel(filter),
                             textAlign: TextAlign.center,
                             style: GoogleFonts.kantumruyPro(
                               color: Colors.white,
-                              fontSize: 9.5,
+                              fontSize: 10,
                               fontWeight: isSelected
                                   ? FontWeight.bold
-                                  : FontWeight.w400,
+                                  : FontWeight.w500,
                             ),
                           ),
                         ),
@@ -2455,26 +2777,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
         // ── 4. Bottom action toolbar ───────────────────────────────────
         Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF141428), // blends seamlessly with filter strip above
-                Color(0xFF0B0B1A),
-              ],
-            ),
-          ),
+          color: const Color(0xFF0B0F19),
           padding: EdgeInsets.only(
-            left: 8,
-            right: 8,
+            left: 10,
+            right: 14,
             top: 10,
             bottom: MediaQuery.of(context).padding.bottom + 10,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Add Page (camera)
+              // Add Page
               _buildToolbarItem(
                 icon: Icons.add_photo_alternate_rounded,
                 label: 'បន្ថែមទំព័រ',
@@ -2483,12 +2796,12 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               // Crop
               _buildToolbarItem(
                 icon: Icons.crop_rounded,
-                label: 'កាត់',
+                label: 'កាត់គែម',
                 onTap: _cropCurrentImage,
               ),
               // Rotate
               _buildToolbarItem(
-                icon: Icons.rotate_90_degrees_ccw_rounded,
+                icon: Icons.rotate_right_rounded,
                 label: 'បង្វិល',
                 onTap: () {
                   setState(() {
@@ -2497,39 +2810,46 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   });
                 },
               ),
-              // OCR - Extract Text
+              // OCR
               _buildToolbarItem(
-                icon: Icons.text_fields_rounded,
+                icon: Icons.document_scanner_rounded,
                 label: 'ស្រង់អក្សរ',
                 onTap: _extractText,
-                color: Colors.orangeAccent,
+                iconColor: const Color(0xFF38BDF8),
               ),
-              // Export PDF
+              // Save to Phone (Direct 1-tap save)
               _buildToolbarItem(
-                icon: Icons.picture_as_pdf_rounded,
-                label: 'PDF',
-                onTap: _exportToPDF,
-                color: Colors.redAccent,
+                icon: Icons.download_rounded,
+                label: 'រក្សាទុក',
+                onTap: _quickSaveCurrentToPhone,
+                iconColor: const Color(0xFF10B981),
               ),
-              // Confirm / Done button (Teal like CamScanner)
+              // Confirm / Done FAB
               GestureDetector(
                 onTap: _exportToPDF,
                 child: Container(
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0D9488),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0284C7), Color(0xFF0A84FF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF0D9488).withValues(alpha: 0.4),
-                        blurRadius: 12,
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.45),
+                        blurRadius: 14,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.check_rounded,
-                      color: Colors.white, size: 28),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
               ),
             ],
@@ -2539,30 +2859,42 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     );
   }
 
-  /// Bottom toolbar icon item
+  /// Modern Bottom toolbar icon item
   Widget _buildToolbarItem({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
-    Color color = Colors.white70,
+    Color iconColor = Colors.white,
   }) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 56,
+        width: 54,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 26),
-            const SizedBox(height: 4),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF334155).withValues(alpha: 0.6),
+                ),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(height: 5),
             Text(
               label,
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.kantumruyPro(
-                color: color,
-                fontSize: 9.5,
+                color: const Color(0xFF94A3B8),
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
             ),
