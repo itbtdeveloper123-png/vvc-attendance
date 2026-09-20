@@ -7476,6 +7476,7 @@ try {
             $where = 'WHERE ' . implode(' AND ', $where_parts);
             $sql = "SELECT l.id, l.employee_id, l.action_type, l.status, l.location_name, l.distance_m, l.late_reason,
                            DATE_FORMAT(l.log_datetime, '%d/%m/%Y %h:%i %p') as log_datetime,
+                           DATE_FORMAT(l.log_datetime, '%h:%i %p') as time_str,
                            u.name as user_name
                     FROM checkin_logs l
                     LEFT JOIN users u ON l.employee_id = u.employee_id
@@ -7491,11 +7492,16 @@ try {
             $where_parts[] = "YEAR(l.log_datetime) = $year";
             $where_parts[] = "MONTH(l.log_datetime) = $month";
             $where = 'WHERE ' . implode(' AND ', $where_parts);
-            $sql = "SELECT DAY(l.log_datetime) as `day`, COUNT(*) as `count`
+            $sql = "SELECT DAY(l.log_datetime) as `day`,
+                           COUNT(*) as `count`,
+                           SUM(CASE WHEN l.action_type = 'Check-In' THEN 1 ELSE 0 END) as `check_in_count`,
+                           SUM(CASE WHEN l.action_type = 'Check-Out' THEN 1 ELSE 0 END) as `check_out_count`,
+                           SUM(CASE WHEN l.status = 'Late' THEN 1 ELSE 0 END) as `late_count`,
+                           SUM(CASE WHEN l.status = 'Good' OR l.status = 'Normal' THEN 1 ELSE 0 END) as `good_count`
                     FROM checkin_logs l
                     $where
                     GROUP BY DAY(l.log_datetime)
-                    ORDER BY `day` DESC";
+                    ORDER BY `day` ASC";
             $res = $mysqli->query($sql);
             $data = [];
             if ($res) while ($row = $res->fetch_assoc()) $data[] = $row;
@@ -7505,11 +7511,13 @@ try {
             // Level 2: Months in a specific year
             $where_parts[] = "YEAR(l.log_datetime) = $year";
             $where = 'WHERE ' . implode(' AND ', $where_parts);
-            $sql = "SELECT MONTH(l.log_datetime) as `month`, COUNT(*) as `count`
+            $sql = "SELECT MONTH(l.log_datetime) as `month`,
+                           COUNT(*) as `count`,
+                           COUNT(DISTINCT DATE(l.log_datetime)) as `active_days`
                     FROM checkin_logs l
                     $where
                     GROUP BY MONTH(l.log_datetime)
-                    ORDER BY `month` DESC";
+                    ORDER BY `month` ASC";
             $res = $mysqli->query($sql);
             $data = [];
             if ($res) while ($row = $res->fetch_assoc()) $data[] = $row;
@@ -7518,7 +7526,9 @@ try {
         } else {
             // Level 1: All years that have data
             $where = 'WHERE ' . implode(' AND ', $where_parts);
-            $sql = "SELECT YEAR(l.log_datetime) as `year`, COUNT(*) as `count`
+            $sql = "SELECT YEAR(l.log_datetime) as `year`,
+                           COUNT(*) as `count`,
+                           COUNT(DISTINCT DATE(l.log_datetime)) as `active_days`
                     FROM checkin_logs l
                     $where
                     GROUP BY YEAR(l.log_datetime)
@@ -8803,6 +8813,9 @@ try {
 
 
     case 'get_material_items':
+        if (method_exists($mysqli, 'set_charset')) {
+            @$mysqli->set_charset('utf8mb4');
+        }
         $res = $mysqli->query("SELECT id, item_name, quantity, price, category, image_path FROM stock_items ORDER BY item_name ASC");
         $items = [];
         if ($res) {

@@ -211,10 +211,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     });
 
     try {
-      // Open the native document scanner using multi-page support
+      // Open the native document scanner using multi-page support with camera + gallery
       final scannedImages = await CunningDocumentScanner.getPictures(
         noOfPages: 50, // Allow up to 50 pages (must be > 0)
-        scannerSource: ScannerSource.camera,
+        scannerSource: ScannerSource.cameraAndGallery,
       );
 
       if (scannedImages != null && scannedImages.isNotEmpty) {
@@ -236,45 +236,91 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           }
         });
       } else {
+        // User cancelled or closed camera: stay on the dashboard smoothly without error
         setState(() {
           _isProcessing = false;
-          _errorMessage = 'គ្មានរូបភាពត្រូវបានស្កេនទេ';
         });
       }
     } catch (e) {
       setState(() {
         _isProcessing = false;
-        _errorMessage = 'មិនអាចបើកកាមេរ៉ាស្កេនបានទេ៖ $e';
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'មិនអាចបើកកាមេរ៉ាស្កេនបានទេ៖ $e',
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
-  /// Import images from Gallery (Fallback when native scanner is unavailable)
+  /// Import images from Gallery with full native document scanning and boundary detection
   Future<void> _importFromGallery() async {
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
     });
 
-    final ImagePicker picker = ImagePicker();
     try {
-      final List<XFile> images = await picker.pickMultiImage();
-      if (images.isNotEmpty) {
+      // 1. Launch native document scanner directly on gallery pictures (MLKit / VisionKit auto boundary & enhancement)
+      final scannedImages = await CunningDocumentScanner.getPictures(
+        noOfPages: 50,
+        scannerSource: ScannerSource.gallery,
+      );
+
+      if (scannedImages != null && scannedImages.isNotEmpty) {
         setState(() {
-          _scannedImagePaths = images.map((e) => e.path).toList();
+          _scannedImagePaths.addAll(scannedImages);
           _scannedImagePath = _scannedImagePaths.first;
           _filteredImagePath = _scannedImagePaths.first;
           _currentStep = ScannerStep.filterSelection;
           _isMultiPageMode = _scannedImagePaths.length > 1;
-          _currentPageIndex = 0;
+          _currentPageIndex = _scannedImagePaths.length - 1;
           _isProcessing = false;
         });
-        
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_pageController.hasClients) {
-            _pageController.jumpToPage(0);
+            _pageController.jumpToPage(_currentPageIndex);
           }
         });
+        return;
+      }
+    } catch (e) {
+      debugPrint('Native gallery scanner fallback: $e');
+    }
+
+    // 2. Fallback: If native gallery scanner was canceled or unsupported, use ImagePicker with interactive cropper
+    final ImagePicker picker = ImagePicker();
+    try {
+      final List<XFile> images = await picker.pickMultiImage();
+      if (images.isNotEmpty) {
+        final List<String> paths = images.map((e) => e.path).toList();
+        setState(() {
+          _scannedImagePaths.addAll(paths);
+          _scannedImagePath = _scannedImagePaths.first;
+          _filteredImagePath = _scannedImagePaths.first;
+          _currentStep = ScannerStep.filterSelection;
+          _isMultiPageMode = _scannedImagePaths.length > 1;
+          _currentPageIndex = _scannedImagePaths.length - 1;
+          _isProcessing = false;
+        });
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(_currentPageIndex);
+          }
+        });
+
+        // Automatically prompt document corner unwarper for single image uploads
+        if (paths.length == 1 && mounted) {
+          _cropCurrentImage();
+        }
       } else {
         setState(() {
           _isProcessing = false;
@@ -283,8 +329,18 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     } catch (e) {
       setState(() {
         _isProcessing = false;
-        _errorMessage = 'ការនាំចូលរូបភាពបានបរាជ័យ៖ $e';
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'ការនាំចូលរូបភាពបានបរាជ័យ៖ $e',
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -758,24 +814,50 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'លុបឯកសារ',
-          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: AppTheme.border),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'លុបឯកសារ',
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
         ),
         content: Text(
-          'តើអ្នកពិតជាចង់លុបឯកសារនេះមែនទេ?',
-          style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+          'តើអ្នកពិតជាចង់លុបឯកសារនេះចេញពីប្រវត្តិមែនទេ?',
+          style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary, fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.grey)),
+            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
             onPressed: () => Navigator.pop(context, true),
-            child: Text('លុប', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text('លុប', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -793,31 +875,57 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     final newName = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'ប្តូរឈ្មោះឯកសារ',
-          style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        backgroundColor: AppTheme.bgCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: AppTheme.border),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.edit_rounded, color: Color(0xFF0284C7), size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'ប្តូរឈ្មោះឯកសារ',
+              style: GoogleFonts.kantumruyPro(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
         ),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+          style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'បញ្ចូលឈ្មោះឯកសារថ្មី',
-            hintStyle: GoogleFonts.kantumruyPro(color: Colors.white24),
-            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.tealAccent)),
+            hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.border)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF0284C7), width: 1.5)),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.grey)),
+            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
             onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text('យល់ព្រម', style: GoogleFonts.kantumruyPro(color: Colors.tealAccent, fontWeight: FontWeight.bold)),
+            child: Text('យល់ព្រម', style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1051,12 +1159,19 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         child: _buildBody(),
       ),
       floatingActionButton: showFab
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               onPressed: _openNativeScanner,
-              backgroundColor: AppTheme.primary,
+              backgroundColor: const Color(0xFF0284C7),
               elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
-              child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 28),
+              icon: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 22),
+              label: Text(
+                'ស្កេនថ្មី',
+                style: GoogleFonts.kantumruyPro(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13.5,
+                ),
+              ),
             )
           : null,
     );
@@ -1081,7 +1196,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       );
     }
 
-    if (_errorMessage != null) {
+    // Never replace the Home Dashboard (selectImage) with full-screen error
+    if (_errorMessage != null && _currentStep != ScannerStep.selectImage) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -1181,235 +1297,417 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
   /// Step 1: CamScanner-style Dashboard with Search and History Scans
   Widget _buildSelectImageStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 1. Search Bar and Top Icons Row
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 42,
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13.5),
-                    cursorColor: AppTheme.primary,
-                    decoration: InputDecoration(
-                      hintText: 'ស្វែងរកឯកសារ...',
-                      hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12.5),
-                      prefixIcon: Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 20),
-                      filled: true,
-                      fillColor: AppTheme.bgCard,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: AppTheme.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: AppTheme.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: AppTheme.primary, width: 1.2),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Cloud Sync icon
-              IconButton(
-                icon: const Icon(Icons.cloud_done_rounded, color: Color(0xFF0D9488), size: 24),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('ការរក្សាទុកពពកត្រូវបានធ្វើសមកាលកម្មរួចរាល់', style: GoogleFonts.kantumruyPro()),
-                      backgroundColor: const Color(0xFF0D9488),
-                    ),
-                  );
-                },
-              ),
-              // Premium Gold Badge
-              IconButton(
-                icon: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFD97706), size: 24),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('អ្នកកំពុងប្រើប្រាស់ VVC Scanner Premium', style: GoogleFonts.kantumruyPro()),
-                      backgroundColor: const Color(0xFFD97706),
-                    ),
-                  );
-                },
-              ),
-            ],
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadRecentDocuments();
+      },
+      color: const Color(0xFF0284C7),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        slivers: [
+          // 1. Clean Full-Width Search Bar
+          SliverToBoxAdapter(
+            child: _buildSearchBar(isDark),
           ),
-        ),
 
-        // 2. Quick Actions Grid (2 rows x 4 columns)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: _buildQuickActionsGrid(),
-        ),
+          // 2. Hero Scan Feature Banner
+          SliverToBoxAdapter(
+            child: _buildHeroBanner(isDark),
+          ),
 
-        const SizedBox(height: 24),
+          // 3. Quick Actions Surface Card (ឧបករណ៍ និងមុខងារជំនួយ)
+          SliverToBoxAdapter(
+            child: _buildQuickActionsCard(isDark),
+          ),
 
-        // 3. Recents Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'ឯកសារថ្មីៗ (${_filteredDocuments.length})',
-                style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          // 4. Recents Header
+          SliverToBoxAdapter(
+            child: _buildRecentsHeader(isDark),
+          ),
+
+          // 5. Recents List or Empty State
+          if (_filteredDocuments.isEmpty)
+            SliverToBoxAdapter(
+              child: _buildEmptyState(isDark),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    return _buildRecentCard(_filteredDocuments[index], isDark);
+                  },
+                  childCount: _filteredDocuments.length,
                 ),
               ),
-              if (_searchController.text.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    _searchController.clear();
-                    _onSearchChanged('');
-                  },
-                  child: Text(
-                    'សម្អាត',
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.primary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-            ],
+            ),
+
+          // Bottom padding for FloatingActionButton
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 85),
           ),
-        ),
-
-        const SizedBox(height: 12),
-
-        // 4. Recents List or Empty State
-        Expanded(
-          child: _filteredDocuments.isEmpty
-              ? Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: AppTheme.bgCard,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppTheme.border),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            _searchController.text.isNotEmpty
-                                ? Icons.search_off_rounded
-                                : Icons.document_scanner_outlined,
-                            size: 60,
-                            color: AppTheme.textMuted.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'រកមិនឃើញឯកសារដែលត្រូវគ្នាទេ'
-                              : 'មិនទាន់មានឯកសារស្កេនទេ',
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'សូមសាកល្បងស្វែងរកឈ្មោះផ្សេងទៀត'
-                              : 'ចុចប៊ូតុងកាមេរ៉ាខាងក្រោមដើម្បីចាប់ផ្តើមស្កេន',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
-                  itemCount: _filteredDocuments.length,
-                  separatorBuilder: (context, index) => Divider(
-                    color: AppTheme.border,
-                    height: 1,
-                  ),
-                  itemBuilder: (context, index) {
-                    return _buildRecentItem(_filteredDocuments[index]);
-                  },
-                ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  /// Helper Grid view for Quick Actions
-  Widget _buildQuickActionsGrid() {
+  /// 1. Modern Search Bar
+  Widget _buildSearchBar(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Container(
+        height: 46,
+        decoration: BoxDecoration(
+          color: AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.9),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _onSearchChanged,
+          style: GoogleFonts.kantumruyPro(
+            color: AppTheme.textPrimary,
+            fontSize: 13.5,
+          ),
+          cursorColor: const Color(0xFF0284C7),
+          decoration: InputDecoration(
+            hintText: 'ស្វែងរកឯកសារស្កេនតាមឈ្មោះ...',
+            hintStyle: GoogleFonts.kantumruyPro(
+              color: AppTheme.textMuted,
+              fontSize: 13,
+            ),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: AppTheme.textMuted,
+              size: 20,
+            ),
+            suffixIcon: _searchController.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear_rounded, size: 18, color: AppTheme.textMuted),
+                    onPressed: () {
+                      _searchController.clear();
+                      _onSearchChanged('');
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 2. Hero Scan Feature Banner
+  Widget _buildHeroBanner(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+              : [const Color(0xFF1E3A8A), const Color(0xFF0284C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : const Color(0xFF0284C7)).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 40,
+            bottom: -25,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFDE047), size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              'ស្កេនរហ័ស & ច្បាស់កម្រិត HD',
+                              style: GoogleFonts.kantumruyPro(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'ស្កេនឯកសារឆ្លាតវៃ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'កាត់គែមស្វ័យប្រវត្តិ តម្រង់ក្រដាស និងបម្លែងជា PDF ភ្លាមៗ',
+                        style: GoogleFonts.kantumruyPro(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 11.5,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _openNativeScanner,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.12),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.camera_alt_rounded, color: Color(0xFF1E3A8A), size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'ស្កេនឥឡូវ',
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: const Color(0xFF1E3A8A),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _importFromGallery,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.photo_library_rounded, color: Colors.white, size: 15),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'ជ្រើសរូបភាព',
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 66,
+                  height: 66,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.document_scanner_rounded,
+                      size: 34,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 3. Quick Actions Surface Card
+  Widget _buildQuickActionsCard(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D9488).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.widgets_rounded,
+                    size: 16,
+                    color: Color(0xFF0D9488),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'ឧបករណ៍ និងមុខងារជំនួយ',
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildQuickActionsGrid(isDark),
+        ],
+      ),
+    );
+  }
+
+  /// Grid view for Quick Actions (2 rows x 4 columns)
+  Widget _buildQuickActionsGrid(bool isDark) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildQuickActionItem(
-              icon: Icons.qr_code_scanner_rounded,
+              icon: Icons.document_scanner_rounded,
               label: 'ស្កេនឆ្លាតវៃ',
               color: const Color(0xFF0D9488),
               onTap: _openNativeScanner,
+              isDark: isDark,
             ),
             _buildQuickActionItem(
               icon: Icons.picture_as_pdf_rounded,
               label: 'ឧបករណ៍ PDF',
               color: const Color(0xFFE11D48),
               onTap: () async {
-                // Import image from gallery then export PDF directly
-                await _importFromGallery();
-                if (_scannedImagePaths.isNotEmpty && mounted) {
+                if (_scannedImagePaths.isNotEmpty) {
                   await _exportToPDF();
+                } else {
+                  await _importFromGallery();
+                  if (_scannedImagePaths.isNotEmpty && mounted) {
+                    await _exportToPDF();
+                  }
                 }
               },
+              isDark: isDark,
             ),
             _buildQuickActionItem(
-              icon: Icons.image_rounded,
+              icon: Icons.add_photo_alternate_rounded,
               label: 'នាំចូលរូបភាព',
               color: const Color(0xFF2563EB),
               onTap: _importFromGallery,
+              isDark: isDark,
             ),
             _buildQuickActionItem(
-              icon: Icons.folder_copy_rounded,
+              icon: Icons.folder_shared_rounded,
               label: 'នាំចូលឯកសារ',
               color: const Color(0xFF7C3AED),
-              onTap: _importFromGallery, // Fallback: gallery is most compatible cross-platform
+              onTap: _importFromGallery,
+              isDark: isDark,
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildQuickActionItem(
-              icon: Icons.portrait_rounded,
+              icon: Icons.badge_rounded,
               label: 'រូប 4x6 / 3x4',
               color: const Color(0xFF0284C7),
               onTap: () {
@@ -1422,6 +1720,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   ),
                 );
               },
+              isDark: isDark,
             ),
             _buildQuickActionItem(
               icon: Icons.draw_rounded,
@@ -1433,9 +1732,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   MaterialPageRoute(builder: (_) => const DigitalInkScreen()),
                 );
               },
+              isDark: isDark,
             ),
             _buildQuickActionItem(
-              icon: Icons.text_fields_rounded,
+              icon: Icons.text_snippet_rounded,
               label: 'អត្ថបទ OCR',
               color: const Color(0xFFDB2777),
               onTap: () async {
@@ -1446,12 +1746,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   await _extractText();
                 }
               },
+              isDark: isDark,
             ),
             _buildQuickActionItem(
               icon: Icons.grid_view_rounded,
               label: 'ទាំងអស់',
               color: const Color(0xFF475569),
-              onTap: () => _showAllDocumentsSheet(),
+              onTap: _showAllDocumentsSheet,
+              isDark: isDark,
             ),
           ],
         ),
@@ -1465,178 +1767,415 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    required bool isDark,
   }) {
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
-              ),
-              child: Icon(icon, color: color, size: 24),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 2.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: isDark ? 0.18 : 0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: color.withValues(alpha: isDark ? 0.35 : 0.22),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Icon(icon, color: color, size: 23),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.kantumruyPro(
+                    color: AppTheme.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  /// Recent Scan item row builder
-  Widget _buildRecentItem(Map<String, dynamic> doc) {
+  /// 4. Recents Header
+  Widget _buildRecentsHeader(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 18, 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                'ឯកសារថ្មីៗ',
+                style: GoogleFonts.kantumruyPro(
+                  color: AppTheme.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${_filteredDocuments.length}',
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFF0284C7),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_searchController.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                _onSearchChanged('');
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                child: Text(
+                  'សម្អាត',
+                  style: GoogleFonts.kantumruyPro(
+                    color: const Color(0xFF0284C7),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            )
+          else if (_recentDocuments.isNotEmpty)
+            GestureDetector(
+              onTap: _showAllDocumentsSheet,
+              child: Row(
+                children: [
+                  Text(
+                    'មើលទាំងអស់',
+                    style: GoogleFonts.kantumruyPro(
+                      color: const Color(0xFF0284C7),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF0284C7)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 5. Recent Document Card
+  Widget _buildRecentCard(Map<String, dynamic> doc, bool isDark) {
     final int id = doc['id'] as int;
     final String title = doc['custom_name'] ?? 'គ្មានឈ្មោះ';
     final int pageCount = doc['page_count'] ?? 1;
     final String thumbnailPath = doc['thumbnail_path'] ?? '';
     final String dateStr = doc['scan_date'] ?? '';
-    
-    // Format the date nicely
+
     String formattedDate = dateStr;
     try {
       final dateTime = DateTime.parse(dateStr);
-      formattedDate = '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      formattedDate =
+          '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
     } catch (_) {}
 
     final thumbnailFile = File(thumbnailPath);
     final bool fileExists = thumbnailFile.existsSync();
 
-    return InkWell(
-      onTap: () => _openDocument(doc),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 4.0),
-        child: Row(
-          children: [
-            // Thumbnail or doc icon placeholder
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppTheme.border),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(9),
-                child: fileExists
-                    ? Image.file(thumbnailFile, fit: BoxFit.cover)
-                    : Container(
-                        color: const Color(0xFF0D9488).withValues(alpha: 0.1),
-                        child: const Icon(Icons.description_rounded, color: Color(0xFF0D9488), size: 28),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // Title and Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openDocument(doc),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              children: [
+                // Thumbnail with rounded corners
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.border),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: fileExists
+                        ? Image.file(thumbnailFile, fit: BoxFit.cover)
+                        : Container(
+                            color: const Color(0xFF0D9488).withValues(alpha: 0.1),
+                            child: const Icon(
+                              Icons.description_rounded,
+                              color: Color(0xFF0D9488),
+                              size: 28,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // Title and Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        formattedDate,
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.textMuted,
-                          fontSize: 11.5,
+                          color: AppTheme.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppTheme.bgSurface,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: AppTheme.border),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.pages_rounded, size: 10, color: AppTheme.textMuted),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$pageCount ទំព័រ',
-                              style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textMuted,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time_rounded,
+                            size: 12,
+                            color: AppTheme.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            formattedDate,
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.textMuted,
+                              fontSize: 11.5,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0284C7).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.file_copy_outlined, size: 10, color: Color(0xFF0284C7)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$pageCount ទំព័រ',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: const Color(0xFF0284C7),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            // Actions Popup Menu
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert_rounded, color: AppTheme.textMuted, size: 20),
-              color: AppTheme.bgCard,
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: AppTheme.border)),
-              onSelected: (action) {
-                if (action == 'rename') {
-                  _renameDocument(id, title);
-                } else if (action == 'delete') {
-                  _deleteDocument(id);
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'rename',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_rounded, color: AppTheme.textSecondary, size: 16),
-                      const SizedBox(width: 8),
-                      Text('ប្តូរឈ្មោះ', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13)),
                     ],
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.delete_rounded, color: Colors.redAccent, size: 16),
-                      const SizedBox(width: 8),
-                      Text('លុប', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13)),
-                    ],
+
+                // Action Menu
+                PopupMenuButton<String>(
+                  icon: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgSurface,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.more_vert_rounded, color: AppTheme.textSecondary, size: 18),
                   ),
+                  color: AppTheme.bgCard,
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: AppTheme.border),
+                  ),
+                  onSelected: (action) {
+                    if (action == 'open') {
+                      _openDocument(doc);
+                    } else if (action == 'rename') {
+                      _renameDocument(id, title);
+                    } else if (action == 'delete') {
+                      _deleteDocument(id);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'open',
+                      child: Row(
+                        children: [
+                          Icon(Icons.visibility_outlined, color: AppTheme.textSecondary, size: 16),
+                          const SizedBox(width: 8),
+                          Text('បើកមើល', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'rename',
+                      child: Row(
+                        children: [
+                          Icon(Icons.drive_file_rename_outline_rounded, color: AppTheme.textSecondary, size: 16),
+                          const SizedBox(width: 8),
+                          Text('ប្តូរឈ្មោះ', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                          const SizedBox(width: 8),
+                          Text('លុប', style: GoogleFonts.kantumruyPro(color: Colors.redAccent, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+
+
+  /// 6. Empty State Card
+  Widget _buildEmptyState(bool isDark) {
+    final hasSearch = _searchController.text.isNotEmpty;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.bgCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              color: (hasSearch ? const Color(0xFFE11D48) : const Color(0xFF0284C7)).withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              hasSearch ? Icons.search_off_rounded : Icons.document_scanner_outlined,
+              size: 36,
+              color: hasSearch ? const Color(0xFFE11D48) : const Color(0xFF0284C7),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            hasSearch ? 'រកមិនឃើញឯកសារដែលត្រូវគ្នាទេ' : 'មិនទាន់មានឯកសារស្កេននៅឡើយទេ',
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasSearch
+                ? 'សូមសាកល្បងស្វែងរកឈ្មោះផ្សេងទៀត ឬសម្អាតការស្វែងរក'
+                : 'ស្កេនឯកសារ វិក្កយបត្រ ឬលិខិតស្នាមផ្សេងៗ ដើម្បីរក្សាទុក និងបម្លែងជា PDF យ៉ាងងាយស្រួល',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.kantumruyPro(
+              color: AppTheme.textSecondary,
+              fontSize: 12.5,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (hasSearch)
+            ElevatedButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                _onSearchChanged('');
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: Text(
+                'សម្អាតការស្វែងរក',
+                style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                elevation: 0,
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: _openNativeScanner,
+              icon: const Icon(Icons.camera_alt_rounded, size: 18),
+              label: Text(
+                'ចាប់ផ្ដើមស្កេនឥឡូវនេះ',
+                style: GoogleFonts.kantumruyPro(fontSize: 13.5, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                elevation: 2,
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -74,6 +74,20 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
     }).toList();
   }
 
+  static String cleanItemName(String rawName) {
+    if (rawName.contains('???') || rawName.contains('??')) {
+      if (rawName.toUpperCase().contains('A4')) {
+        return 'ក្រដាស A4';
+      }
+      if (rawName.trim().replaceAll('?', '').replaceAll('-', '').isEmpty) {
+        return 'សម្ភារៈទូទៅ';
+      }
+      final cleaned = rawName.replaceAll('?', '').trim();
+      return cleaned.isNotEmpty ? cleaned : 'សម្ភារៈប្រើប្រាស់';
+    }
+    return rawName;
+  }
+
   Future<void> _fetchMaterials() async {
     setState(() => _isLoadingMaterials = true);
     try {
@@ -86,8 +100,8 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
             _availableMaterials.add(
               MaterialItem(
                 id: item['id'],
-                name: item['item_name'],
-                stock: item['quantity'],
+                name: cleanItemName(item['item_name']?.toString() ?? ''),
+                stock: item['quantity'] ?? 0,
                 icon: _getIconForCategory(item['category'] ?? ''),
               ),
             );
@@ -457,27 +471,29 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
   Widget build(BuildContext context) {
     final user = Provider.of<UserProvider>(context);
     final isDesktop = MediaQuery.of(context).size.width > 800;
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
 
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
-      extendBodyBehindAppBar: true,
+      backgroundColor:
+          isDark ? const Color(0xFF000000) : const Color(0xFFF8FAFC),
+      extendBodyBehindAppBar: false,
       appBar: VvcAppBar(
+        backgroundColor: isDark ? const Color(0xFF141416) : Colors.white,
         title: Text(
           'សុំសម្ភារៈប្រើប្រាស់',
           style: GoogleFonts.kantumruyPro(
             fontWeight: FontWeight.bold,
-            fontSize: 20,
-            color: AppTheme.textPrimary,
+            fontSize: 16.5,
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
         ),
         elevation: 0,
-        foregroundColor: AppTheme.textPrimary,
+        foregroundColor: isDark ? Colors.white : const Color(0xFF0F172A),
         centerTitle: true,
       ),
       body: AppBackgroundShell(
-        child: SafeArea(
-          child: isDesktop ? _buildDesktopLayout(user) : _buildMobileLayout(user),
-        ),
+        child: isDesktop ? _buildDesktopLayout(user) : _buildMobileLayout(user),
       ),
     );
   }
@@ -579,28 +595,42 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
   }
 
   Widget _buildFormContent(UserProvider user) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Elegant Header Profile
+          // Elegant Header Profile Card
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: AppTheme.cardDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.08),
-              radius: AppTheme.radiusLg,
-              borderColor: AppTheme.primary.withValues(alpha: 0.18),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : const Color(0xFFE2E8F0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: AppTheme.primary,
+                  backgroundColor: const Color(0xFF0A84FF),
                   backgroundImage:
                       user.avatarUrl != null && user.avatarUrl!.isNotEmpty
-                      ? NetworkImage(user.avatarUrl!)
-                      : null,
+                          ? NetworkImage(user.avatarUrl!)
+                          : null,
                   child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
                       ? const Icon(Icons.person, color: Colors.white)
                       : null,
@@ -613,16 +643,28 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                       Text(
                         user.name ?? 'អ្នកប្រើប្រាស់',
                         style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.textPrimary,
-                          fontSize: 18,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Text(
-                        'អ្នកស្នើសុំ',
-                        style: GoogleFonts.kantumruyPro(
-                          color: AppTheme.primary,
-                          fontSize: 13,
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A84FF).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'អ្នកស្នើសុំ',
+                          style: GoogleFonts.kantumruyPro(
+                            color: const Color(0xFF0284C7),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
@@ -809,9 +851,13 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                         ),
                       ],
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Divider(color: Colors.white10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(
+                        color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
+                            ? Colors.white10
+                            : const Color(0xFFF1F5F9),
+                      ),
                     ),
                     Row(
                       children: [
@@ -930,8 +976,13 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
   }
 
   Widget _buildStockContent() {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+
     return Container(
-      color: AppTheme.bgDark.withValues(alpha: 0.5),
+      color: isDark
+          ? const Color(0xFF141416)
+          : const Color(0xFFF8FAFC),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -940,9 +991,13 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: AppTheme.bgCard,
+                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.borderColor),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : const Color(0xFFE2E8F0),
+                ),
               ),
               child: Row(
                 children: [
@@ -956,7 +1011,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                     child: TextField(
                       controller: _searchController,
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
                         fontSize: 14,
                       ),
                       decoration: InputDecoration.collapsed(

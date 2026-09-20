@@ -278,40 +278,83 @@ class _MissionScreenState extends State<MissionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: AppTheme.bgDark,
-        extendBodyBehindAppBar: true,
+        backgroundColor:
+            isDark ? const Color(0xFF000000) : const Color(0xFFF8FAFC),
+        extendBodyBehindAppBar: false,
         appBar: VvcAppBar(
-          backgroundColor: Colors.transparent,
+          backgroundColor: isDark ? const Color(0xFF141416) : Colors.white,
           elevation: 0,
           centerTitle: true,
           title: Text(
             "លិខិតបេសកកម្ម",
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
               fontWeight: FontWeight.bold,
-              fontSize: 18,
+              fontSize: 16.5,
             ),
           ),
           leading: IconButton(
             icon: Icon(
               Icons.arrow_back_ios_new_rounded,
-              color: AppTheme.textPrimary,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              size: 18,
             ),
             onPressed: () => Navigator.pop(context),
           ),
-          bottom: TabBar(
-            indicatorColor: AppTheme.primary,
-            indicatorWeight: 3,
-            labelColor: AppTheme.primary,
-            labelStyle: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-            unselectedLabelColor: AppTheme.textPrimary.withValues(alpha: 0.4),
-            tabs: const [
-              Tab(text: "ស្នើសុំបេសកកម្ម"),
-              Tab(text: "ប្រវត្តិនៃការចុះ"),
-            ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(50),
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1C1C1E)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: TabBar(
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                indicator: BoxDecoration(
+                  color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                labelColor: isDark ? Colors.white : const Color(0xFF0F172A),
+                labelStyle: GoogleFonts.kantumruyPro(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                unselectedLabelColor: isDark
+                    ? Colors.white54
+                    : const Color(0xFF64748B),
+                unselectedLabelStyle: GoogleFonts.kantumruyPro(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+                tabs: const [
+                  Tab(text: "ស្នើសុំបេសកកម្ម"),
+                  Tab(text: "ប្រវត្តិនៃការចុះ"),
+                ],
+              ),
+            ),
           ),
         ),
         body: AppBackgroundShell(
@@ -327,7 +370,7 @@ class _MissionScreenState extends State<MissionScreen> {
   Widget _buildSubmitTab() {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 160, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: FadeInUp(
         child: Column(
           children: [
@@ -395,7 +438,7 @@ class _MissionScreenState extends State<MissionScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 160, 20, 10),
+      margin: const EdgeInsets.fromLTRB(20, 14, 20, 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppTheme.bgCard.withValues(alpha: 0.6),
@@ -777,27 +820,51 @@ class _MissionScreenState extends State<MissionScreen> {
     required String title,
     required Widget body,
   }) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.borderColor),
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : const Color(0xFFE2E8F0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: AppTheme.primary, size: 18),
+              Icon(
+                icon,
+                color: isDark ? AppTheme.primary : const Color(0xFFD97706),
+                size: 18,
+              ),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+                style: GoogleFonts.kantumruyPro(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontSize: 15,
+                ),
               ),
             ],
           ),
-          const Divider(height: 24),
+          Divider(
+            height: 24,
+            color: isDark ? Colors.white12 : const Color(0xFFF1F5F9),
+          ),
           body,
         ],
       ),
@@ -1144,14 +1211,21 @@ class _MissionScreenState extends State<MissionScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppTheme.bgCard,
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppTheme.borderColor),
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, size: 16),
+                Icon(Icons.calendar_today, size: 16, color: AppTheme.textSecondary),
                 const SizedBox(width: 8),
-                Text(DateFormat('dd/MM/yyyy').format(date)),
+                Text(
+                  DateFormat('dd/MM/yyyy').format(date),
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1182,14 +1256,21 @@ class _MissionScreenState extends State<MissionScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppTheme.bgCard,
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppTheme.borderColor),
             ),
             child: Row(
               children: [
-                const Icon(Icons.access_time, size: 16),
+                Icon(Icons.access_time, size: 16, color: AppTheme.textSecondary),
                 const SizedBox(width: 8),
-                Text(_formatTime(time)),
+                Text(
+                  _formatTime(time),
+                  style: GoogleFonts.inter(
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                  ),
+                ),
               ],
             ),
           ),

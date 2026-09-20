@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import '../utils/app_theme.dart';
 import '../widgets/vvc_liquid_glass_scaffold.dart';
+import '../widgets/attendance_calendar_picker_dialog.dart';
 
 enum HistoryDateFilter {
   today,
@@ -147,46 +149,24 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
 
   Future<void> _pickCustomDateRange() async {
     HapticFeedback.lightImpact();
-    final now = DateTime.now();
-    final initialRange = (_startDate != null && _endDate != null)
-        ? DateTimeRange(start: _startDate!, end: _endDate!)
-        : DateTimeRange(
-            start: DateTime(now.year, now.month, 1),
-            end: now,
-          );
-
-    final picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: initialRange,
-      firstDate: DateTime(2020),
-      lastDate: now,
-      helpText: 'ជ្រើសរើសចន្លោះកាលបរិច្ឆេទ',
-      cancelText: 'បោះបង់',
-      confirmText: 'យល់ព្រម',
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: Color(0xFF0A84FF),
-            onPrimary: Colors.white,
-            surface: Color(0xFF1C1C1E),
-            onSurface: Colors.white,
-          ),
-          scaffoldBackgroundColor: const Color(0xFF000000),
-          dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF1C1C1E)),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF1C1C1E),
-            foregroundColor: Colors.white,
-          ),
-        ),
-        child: child!,
-      ),
+    final picked = await AttendanceCalendarPickerDialog.show(
+      context,
+      initialStartDate: _startDate,
+      initialEndDate: _endDate,
     );
 
     if (picked != null) {
       setState(() {
         _selectedFilter = HistoryDateFilter.custom;
         _startDate = picked.start;
-        _endDate = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+        _endDate = DateTime(
+          picked.end.year,
+          picked.end.month,
+          picked.end.day,
+          23,
+          59,
+          59,
+        );
       });
       _fetchHistory();
     }
@@ -281,7 +261,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
     final headerTotalHeight = topPadding + 6 + 44 + 10 + 36 + 10;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
 
     return VvcLiquidGlassScaffold(
       showHeader: true,
@@ -304,9 +284,9 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 6),
-              _buildDualPodHeader(context),
+              _buildDualPodHeader(context, isDark),
               const SizedBox(height: 10),
-              _buildQuickFilterChips(),
+              _buildQuickFilterChips(isDark),
               const SizedBox(height: 10),
             ],
           ),
@@ -316,7 +296,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
         onRefresh: _fetchHistory,
         color: const Color(0xFF0A84FF),
         edgeOffset: headerTotalHeight,
-        child: _buildBody(topPadding: headerTotalHeight),
+        child: _buildBody(topPadding: headerTotalHeight, isDark: isDark),
       ),
     );
   }
@@ -324,7 +304,40 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   // ===========================================================================
   // 1. DYNAMIC LIQUID GLASS DUAL-POD HEADER
   // ===========================================================================
-  Widget _buildDualPodHeader(BuildContext context) {
+  Widget _buildDualPodHeader(BuildContext context, bool isDark) {
+    final podBg = isDark
+        ? (_isScrolled
+            ? const Color(0xFF24272E).withValues(alpha: 0.94)
+            : const Color(0xFF1C1C1E).withValues(alpha: 0.70))
+        : (_isScrolled
+            ? Colors.white.withValues(alpha: 0.96)
+            : Colors.white.withValues(alpha: 0.90));
+
+    final podBorder = isDark
+        ? (_isScrolled
+            ? Colors.white.withValues(alpha: 0.22)
+            : Colors.white.withValues(alpha: 0.10))
+        : const Color(0xFFE2E8F0);
+
+    final podShadow = isDark
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+              blurRadius: _isScrolled ? 16 : 4,
+              offset: Offset(0, _isScrolled ? 4 : 2),
+            ),
+          ]
+        : [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ];
+
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor = isDark ? Colors.white54 : const Color(0xFF64748B);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
@@ -340,23 +353,10 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _isScrolled
-                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
+                  color: podBg,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.22)
-                        : Colors.white.withValues(alpha: 0.10),
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
-                      blurRadius: _isScrolled ? 16 : 4,
-                      offset: Offset(0, _isScrolled ? 4 : 2),
-                    ),
-                  ],
+                  border: Border.all(color: podBorder, width: 1.0),
+                  boxShadow: podShadow,
                 ),
                 child: Material(
                   color: Colors.transparent,
@@ -366,10 +366,10 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                       HapticFeedback.lightImpact();
                       Navigator.maybePop(context);
                     },
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         CupertinoIcons.chevron_back,
-                        color: Colors.white,
+                        color: textColor,
                         size: 20,
                       ),
                     ),
@@ -392,23 +392,10 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: _isScrolled
-                        ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
+                    color: podBg,
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: _isScrolled
-                          ? Colors.white.withValues(alpha: 0.22)
-                          : Colors.white.withValues(alpha: 0.10),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
-                        blurRadius: _isScrolled ? 16 : 4,
-                        offset: Offset(0, _isScrolled ? 4 : 2),
-                      ),
-                    ],
+                    border: Border.all(color: podBorder, width: 1.0),
+                    boxShadow: podShadow,
                   ),
                   child: Row(
                     children: [
@@ -421,7 +408,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                             Text(
                               'ប្រវត្តិចុះវត្តមាន',
                               style: GoogleFonts.kantumruyPro(
-                                color: Colors.white,
+                                color: textColor,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.2,
@@ -432,7 +419,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                             Text(
                               _activePeriodLabel,
                               style: GoogleFonts.kantumruyPro(
-                                color: Colors.white54,
+                                color: subtextColor,
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -473,7 +460,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   // ===========================================================================
   // 2. SLEEK QUICK-FILTER CHIPS
   // ===========================================================================
-  Widget _buildQuickFilterChips() {
+  Widget _buildQuickFilterChips(bool isDark) {
     final chips = [
       {'filter': HistoryDateFilter.today, 'label': 'ថ្ងៃនេះ'},
       {'filter': HistoryDateFilter.last7Days, 'label': '៧ ថ្ងៃចុងក្រោយ'},
@@ -495,7 +482,58 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
               isSelected &&
               _startDate != null &&
               _endDate != null) {
-            label = '${_startDate!.day}/${_startDate!.month} - ${_endDate!.day}/${_endDate!.month}';
+            if (_startDate!.day == _endDate!.day &&
+                _startDate!.month == _endDate!.month &&
+                _startDate!.year == _endDate!.year) {
+              label = '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}';
+            } else {
+              label = '${_startDate!.day}/${_startDate!.month} - ${_endDate!.day}/${_endDate!.month}';
+            }
+          }
+
+          final Color chipBg;
+          final Color chipBorder;
+          final Color chipText;
+          final List<BoxShadow>? chipShadow;
+
+          if (isSelected) {
+            chipBg = isDark
+                ? const Color(0xFF0A84FF).withValues(alpha: 0.22)
+                : const Color(0xFF0A84FF).withValues(alpha: 0.12);
+            chipBorder = isDark
+                ? const Color(0xFF0A84FF).withValues(alpha: 0.70)
+                : const Color(0xFF0A84FF);
+            chipText = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
+            chipShadow = [
+              BoxShadow(
+                color: const Color(0xFF0A84FF).withValues(alpha: isDark ? 0.25 : 0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ];
+          } else {
+            chipBg = isDark
+                ? (_isScrolled
+                    ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
+                    : const Color(0xFF1C1C1E).withValues(alpha: 0.55))
+                : Colors.white.withValues(alpha: 0.95);
+            chipBorder = isDark
+                ? (_isScrolled
+                    ? Colors.white.withValues(alpha: 0.14)
+                    : Colors.white.withValues(alpha: 0.07))
+                : const Color(0xFFE2E8F0);
+            chipText = isDark
+                ? Colors.white.withValues(alpha: 0.65)
+                : const Color(0xFF475569);
+            chipShadow = isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ];
           }
 
           return Padding(
@@ -508,29 +546,13 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOutCubic,
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF0A84FF).withValues(alpha: 0.22)
-                        : _isScrolled
-                            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
-                            : const Color(0xFF1C1C1E).withValues(alpha: 0.55),
+                    color: chipBg,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF0A84FF).withValues(alpha: 0.70)
-                          : _isScrolled
-                              ? Colors.white.withValues(alpha: 0.14)
-                              : Colors.white.withValues(alpha: 0.07),
+                      color: chipBorder,
                       width: isSelected ? 1.2 : 1.0,
                     ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFF0A84FF).withValues(alpha: 0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
+                    boxShadow: chipShadow,
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -548,19 +570,19 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                             if (filter == HistoryDateFilter.custom) ...[
                               Icon(
                                 CupertinoIcons.calendar,
-                                size: 12,
+                                size: 13,
                                 color: isSelected
                                     ? const Color(0xFF0A84FF)
-                                    : Colors.white.withValues(alpha: 0.65),
+                                    : (isDark
+                                        ? Colors.white.withValues(alpha: 0.65)
+                                        : const Color(0xFF64748B)),
                               ),
                               const SizedBox(width: 5),
                             ],
                             Text(
                               label,
                               style: GoogleFonts.kantumruyPro(
-                                color: isSelected
-                                    ? const Color(0xFF38BDF8)
-                                    : Colors.white.withValues(alpha: 0.65),
+                                color: chipText,
                                 fontSize: 12,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
@@ -584,7 +606,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
   // ===========================================================================
   // 3. BODY & LIST VIEW
   // ===========================================================================
-  Widget _buildBody({required double topPadding}) {
+  Widget _buildBody({required double topPadding, required bool isDark}) {
     if (_isLoading) {
       return Center(
         child: Padding(
@@ -600,7 +622,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: EdgeInsets.only(top: topPadding / 2),
+          padding: EdgeInsets.only(top: topPadding / 2, left: 24, right: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -609,7 +631,10 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
               const SizedBox(height: 16),
               Text(
                 _error!,
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14),
+                style: GoogleFonts.kantumruyPro(
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  fontSize: 14,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -636,36 +661,79 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
     if (_logs.isEmpty) {
       return Center(
         child: Padding(
-          padding: EdgeInsets.only(top: topPadding / 2),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                CupertinoIcons.doc_text_search,
-                color: Colors.white.withValues(alpha: 0.3),
-                size: 54,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'មិនមានទិន្នន័យក្នុងចន្លោះពេលនេះ',
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 14,
+          padding: EdgeInsets.only(top: topPadding / 2, left: 24, right: 24),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            decoration: isDark
+                ? null
+                : BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  CupertinoIcons.doc_text_search,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : const Color(0xFF94A3B8),
+                  size: 54,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 14),
-              TextButton.icon(
-                onPressed: () => _selectQuickFilter(HistoryDateFilter.thisMonth),
-                icon: const Icon(CupertinoIcons.calendar_today, size: 16),
-                label: Text(
-                  'បង្ហាញខែនេះ',
+                const SizedBox(height: 16),
+                Text(
+                  'មិនមានទិន្នន័យក្នុងចន្លោះពេលនេះ',
                   style: GoogleFonts.kantumruyPro(
-                      fontSize: 13, fontWeight: FontWeight.bold),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.8)
+                        : const Color(0xFF1E293B),
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A84FF)),
-              ),
-            ],
+                const SizedBox(height: 6),
+                Text(
+                  'សូមសាកល្បងជ្រើសរើសចន្លោះកាលបរិច្ឆេទផ្សេង ឬជ្រើសរើសខែនេះ',
+                  style: GoogleFonts.kantumruyPro(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.45)
+                        : const Color(0xFF64748B),
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () => _selectQuickFilter(HistoryDateFilter.thisMonth),
+                  icon: const Icon(CupertinoIcons.calendar_today, size: 16),
+                  label: Text(
+                    'បង្ហាញខែនេះ',
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF0A84FF),
+                    backgroundColor: const Color(0xFF0A84FF).withValues(alpha: 0.1),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -689,39 +757,83 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
             ),
           );
         }
-        return _buildLogItem(_logs[index] as Map<String, dynamic>);
+        return _buildLogItem(_logs[index] as Map<String, dynamic>, isDark);
       },
     );
   }
 
   // ===========================================================================
-  // 4. CHECK-IN / CHECK-OUT LOG CARD (APPLE / TELEGRAM DARK STYLE)
+  // 4. CHECK-IN / CHECK-OUT LOG CARD (ADAPTIVE DARK & LIGHT MODE)
   // ===========================================================================
-  Widget _buildLogItem(Map<String, dynamic> log) {
+  Widget _buildLogItem(Map<String, dynamic> log, bool isDark) {
     final bool isCheckIn = log['action_type'] == 'Check-In';
     final Color ac = isCheckIn
         ? const Color(0xFF06B6D4) // Cyan / Turquoise
         : const Color(0xFFF97316); // Orange / Coral
-    final Color sc = (log['status'] == 'Good' || log['status'] == 'Normal')
-        ? const Color(0xFF10B981)
+
+    final bool isGood = log['status'] == 'Good' || log['status'] == 'Normal';
+    final Color sc = isGood
+        ? (isDark ? const Color(0xFF10B981) : const Color(0xFF16A34A))
         : const Color(0xFFEF4444);
+
+    final Color statusBg = isGood
+        ? (isDark
+            ? const Color(0xFF10B981).withValues(alpha: 0.15)
+            : const Color(0xFFDCFCE7))
+        : (isDark
+            ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+            : const Color(0xFFFEE2E2));
+
+    final Color statusBorder = isGood
+        ? (isDark
+            ? const Color(0xFF10B981).withValues(alpha: 0.3)
+            : const Color(0xFF86EFAC))
+        : (isDark
+            ? const Color(0xFFEF4444).withValues(alpha: 0.3)
+            : const Color(0xFFFCA5A5));
+
+    final cardBg = isDark
+        ? const Color(0xFF1C1C1E).withValues(alpha: 0.85)
+        : Colors.white;
+
+    final cardBorder = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : const Color(0xFFE2E8F0);
+
+    final cardShadow = isDark
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ]
+        : [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ];
+
+    final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor = isDark
+        ? Colors.white.withValues(alpha: 0.65)
+        : const Color(0xFF64748B);
+    final iconColor = isDark
+        ? Colors.white.withValues(alpha: 0.45)
+        : const Color(0xFF94A3B8);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E).withValues(alpha: 0.85),
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: cardBorder,
           width: 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: cardShadow,
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -750,7 +862,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                       Text(
                         log['action_type'] ?? 'N/A',
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: titleColor,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
@@ -759,10 +871,10 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                         padding:
                             const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                         decoration: BoxDecoration(
-                          color: sc.withValues(alpha: 0.15),
+                          color: statusBg,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: sc.withValues(alpha: 0.3),
+                            color: statusBorder,
                             width: 0.8,
                           ),
                         ),
@@ -782,14 +894,14 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                     children: [
                       Icon(
                         CupertinoIcons.time,
-                        color: Colors.white.withValues(alpha: 0.45),
+                        color: iconColor,
                         size: 13,
                       ),
                       const SizedBox(width: 5),
                       Text(
                         log['log_datetime'] ?? 'N/A',
                         style: GoogleFonts.inter(
-                          color: Colors.white.withValues(alpha: 0.65),
+                          color: subtextColor,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -801,7 +913,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                     children: [
                       Icon(
                         CupertinoIcons.location_solid,
-                        color: Colors.white.withValues(alpha: 0.45),
+                        color: iconColor,
                         size: 13,
                       ),
                       const SizedBox(width: 5),
@@ -809,7 +921,7 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
                         child: Text(
                           log['location_name'] ?? 'Unknown',
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.white.withValues(alpha: 0.45),
+                            color: subtextColor,
                             fontSize: 11,
                           ),
                           maxLines: 1,

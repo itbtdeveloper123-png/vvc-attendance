@@ -4108,6 +4108,9 @@ try {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+            // Ensure UTF-8 collation so Khmer characters are never mangled
+            @dbQuery("ALTER TABLE stock_items CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
             // Safely ensure all columns exist
             $neededCols = [
                 'code' => "VARCHAR(100) NOT NULL DEFAULT ''",
