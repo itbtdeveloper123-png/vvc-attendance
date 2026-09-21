@@ -2,17 +2,107 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
 
+/// Supported standard paper sizes with dimensions in OpenXML dxa (1 pt = 20 dxa, 1 inch = 1440 dxa)
+enum DocxPaperSize {
+  a4('A4', '210 x 297 mm', 11906, 16838),
+  letter('Letter', '8.5 x 11 in', 12240, 15840),
+  legal('Legal', '8.5 x 14 in', 12240, 20160),
+  a5('A5', '148 x 210 mm', 8390, 11906),
+  a3('A3', '297 x 420 mm', 16838, 23811);
+
+  final String name;
+  final String dimensions;
+  final int widthDxa; // portrait width
+  final int heightDxa; // portrait height
+  const DocxPaperSize(this.name, this.dimensions, this.widthDxa, this.heightDxa);
+}
+
+enum DocxPageOrientation {
+  portrait('បញ្ឈរ (Portrait)'),
+  landscape('ផ្តេក (Landscape)');
+
+  final String label;
+  const DocxPageOrientation(this.label);
+}
+
+enum DocxPageMargin {
+  normal('ធម្មតា (Normal - 20mm)', 1134),
+  narrow('ចង្អៀត (Narrow - 12.7mm)', 720),
+  wide('ទូលាយ (Wide - 25.4mm)', 1440);
+
+  final String label;
+  final int marginDxa;
+  const DocxPageMargin(this.label, this.marginDxa);
+}
+
+/// Result of auto-detecting paper size and orientation from a source document
+class DetectedPageFormat {
+  final DocxPaperSize paperSize;
+  final DocxPageOrientation orientation;
+  final double widthPt;
+  final double heightPt;
+
+  const DetectedPageFormat({
+    required this.paperSize,
+    required this.orientation,
+    required this.widthPt,
+    required this.heightPt,
+  });
+
+  String get summaryLabel => '${paperSize.name} • ${orientation == DocxPageOrientation.landscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"}';
+}
+
 /// Professional Docx Generator Service for Khmer & Multi-lingual Documents.
 /// Produces genuine Microsoft Word (.docx) OpenXML archives.
 /// Preserves Khmer typography (Khmer OS Battambang / Kantumruy Pro),
-/// tables, alignments, headings, and original document structure.
+/// tables, alignments, headings, and dynamic paper dimensions.
 class DocxGeneratorService {
+  /// Detects closest standard paper format from physical dimensions in points or pixels
+  static DetectedPageFormat detectFromDimensions(double width, double height) {
+    if (width <= 0 || height <= 0) {
+      return const DetectedPageFormat(
+        paperSize: DocxPaperSize.a4,
+        orientation: DocxPageOrientation.portrait,
+        widthPt: 595.28,
+        heightPt: 841.89,
+      );
+    }
+
+    final isLandscape = width > height;
+    final shortSide = isLandscape ? height : width;
+    final longSide = isLandscape ? width : height;
+    final aspect = longSide / shortSide;
+
+    DocxPaperSize bestSize = DocxPaperSize.a4;
+    double bestDiff = 999999.0;
+
+    for (final size in DocxPaperSize.values) {
+      final sizeAspect = size.heightDxa / size.widthDxa;
+      final diff = (aspect - sizeAspect).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestSize = size;
+      }
+    }
+
+    return DetectedPageFormat(
+      paperSize: bestSize,
+      orientation: isLandscape ? DocxPageOrientation.landscape : DocxPageOrientation.portrait,
+      widthPt: width,
+      heightPt: height,
+    );
+  }
+
   /// Generate a .docx file from structured text/markdown and save to [outputPath]
+  /// Supports dynamic [pageSize], [orientation], and [margin]
   static Future<File> generateDocx({
     required String title,
     required String content,
     required String outputPath,
     List<String>? multiPageContents,
+    DocxPaperSize pageSize = DocxPaperSize.a4,
+    DocxPageOrientation orientation = DocxPageOrientation.portrait,
+    DocxPageMargin margin = DocxPageMargin.normal,
   }) async {
     final archive = Archive();
 
@@ -87,11 +177,23 @@ class DocxGeneratorService {
 </w:styles>''';
     archive.addFile(ArchiveFile('word/styles.xml', stylesXml.length, utf8.encode(stylesXml)));
 
+    // Compute dynamic paper dimensions and printable area in OpenXML dxa
+    final isLandscape = orientation == DocxPageOrientation.landscape;
+    final pageWidthDxa = isLandscape ? pageSize.heightDxa : pageSize.widthDxa;
+    final pageHeightDxa = isLandscape ? pageSize.widthDxa : pageSize.heightDxa;
+    final marginDxa = margin.marginDxa;
+    final printableWidthDxa = pageWidthDxa - (marginDxa * 2);
+
     // 6. word/document.xml - Parse structured text / markdown into Word XML
     final documentXml = _buildDocumentXml(
       title: title,
       content: content,
       multiPageContents: multiPageContents,
+      pageWidthDxa: pageWidthDxa,
+      pageHeightDxa: pageHeightDxa,
+      marginDxa: marginDxa,
+      printableWidthDxa: printableWidthDxa,
+      isLandscape: isLandscape,
     );
     archive.addFile(ArchiveFile('word/document.xml', documentXml.length, utf8.encode(documentXml)));
 
@@ -104,11 +206,16 @@ class DocxGeneratorService {
     return file;
   }
 
-  /// Builds the complete `word/document.xml`
+  /// Builds the complete `word/document.xml` with dynamic page size and printable width
   static String _buildDocumentXml({
     required String title,
     required String content,
     List<String>? multiPageContents,
+    required int pageWidthDxa,
+    required int pageHeightDxa,
+    required int marginDxa,
+    required int printableWidthDxa,
+    required bool isLandscape,
   }) {
     final buffer = StringBuffer();
     buffer.write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
@@ -121,17 +228,30 @@ class DocxGeneratorService {
           // Page Break
           buffer.write('<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n');
         }
-        _parseAndAppendBody(buffer, multiPageContents[i], isFirstPage: i == 0, docTitle: i == 0 ? title : null);
+        _parseAndAppendBody(
+          buffer,
+          multiPageContents[i],
+          isFirstPage: i == 0,
+          docTitle: i == 0 ? title : null,
+          printableWidthDxa: printableWidthDxa,
+        );
       }
     } else {
-      _parseAndAppendBody(buffer, content, isFirstPage: true, docTitle: title);
+      _parseAndAppendBody(
+        buffer,
+        content,
+        isFirstPage: true,
+        docTitle: title,
+        printableWidthDxa: printableWidthDxa,
+      );
     }
 
-    // Page margin settings: Standard A4
+    // Dynamic Page & Margin settings
+    final orientAttr = isLandscape ? ' w:orient="landscape"' : '';
     buffer.write('''
     <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
+      <w:pgSz w:w="$pageWidthDxa" w:h="$pageHeightDxa"$orientAttr/>
+      <w:pgMar w:top="$marginDxa" w:right="$marginDxa" w:bottom="$marginDxa" w:left="$marginDxa" w:header="708" w:footer="708" w:gutter="0"/>
       <w:cols w:space="708"/>
       <w:docGrid w:linePitch="360"/>
     </w:sectPr>
@@ -147,6 +267,7 @@ class DocxGeneratorService {
     String rawText, {
     bool isFirstPage = true,
     String? docTitle,
+    int printableWidthDxa = 9500,
   }) {
     final lines = rawText.split(RegExp(r'\r?\n'));
     int i = 0;
@@ -185,7 +306,7 @@ class DocxGeneratorService {
           tableLines.add(lines[i].trim());
           i++;
         }
-        buffer.write(_buildTableXml(tableLines));
+        buffer.write(_buildTableXml(tableLines, totalWidth: printableWidthDxa));
         continue;
       }
 
@@ -269,7 +390,7 @@ class DocxGeneratorService {
       // 6. Multi-column lines (Signatures or wide spacing like \s{3,} or tabs)
       final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
       if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
-        buffer.write(_buildBorderlessRowTableXml(multiCols));
+        buffer.write(_buildBorderlessRowTableXml(multiCols, totalWidth: printableWidthDxa));
         i++;
         continue;
       }
@@ -456,10 +577,9 @@ class DocxGeneratorService {
   }
 
   /// Builds a borderless table row for multi-column signature blocks or headers
-  static String _buildBorderlessRowTableXml(List<String> cols) {
+  static String _buildBorderlessRowTableXml(List<String> cols, {int totalWidth = 9500}) {
     if (cols.isEmpty) return '';
 
-    const totalWidth = 9500; // dxa
     final colWidth = (totalWidth / cols.length).floor();
 
     final buffer = StringBuffer();
@@ -523,7 +643,7 @@ class DocxGeneratorService {
   }
 
   /// Builds a genuine OpenXML `<w:tbl>` from Markdown table rows
-  static String _buildTableXml(List<String> tableLines) {
+  static String _buildTableXml(List<String> tableLines, {int totalWidth = 9500}) {
     if (tableLines.isEmpty) return '';
 
     // Filter out divider lines like |---|---|
@@ -543,7 +663,6 @@ class DocxGeneratorService {
     if (rows.isEmpty) return '';
 
     final maxCols = rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
-    const totalWidth = 9500; // dxa
     final colWidth = (totalWidth / maxCols).floor();
 
     final buffer = StringBuffer();

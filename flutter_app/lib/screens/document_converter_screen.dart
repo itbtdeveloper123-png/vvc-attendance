@@ -143,20 +143,30 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           _progressValue = 0.9;
         });
 
+        final initialFormat = result.detectedPageFormat ?? const DetectedPageFormat(
+          paperSize: DocxPaperSize.a4,
+          orientation: DocxPageOrientation.portrait,
+          widthPt: 595.28,
+          heightPt: 841.89,
+        );
+
         final docxPath = '${tempDir.path}/Doc_${result.documentTitle ?? "Khmer"}_$timeStamp.docx';
         final docxFile = await GeminiOcrService.exportToDocx(
           result: result,
           outputPath: docxPath,
+          pageSize: initialFormat.paperSize,
+          orientation: initialFormat.orientation,
         );
 
         if (mounted) {
           setState(() => _isProcessing = false);
           _showResultSheet(
             title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
-            subtitle: 'ឯកសាររក្សាទម្រង់ដើម តារាង និងអក្សរខ្មែរយូនីកូដបានយ៉ាងត្រឹមត្រូវ',
+            subtitle: 'ឯកសាររក្សាទម្រង់ដើម (${initialFormat.summaryLabel}) និងអក្សរខ្មែរយូនីកូដបានយ៉ាងត្រឹមត្រូវ',
             filePath: docxFile.path,
             extractedText: result.fullText,
             isDocx: true,
+            detectedFormat: initialFormat,
           );
         }
       } else {
@@ -243,6 +253,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     });
 
     try {
+      // 1. Auto-detect source PDF page size & orientation
+      final detectedFormat = await DocumentConversionService.detectPdfPageFormat(pdfPath);
+
       final tempDir = await getTemporaryDirectory();
       final outputDir = Directory('${tempDir.path}/pdf_pages_${DateTime.now().millisecondsSinceEpoch}');
       await outputDir.create(recursive: true);
@@ -257,7 +270,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       }
 
       setState(() {
-        _progressMessage = 'AI Gemini កំពុងស្រង់ទម្រង់ឯកសារ និងអក្សរខ្មែរ...';
+        _progressMessage = 'AI Gemini កំពុងស្រង់ទម្រង់ឯកសារ និងអក្សរខ្មែរ (${detectedFormat.summaryLabel})...';
         _progressValue = 0.5;
       });
 
@@ -282,16 +295,19 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       final docxFile = await GeminiOcrService.exportToDocx(
         result: ocrResult,
         outputPath: docxPath,
+        pageSize: detectedFormat.paperSize,
+        orientation: detectedFormat.orientation,
       );
 
       if (mounted) {
         setState(() => _isProcessing = false);
         _showResultSheet(
           title: 'បម្លែង PDF ទៅជា Word ជោគជ័យ!',
-          subtitle: 'ឯកសារ Word (.docx) រក្សាទម្រង់ តារាង និងអក្សរខ្មែរយ៉ាងពេញលេញ',
+          subtitle: 'ឯកសារ Word (.docx) ត្រូវតាមទំហំដើម (${detectedFormat.summaryLabel}) និងអក្សរខ្មែរយ៉ាងពេញលេញ',
           filePath: docxFile.path,
           extractedText: ocrResult.fullText,
           isDocx: true,
+          detectedFormat: detectedFormat,
         );
       }
     } catch (e) {
@@ -654,6 +670,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     String? extractedText,
     bool isDocx = false,
     List<String>? multiImagePaths,
+    DetectedPageFormat? detectedFormat,
   }) {
     showModalBottomSheet(
       context: context,
@@ -665,12 +682,60 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         String currentText = extractedText ?? '';
         String? currentFilePath = filePath;
 
+        DocxPaperSize currentPaperSize = detectedFormat?.paperSize ?? DocxPaperSize.a4;
+        DocxPageOrientation currentOrientation = detectedFormat?.orientation ?? DocxPageOrientation.portrait;
+        DocxPageMargin currentMargin = DocxPageMargin.normal;
+        bool isRegenerating = false;
+
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
             final hasText = currentText.trim().isNotEmpty;
 
+            // Re-generate DOCX when format, orientation, or text changes
+            Future<void> reGenerateDocx({
+              DocxPaperSize? newSize,
+              DocxPageOrientation? newOrient,
+              DocxPageMargin? newMargin,
+              String? newContent,
+            }) async {
+              final targetSize = newSize ?? currentPaperSize;
+              final targetOrient = newOrient ?? currentOrientation;
+              final targetMargin = newMargin ?? currentMargin;
+              final targetContent = newContent ?? currentText;
+
+              setModalState(() {
+                currentPaperSize = targetSize;
+                currentOrientation = targetOrient;
+                currentMargin = targetMargin;
+                if (newContent != null) currentText = newContent;
+                isRegenerating = true;
+              });
+
+              try {
+                final tempDir = await getTemporaryDirectory();
+                final timeStamp = DateTime.now().millisecondsSinceEpoch;
+                final updatedPath = '${tempDir.path}/Doc_${targetSize.name}_${targetOrient.name}_$timeStamp.docx';
+                final newDocx = await DocxGeneratorService.generateDocx(
+                  title: 'ពាក្យសុំច្បាប់ឈប់សម្រាក',
+                  content: targetContent,
+                  outputPath: updatedPath,
+                  pageSize: targetSize,
+                  orientation: targetOrient,
+                  margin: targetMargin,
+                );
+                setModalState(() {
+                  currentFilePath = newDocx.path;
+                  isRegenerating = false;
+                });
+                _showToast('បានរៀបចំជា ${targetSize.name} (${targetOrient == DocxPageOrientation.landscape ? "ផ្តេក" : "បញ្ឈរ"}) រួចរាល់!');
+              } catch (e) {
+                setModalState(() => isRegenerating = false);
+                _showToast('កំហុសរៀបចំ Word ឡើងវិញ: $e', isError: true);
+              }
+            }
+
             return Container(
-              height: MediaQuery.of(ctx).size.height * 0.88,
+              height: MediaQuery.of(ctx).size.height * 0.90,
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -737,7 +802,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
 
                   // Segmented Tabs (If text exists)
                   if (hasText) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Container(
@@ -836,7 +901,174 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 10),
+                  // Dynamic Paper Format & Orientation Controls (Only for Word .docx)
+                  if (isDocx && hasText) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.8) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.border.withValues(alpha: 0.7)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header + Auto-detect Badge + Loading
+                          Row(
+                            children: [
+                              const Icon(Icons.tune_rounded, size: 15, color: Color(0xFF2563EB)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'ទម្រង់ក្រដាស Word (Paper Layout)',
+                                style: GoogleFonts.kantumruyPro(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                                ),
+                              ),
+                              if (detectedFormat != null) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.auto_awesome, size: 10, color: Color(0xFF10B981)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'ដើម៖ ${detectedFormat.summaryLabel}',
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF10B981),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const Spacer(),
+                              if (isRegenerating)
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(Color(0xFF2563EB)),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+
+                          // Horizontal scrollable options
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              children: [
+                                // Orientation 1: Portrait
+                                _buildOrientationPill(
+                                  label: 'បញ្ឈរ (Portrait)',
+                                  icon: Icons.stay_current_portrait_rounded,
+                                  isSelected: currentOrientation == DocxPageOrientation.portrait,
+                                  onTap: () => reGenerateDocx(newOrient: DocxPageOrientation.portrait),
+                                  isDark: isDark,
+                                ),
+                                const SizedBox(width: 5),
+
+                                // Orientation 2: Landscape
+                                _buildOrientationPill(
+                                  label: 'ផ្តេក (Landscape)',
+                                  icon: Icons.stay_current_landscape_rounded,
+                                  isSelected: currentOrientation == DocxPageOrientation.landscape,
+                                  onTap: () => reGenerateDocx(newOrient: DocxPageOrientation.landscape),
+                                  isDark: isDark,
+                                ),
+                                const SizedBox(width: 8),
+
+                                Container(width: 1, height: 20, color: AppTheme.border),
+                                const SizedBox(width: 8),
+
+                                // Paper Sizes: A4, Letter, Legal, A5, A3
+                                ...DocxPaperSize.values.map((size) {
+                                  final isSelected = currentPaperSize == size;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 5),
+                                    child: ChoiceChip(
+                                      label: Text(
+                                        '${size.name} (${size.dimensions})',
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontSize: 10,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                                        ),
+                                      ),
+                                      selected: isSelected,
+                                      selectedColor: const Color(0xFF2563EB),
+                                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                          color: isSelected ? const Color(0xFF2563EB) : AppTheme.border,
+                                        ),
+                                      ),
+                                      onSelected: (_) => reGenerateDocx(newSize: size),
+                                    ),
+                                  );
+                                }),
+
+                                const SizedBox(width: 4),
+                                Container(width: 1, height: 20, color: AppTheme.border),
+                                const SizedBox(width: 8),
+
+                                // Margin selectors: Normal, Narrow, Wide
+                                ...DocxPageMargin.values.map((m) {
+                                  final isSelected = currentMargin == m;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 5),
+                                    child: ChoiceChip(
+                                      label: Text(
+                                        m.label,
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontSize: 10,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                                        ),
+                                      ),
+                                      selected: isSelected,
+                                      selectedColor: const Color(0xFF0D9488),
+                                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                          color: isSelected ? const Color(0xFF0D9488) : AppTheme.border,
+                                        ),
+                                      ),
+                                      onSelected: (_) => reGenerateDocx(newMargin: m),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 8),
 
                   // Main Content View
                   Expanded(
@@ -844,7 +1076,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: hasText
                           ? (activeTab == 0
-                              ? _buildDocumentPreviewCard(currentText, isDark)
+                              ? _buildDocumentPreviewCard(
+                                  currentText,
+                                  isDark,
+                                  paperSize: currentPaperSize,
+                                  orientation: currentOrientation,
+                                )
                               : Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(14),
@@ -924,24 +1161,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                   initialText: currentText,
                                 );
                                 if (edited != null && edited.trim().isNotEmpty) {
-                                  // Re-generate DOCX with updated text
-                                  try {
-                                    final tempDir = await getTemporaryDirectory();
-                                    final timeStamp = DateTime.now().millisecondsSinceEpoch;
-                                    final updatedPath = '${tempDir.path}/PDF_to_Word_$timeStamp.docx';
-                                    final newDocx = await DocxGeneratorService.generateDocx(
-                                      title: 'ពាក្យសុំច្បាប់ឈប់សម្រាក',
-                                      content: edited,
-                                      outputPath: updatedPath,
-                                    );
-                                    setModalState(() {
-                                      currentText = edited;
-                                      currentFilePath = newDocx.path;
-                                    });
-                                    _showToast('បានធ្វើបច្ចុប្បន្នភាព Word ដោយជោគជ័យ!');
-                                  } catch (e) {
-                                    _showToast('កំហុសធ្វើបច្ចុប្បន្នភាព: $e', isError: true);
-                                  }
+                                  await reGenerateDocx(newContent: edited);
                                 }
                               },
                               icon: const Icon(Icons.edit_note_rounded, size: 18),
@@ -1001,8 +1221,59 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     );
   }
 
-  Widget _buildDocumentPreviewCard(String text, bool isDark) {
+  /// Helper widget to build Orientation selector pill
+  Widget _buildOrientationPill({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF2563EB)
+              : (isDark ? const Color(0xFF1E293B) : Colors.white),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF2563EB) : AppTheme.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: isSelected ? Colors.white : (isDark ? Colors.white70 : AppTheme.textMuted),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentPreviewCard(
+    String text,
+    bool isDark, {
+    DocxPaperSize paperSize = DocxPaperSize.a4,
+    DocxPageOrientation orientation = DocxPageOrientation.portrait,
+  }) {
     final lines = text.split('\n');
+    final isLandscape = orientation == DocxPageOrientation.landscape;
 
     return Container(
       width: double.infinity,
@@ -1015,7 +1286,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         padding: const EdgeInsets.all(12),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          padding: EdgeInsets.fromLTRB(isLandscape ? 22 : 16, 20, isLandscape ? 22 : 16, 24),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(10),
@@ -1033,7 +1304,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Subtle A4 watermark / header banner
+              // Dynamic Paper watermark / header banner
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1049,7 +1320,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                         const Icon(Icons.description_rounded, size: 12, color: Color(0xFF2563EB)),
                         const SizedBox(width: 4),
                         Text(
-                          'A4 Word Document Preview',
+                          '${paperSize.name} ${isLandscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"} Preview',
                           style: GoogleFonts.kantumruyPro(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,

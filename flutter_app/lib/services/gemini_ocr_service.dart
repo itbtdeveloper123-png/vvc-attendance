@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'api_service.dart';
 import 'docx_generator_service.dart';
+import 'document_conversion_service.dart';
 
 /// Result from AI Gemini Khmer OCR
 class GeminiOcrResult {
@@ -14,6 +15,7 @@ class GeminiOcrResult {
   final List<String> pageTexts;
   final String? errorMessage;
   final String? documentTitle;
+  final DetectedPageFormat? detectedPageFormat;
 
   GeminiOcrResult({
     required this.success,
@@ -21,6 +23,7 @@ class GeminiOcrResult {
     required this.pageTexts,
     this.errorMessage,
     this.documentTitle,
+    this.detectedPageFormat,
   });
 }
 
@@ -248,11 +251,20 @@ class GeminiOcrService {
 
       final fullText = pageTexts.join('\n\n--- [ទំព័រថ្មី] ---\n\n');
 
+      // Auto-detect page format from first document page
+      DetectedPageFormat? detectedPageFormat;
+      if (imagePaths.isNotEmpty) {
+        try {
+          detectedPageFormat = await DocumentConversionService.detectImagePageFormat(imagePaths.first);
+        } catch (_) {}
+      }
+
       return GeminiOcrResult(
         success: fullText.trim().isNotEmpty,
         fullText: fullText,
         pageTexts: pageTexts,
         documentTitle: detectedDocTitle,
+        detectedPageFormat: detectedPageFormat,
       );
     } catch (e) {
       return GeminiOcrResult(
@@ -381,12 +393,18 @@ class GeminiOcrService {
   static Future<File> exportToDocx({
     required GeminiOcrResult result,
     required String outputPath,
+    DocxPaperSize pageSize = DocxPaperSize.a4,
+    DocxPageOrientation orientation = DocxPageOrientation.portrait,
+    DocxPageMargin margin = DocxPageMargin.normal,
   }) async {
     return await DocxGeneratorService.generateDocx(
       title: result.documentTitle ?? '',
       content: result.fullText,
       multiPageContents: result.pageTexts,
       outputPath: outputPath,
+      pageSize: pageSize,
+      orientation: orientation,
+      margin: margin,
     );
   }
 

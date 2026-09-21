@@ -4,13 +4,76 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:image/image.dart' as img;
 import 'package:archive/archive.dart';
+import 'docx_generator_service.dart';
 
 /// Document Conversion Service supporting Multi-Page Operations:
 /// - JPG/PNG to PDF (Multi-page, Zero-margin auto-fit)
 /// - PDF to JPG/PNG (Multi-page image rasterization)
 /// - Word (.docx) to PDF (Multi-page formatted rendering)
 /// - PDF Merge & Compress
+/// - Page Format & Dimension Auto-Detection
 class DocumentConversionService {
+  /// Detect the paper size and orientation from a PDF file
+  static Future<DetectedPageFormat> detectPdfPageFormat(String pdfPath) async {
+    final file = File(pdfPath);
+    if (!await file.exists()) {
+      return const DetectedPageFormat(
+        paperSize: DocxPaperSize.a4,
+        orientation: DocxPageOrientation.portrait,
+        widthPt: 595.28,
+        heightPt: 841.89,
+      );
+    }
+
+    try {
+      final bytes = await file.readAsBytes();
+      await for (final page in Printing.raster(bytes, dpi: 72, pages: [0])) {
+        // At 72 DPI, 1 pixel = 1 pt
+        final w = page.width.toDouble();
+        final h = page.height.toDouble();
+        return DocxGeneratorService.detectFromDimensions(w, h);
+      }
+    } catch (_) {}
+
+    return const DetectedPageFormat(
+      paperSize: DocxPaperSize.a4,
+      orientation: DocxPageOrientation.portrait,
+      widthPt: 595.28,
+      heightPt: 841.89,
+    );
+  }
+
+  /// Detect the paper size and orientation from an image file
+  static Future<DetectedPageFormat> detectImagePageFormat(String imagePath) async {
+    final file = File(imagePath);
+    if (!await file.exists()) {
+      return const DetectedPageFormat(
+        paperSize: DocxPaperSize.a4,
+        orientation: DocxPageOrientation.portrait,
+        widthPt: 595.28,
+        heightPt: 841.89,
+      );
+    }
+
+    try {
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null) {
+        return DocxGeneratorService.detectFromDimensions(
+          decoded.width.toDouble(),
+          decoded.height.toDouble(),
+        );
+      }
+    } catch (_) {}
+
+    return const DetectedPageFormat(
+      paperSize: DocxPaperSize.a4,
+      orientation: DocxPageOrientation.portrait,
+      widthPt: 595.28,
+      heightPt: 841.89,
+    );
+  }
+
   /// Convert multiple images to a single high-quality PDF with 100% full bleed (zero white borders)
   static Future<File> convertImagesToPdf({
     required List<String> imagePaths,
