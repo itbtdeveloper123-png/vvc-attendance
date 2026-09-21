@@ -124,5 +124,72 @@ VAN VAN CAMBODIA
 
       tempDir.deleteSync(recursive: true);
     });
+
+    test('generateDocx formats CV / Resume with navy section banners, photo table, and bullets', () async {
+      final tempDir = Directory.systemTemp.createTempSync('docx_cv_test');
+      final testFile = File('${tempDir.path}/test_cv.docx');
+
+      const cvContent = '''
+# ប្រវត្តិរូបសង្ខេប
+នាម-គោត្តនាម : វៃ រតនៈ
+អាសយដ្ឋានបច្ចុប្បន្ន : ផ្លូវ សុភារុង ១០៧ សង្កាត់អូរឫស្សីទី២ ខណ្ឌ ៧មករា រាជធានីភ្នំពេញ
+ទូរស័ព្ទទំនាក់ទំនង : 096 4677459 @vairothnak
+[PHOTO]
+---
+## [BANNER] ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ
+• ឈ្មោះ (ឡាតាំង) : VAI ROTHNAK
+• ភេទ : ប្រុស
+• សញ្ជាតិ : ខ្មែរ
+• ថ្ងៃ ខែ ឆ្នាំកំណើត : ០៧ តុលា ២០០៤
+• ទីកន្លែងកំណើត : ភូមិថ្មី ឃុំពាមមានជ័យ ស្រុកពាមរក៍ ខេត្តព្រៃវែង
+• ស្ថានភាពគ្រួសារ : នៅលីវ
+## [BANNER] ប្រវត្តិសិក្សានិងកម្រិតសិក្សា
+• ២០២៣-២០២៤ : វិទ្យាល័យ ហាស ពាមរក៍ ( ត្រឹមថ្នាក់ទី ១០ )
+• ២០២២-២០២៤ : TASSEL Cambodia ( English Level 3 )
+## [BANNER] ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ
+• ២០២៤-២០២៦ : គ្មាន
+• ២០២២-២០២៤ : គ្មាន
+## [BANNER] ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ
+• Microsoft word : ល្អបង្គួរ
+• Microsoft excel : មធ្យម
+• Computer : ល្អបង្គួរ
+• Contact & Teamwork : ល្អ
+• Designer Adobbe PS : មិនទាន់ល្អ
+''';
+
+      await DocxGeneratorService.generateDocx(
+        title: 'ប្រវត្តិរូបសង្ខេប',
+        content: cvContent,
+        outputPath: testFile.path,
+        pageSize: DocxPaperSize.a4,
+        orientation: DocxPageOrientation.portrait,
+      );
+
+      expect(testFile.existsSync(), isTrue);
+
+      final bytes = await testFile.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final docXmlFile = archive.findFile('word/document.xml');
+      expect(docXmlFile, isNotNull);
+
+      final docXml = utf8.decode(docXmlFile!.content as List<int>);
+
+      // 1. Verify Navy banner shading exists (w:fill="184E77")
+      expect(docXml.contains('w:fill="184E77"'), isTrue);
+
+      // 2. Verify white text for banner headings
+      expect(docXml.contains('w:color w:val="FFFFFF"'), isTrue);
+
+      // 3. Verify 2-column header profile table with photo frame
+      expect(docXml.contains('រូបថត 3x4'), isTrue);
+      expect(docXml.contains('វៃ រតនៈ'), isTrue);
+
+      // 4. Verify bullet items generated with bullets
+      expect(docXml.contains('•'), isTrue);
+      expect(docXml.contains('VAI ROTHNAK'), isTrue);
+
+      tempDir.deleteSync(recursive: true);
+    });
   });
 }
+

@@ -276,12 +276,12 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  /// Golden decorative divider line OpenXML (1.5pt solid gold/amber #D97706)
-  static String _makeGoldenDividerLineXml() {
+  /// Decorative divider line OpenXML (1.5pt solid line)
+  static String _makeDividerLineXml({String color = '184E77'}) {
     return '''<w:p>
   <w:pPr>
     <w:pBdr>
-      <w:bottom w:val="single" w:sz="18" w:space="1" w:color="D97706"/>
+      <w:bottom w:val="single" w:sz="18" w:space="1" w:color="$color"/>
     </w:pBdr>
     <w:spacing w:line="100" w:lineRule="auto" w:before="60" w:after="80"/>
   </w:pPr>
@@ -289,7 +289,274 @@ class DocxGeneratorService {
 ''';
   }
 
-  /// Parses text lines, detects tables, headings, checkboxes, and golden divider lines
+  /// Check if a line is a Section Banner Heading (like in CVs or official sections)
+  static bool _isSectionBanner(String trimmed) {
+    if (trimmed.contains('[BANNER]')) return true;
+    final clean = trimmed.replaceAll(RegExp(r'^#+\s*'), '').replaceAll('[BANNER]', '').trim();
+    final lower = clean.toLowerCase();
+    return lower == 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ' ||
+        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន និងទីកន្លែងរស់នៅ' ||
+        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន និងជីវប្រវត្តិ' ||
+        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន' ||
+        lower.startsWith('ប្រវត្តិសិក្សា') ||
+        lower.startsWith('ប្រវត្តិការងារ') ||
+        lower.startsWith('បទពិសោធន៍ការងារ') ||
+        lower.startsWith('ជំនាញផ្ទាល់ខ្លួន') ||
+        lower.startsWith('ចំណេះដឹងទូទៅ') ||
+        lower.startsWith('ចំណេះដឹង') ||
+        lower == 'ភាសាបរទេស' ||
+        lower == 'សេចក្តីបញ្ជាក់' ||
+        lower == 'personal information' ||
+        lower == 'education' ||
+        lower == 'work experience' ||
+        lower == 'skills' ||
+        lower == 'languages' ||
+        lower == 'references';
+  }
+
+  /// Solid colored Section Banner Bar OpenXML (White bold text on solid background)
+  static String _buildSectionBannerXml(String titleText, {int totalWidth = 9500, String bgColor = '184E77'}) {
+    final cleanText = _escapeXml(titleText.replaceAll(RegExp(r'^#+\s*'), '').replaceAll('[BANNER]', '').trim());
+    return '''<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="$totalWidth" w:type="dxa"/>
+    <w:jc w:val="center"/>
+    <w:tblBorders>
+      <w:top w:val="none"/>
+      <w:left w:val="none"/>
+      <w:bottom w:val="none"/>
+      <w:right w:val="none"/>
+      <w:insideH w:val="none"/>
+      <w:insideV w:val="none"/>
+    </w:tblBorders>
+  </w:tblPr>
+  <w:tblGrid>
+    <w:gridCol w:w="$totalWidth"/>
+  </w:tblGrid>
+  <w:tr>
+    <w:trPr>
+      <w:cantSplit/>
+    </w:trPr>
+    <w:tc>
+      <w:tcPr>
+        <w:tcW w:w="$totalWidth" w:type="dxa"/>
+        <w:shd w:val="clear" w:color="auto" w:fill="$bgColor"/>
+        <w:tcMar>
+          <w:top w:w="80" w:type="dxa"/>
+          <w:bottom w:w="80" w:type="dxa"/>
+          <w:left w:w="160" w:type="dxa"/>
+          <w:right w:w="160" w:type="dxa"/>
+        </w:tcMar>
+        <w:vAlign w:val="center"/>
+      </w:tcPr>
+      <w:p>
+        <w:pPr>
+          <w:spacing w:line="240" w:lineRule="auto" w:before="60" w:after="0"/>
+        </w:pPr>
+        <w:r>
+          <w:rPr>
+            <w:rFonts w:ascii="Khmer OS Muol Light" w:hAnsi="Khmer OS Muol Light" w:cs="Khmer OS Muol Light"/>
+            <w:b/>
+            <w:color w:val="FFFFFF"/>
+            <w:sz w:val="23"/>
+            <w:szCs w:val="23"/>
+          </w:rPr>
+          <w:t>$cleanText</w:t>
+        </w:r>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+''';
+  }
+
+  /// 2-Column CV Header Table (Left: Contact Info, Right: 3x4 Photo Frame)
+  static String _buildCvHeaderTableXml(List<String> contactLines, {int totalWidth = 9500}) {
+    final textWidth = (totalWidth * 0.76).floor();
+    final photoWidth = totalWidth - textWidth;
+
+    final buffer = StringBuffer();
+    buffer.write('<w:tbl>\n');
+    buffer.write('  <w:tblPr>\n');
+    buffer.write('    <w:tblW w:w="$totalWidth" w:type="dxa"/>\n');
+    buffer.write('    <w:jc w:val="center"/>\n');
+    buffer.write('    <w:tblBorders>\n');
+    buffer.write('      <w:top w:val="none"/>\n');
+    buffer.write('      <w:left w:val="none"/>\n');
+    buffer.write('      <w:bottom w:val="none"/>\n');
+    buffer.write('      <w:right w:val="none"/>\n');
+    buffer.write('      <w:insideH w:val="none"/>\n');
+    buffer.write('      <w:insideV w:val="none"/>\n');
+    buffer.write('    </w:tblBorders>\n');
+    buffer.write('  </w:tblPr>\n');
+    buffer.write('  <w:tblGrid>\n');
+    buffer.write('    <w:gridCol w:w="$textWidth"/>\n');
+    buffer.write('    <w:gridCol w:w="$photoWidth"/>\n');
+    buffer.write('  </w:tblGrid>\n');
+    buffer.write('  <w:tr>\n');
+    buffer.write('    <w:trPr><w:cantSplit/></w:trPr>\n');
+
+    // Column 1: Contact Details
+    buffer.write('    <w:tc>\n');
+    buffer.write('      <w:tcPr>\n');
+    buffer.write('        <w:tcW w:w="$textWidth" w:type="dxa"/>\n');
+    buffer.write('        <w:vAlign w:val="center"/>\n');
+    buffer.write('      </w:tcPr>\n');
+    for (final line in contactLines) {
+      final clean = line.replaceAll('[PHOTO]', '').trim();
+      if (clean.isEmpty) continue;
+      final escaped = _escapeXml(clean);
+      buffer.write('      <w:p>\n');
+      buffer.write('        <w:pPr>\n');
+      buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:after="40"/>\n');
+      buffer.write('        </w:pPr>\n');
+
+      if (escaped.contains(' : ') || escaped.contains(': ')) {
+        final delim = escaped.contains(' : ') ? ' : ' : ': ';
+        final parts = escaped.split(delim);
+        buffer.write('        <w:r>\n');
+        buffer.write('          <w:rPr>\n');
+        buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+        buffer.write('            <w:b/>\n');
+        buffer.write('            <w:sz w:val="22"/>\n');
+        buffer.write('            <w:szCs w:val="22"/>\n');
+        buffer.write('          </w:rPr>\n');
+        buffer.write('          <w:t xml:space="preserve">${parts[0]} : </w:t>\n');
+        buffer.write('        </w:r>\n');
+        buffer.write('        <w:r>\n');
+        buffer.write('          <w:rPr>\n');
+        buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+        buffer.write('            <w:sz w:val="21"/>\n');
+        buffer.write('            <w:szCs w:val="21"/>\n');
+        buffer.write('          </w:rPr>\n');
+        buffer.write('          <w:t>${parts.sublist(1).join(delim)}</w:t>\n');
+        buffer.write('        </w:r>\n');
+      } else {
+        buffer.write('        <w:r>\n');
+        buffer.write('          <w:rPr>\n');
+        buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+        buffer.write('            <w:sz w:val="21"/>\n');
+        buffer.write('            <w:szCs w:val="21"/>\n');
+        buffer.write('          </w:rPr>\n');
+        buffer.write('          <w:t>$escaped</w:t>\n');
+        buffer.write('        </w:r>\n');
+      }
+      buffer.write('      </w:p>\n');
+    }
+    buffer.write('    </w:tc>\n');
+
+    // Column 2: 3x4 Photo Frame
+    buffer.write('    <w:tc>\n');
+    buffer.write('      <w:tcPr>\n');
+    buffer.write('        <w:tcW w:w="$photoWidth" w:type="dxa"/>\n');
+    buffer.write('        <w:tcBorders>\n');
+    buffer.write('          <w:top w:val="single" w:sz="8" w:color="184E77"/>\n');
+    buffer.write('          <w:left w:val="single" w:sz="8" w:color="184E77"/>\n');
+    buffer.write('          <w:bottom w:val="single" w:sz="8" w:color="184E77"/>\n');
+    buffer.write('          <w:right w:val="single" w:sz="8" w:color="184E77"/>\n');
+    buffer.write('        </w:tcBorders>\n');
+    buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="184E77"/>\n');
+    buffer.write('        <w:tcMar>\n');
+    buffer.write('          <w:top w:w="140" w:type="dxa"/>\n');
+    buffer.write('          <w:bottom w:w="140" w:type="dxa"/>\n');
+    buffer.write('          <w:left w:w="80" w:type="dxa"/>\n');
+    buffer.write('          <w:right w:w="80" w:type="dxa"/>\n');
+    buffer.write('        </w:tcMar>\n');
+    buffer.write('        <w:vAlign w:val="center"/>\n');
+    buffer.write('      </w:tcPr>\n');
+    buffer.write('      <w:p>\n');
+    buffer.write('        <w:pPr>\n');
+    buffer.write('          <w:spacing w:line="240" w:lineRule="auto" w:after="0"/>\n');
+    buffer.write('          <w:jc w:val="center"/>\n');
+    buffer.write('        </w:pPr>\n');
+    buffer.write('        <w:r>\n');
+    buffer.write('          <w:rPr>\n');
+    buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+    buffer.write('            <w:b/>\n');
+    buffer.write('            <w:color w:val="FFFFFF"/>\n');
+    buffer.write('            <w:sz w:val="20"/>\n');
+    buffer.write('            <w:szCs w:val="20"/>\n');
+    buffer.write('          </w:rPr>\n');
+    buffer.write('          <w:t>រូបថត 3x4</w:t>\n');
+    buffer.write('        </w:r>\n');
+    buffer.write('      </w:p>\n');
+    buffer.write('    </w:tc>\n');
+
+    buffer.write('  </w:tr>\n');
+    buffer.write('</w:tbl>\n');
+
+    // Horizontal divider line in navy blue right under the header
+    buffer.write(_makeDividerLineXml(color: '184E77'));
+
+    return buffer.toString();
+  }
+
+  /// Bullet item OpenXML with navy bullet and bold key
+  static String _buildBulletItemXml({
+    required String bulletText,
+    int indentLeft = 400,
+    int hanging = 220,
+  }) {
+    final buffer = StringBuffer();
+    buffer.write('<w:p>\n');
+    buffer.write('  <w:pPr>\n');
+    buffer.write('    <w:spacing w:line="260" w:lineRule="auto" w:after="30"/>\n');
+    buffer.write('    <w:ind w:left="$indentLeft" w:hanging="$hanging"/>\n');
+    buffer.write('  </w:pPr>\n');
+
+    // Bullet glyph in Navy Blue
+    buffer.write('  <w:r>\n');
+    buffer.write('    <w:rPr>\n');
+    buffer.write('      <w:rFonts w:ascii="Segoe UI Symbol" w:hAnsi="Segoe UI Symbol" w:cs="Segoe UI Symbol"/>\n');
+    buffer.write('      <w:color w:val="184E77"/>\n');
+    buffer.write('      <w:sz w:val="21"/>\n');
+    buffer.write('      <w:szCs w:val="21"/>\n');
+    buffer.write('    </w:rPr>\n');
+    buffer.write('    <w:t xml:space="preserve">•  </w:t>\n');
+    buffer.write('  </w:r>\n');
+
+    if (bulletText.contains(' : ') || bulletText.contains(': ')) {
+      final delim = bulletText.contains(' : ') ? ' : ' : ': ';
+      final parts = bulletText.split(delim);
+      final key = parts[0];
+      final val = parts.sublist(1).join(delim);
+
+      // Key in bold dark slate
+      buffer.write('  <w:r>\n');
+      buffer.write('    <w:rPr>\n');
+      buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+      buffer.write('      <w:b/>\n');
+      buffer.write('      <w:sz w:val="21"/>\n');
+      buffer.write('      <w:szCs w:val="21"/>\n');
+      buffer.write('    </w:rPr>\n');
+      buffer.write('    <w:t xml:space="preserve">${_escapeXml(key)} : </w:t>\n');
+      buffer.write('  </w:r>\n');
+
+      // Value in regular font
+      buffer.write('  <w:r>\n');
+      buffer.write('    <w:rPr>\n');
+      buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+      buffer.write('      <w:sz w:val="21"/>\n');
+      buffer.write('      <w:szCs w:val="21"/>\n');
+      buffer.write('    </w:rPr>\n');
+      buffer.write('    <w:t>${_escapeXml(val)}</w:t>\n');
+      buffer.write('  </w:r>\n');
+    } else {
+      buffer.write('  <w:r>\n');
+      buffer.write('    <w:rPr>\n');
+      buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+      buffer.write('      <w:sz w:val="21"/>\n');
+      buffer.write('      <w:szCs w:val="21"/>\n');
+      buffer.write('    </w:rPr>\n');
+      buffer.write('    <w:t>${_escapeXml(bulletText)}</w:t>\n');
+      buffer.write('  </w:r>\n');
+    }
+
+    buffer.write('</w:p>\n');
+    return buffer.toString();
+  }
+
+  /// Parses text lines, detects tables, headings, banners, CV headers, and divider lines
   static void _parseAndAppendBody(
     StringBuffer buffer,
     String rawText, {
@@ -341,12 +608,99 @@ class DocxGeneratorService {
 
       // 2. Explicit divider lines (--- or ___)
       if (trimmed == '---' || trimmed == '___' || RegExp(r'^-{3,}$').hasMatch(trimmed)) {
-        buffer.write(_makeGoldenDividerLineXml());
+        buffer.write(_makeDividerLineXml(color: '184E77'));
         i++;
         continue;
       }
 
-      // 3. Headings (# Title or ## Subtitle)
+      // 3. Section Banners (CV / Structured Document Category Bars like ព័ត៌មានផ្ទាល់ខ្លួន, ប្រវត្តិសិក្សា...)
+      if (_isSectionBanner(trimmed)) {
+        buffer.write(_buildSectionBannerXml(trimmed, totalWidth: printableWidthDxa));
+        i++;
+        continue;
+      }
+
+      // 4. CV / Resume Main Title & Header Profile
+      if (trimmed.contains('ប្រវត្តិរូបសង្ខេប') ||
+          trimmed.toUpperCase().contains('CURRICULUM VITAE') ||
+          trimmed.toUpperCase() == 'RESUME') {
+        final cleanTitle = trimmed.replaceAll(RegExp(r'^#+\s*'), '').trim();
+        buffer.write(_makeParagraph(
+          text: cleanTitle,
+          align: 'center',
+          isBold: true,
+          fontSizePt: 16,
+          fontFamily: 'Khmer OS Muol Light',
+        ));
+        i++;
+
+        // Collect subsequent contact lines before first section banner
+        final contactLines = <String>[];
+        while (i < lines.length) {
+          final nextTrimmed = lines[i].trim();
+          if (nextTrimmed.isEmpty) {
+            i++;
+            continue;
+          }
+          if (_isSectionBanner(nextTrimmed) ||
+              nextTrimmed.startsWith('|') ||
+              nextTrimmed == '---' ||
+              nextTrimmed == '___' ||
+              RegExp(r'^[-*•]\s+').hasMatch(nextTrimmed)) {
+            break;
+          }
+          contactLines.add(nextTrimmed);
+          i++;
+        }
+
+        final headerContact = <String>[];
+        final extraPersonal = <String>[];
+
+        for (final line in contactLines) {
+          final lTrim = line.replaceAll('[PHOTO]', '').trim();
+          if (lTrim.isEmpty) continue;
+
+          final isHeaderField = lTrim.contains('នាម-គោត្តនាម') ||
+              lTrim.contains('អាសយដ្ឋាន') ||
+              lTrim.contains('ទូរស័ព្ទ') ||
+              lTrim.contains('Telegram') ||
+              lTrim.contains('@') ||
+              lTrim.contains('Email') ||
+              (headerContact.length < 3 &&
+                  !lTrim.contains('ភេទ') &&
+                  !lTrim.contains('សញ្ជាតិ') &&
+                  !lTrim.contains('កំណើត'));
+
+          if (isHeaderField && extraPersonal.isEmpty) {
+            headerContact.add(lTrim);
+          } else {
+            extraPersonal.add(lTrim);
+          }
+        }
+
+        if (headerContact.isNotEmpty) {
+          buffer.write(_buildCvHeaderTableXml(headerContact, totalWidth: printableWidthDxa));
+          buffer.write(_makeDividerLineXml(color: '184E77'));
+        }
+
+        if (extraPersonal.isNotEmpty) {
+          buffer.write(_buildSectionBannerXml('ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ', totalWidth: printableWidthDxa));
+          for (final item in extraPersonal) {
+            buffer.write(_buildBulletItemXml(bulletText: item));
+          }
+        }
+        continue;
+      }
+
+      // 5. Bullet or Numbered items (• or * or -)
+      if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
+        final bulletText = trimmed.replaceFirst(RegExp(r'^[-*•]\s+'), '');
+        buffer.write(_buildBulletItemXml(bulletText: bulletText));
+        i++;
+        continue;
+      }
+
+      // 6. Headings (# Title or ## Subtitle)
       if (trimmed.startsWith('# ')) {
         buffer.write(_makeParagraph(
           text: trimmed.substring(2).trim(),
@@ -379,7 +733,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 4. Centered Company Header with Golden Header Line
+      // 7. Centered Company Header with Golden Header Line (Forms like VAN VAN CAMBODIA)
       if (trimmed.toUpperCase().contains('VAN VAN CAMBODIA') ||
           trimmed.contains('វ៉ាន់ វ៉ាន់ ខេមបូឌា')) {
         buffer.write(_makeParagraph(
@@ -389,12 +743,12 @@ class DocxGeneratorService {
           fontSizePt: 14,
           fontFamily: 'Khmer OS Muol Light',
         ));
-        buffer.write(_makeGoldenDividerLineXml());
+        buffer.write(_makeDividerLineXml(color: 'D97706'));
         i++;
         continue;
       }
 
-      // 5. Centered Document Titles
+      // 8. Centered Document Titles
       if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
           trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
           trimmed.contains('APPLICATION FOR LEAVE') ||
@@ -411,7 +765,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 6. Centered Bold Section Titles (e.g. **ប័ណ្ណប្រកាស...**)
+      // 9. Centered Bold Section Titles (e.g. **ប័ណ្ណប្រកាស...**)
       if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
         final inner = trimmed.substring(2, trimmed.length - 2).trim();
         buffer.write(_makeParagraph(
@@ -425,7 +779,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 7. Checkbox Items: Group consecutive items into a compact 3-column grid
+      // 10. Checkbox Items: Group consecutive items into a compact 3-column grid
       if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
         final checkboxItems = <Map<String, dynamic>>[];
         while (i < lines.length && RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(lines[i].trim())) {
@@ -439,7 +793,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 8. Footer Address & Contact Info with Golden Footer Line
+      // 11. Footer Address & Contact Info with Golden Footer Line
       if (trimmed.contains('ផ្ទះលេខ') ||
           trimmed.contains('No.1AEo') ||
           trimmed.contains('Sangkat Tuol Svay') ||
@@ -447,7 +801,7 @@ class DocxGeneratorService {
           trimmed.contains('No.030') ||
           (trimmed.contains('ទូរស័ព្ទ:') && trimmed.length > 25)) {
         if (!hasEmittedFooterLine) {
-          buffer.write(_makeGoldenDividerLineXml());
+          buffer.write(_makeDividerLineXml(color: 'D97706'));
           hasEmittedFooterLine = true;
         }
         buffer.write(_makeParagraph(
@@ -460,7 +814,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 9. Multi-column lines (Signatures or wide spacing like \s{3,} or tabs)
+      // 12. Multi-column lines (Signatures or wide spacing like \s{3,} or tabs)
       final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
       if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
         buffer.write(_buildBorderlessRowTableXml(multiCols, totalWidth: printableWidthDxa));
@@ -468,19 +822,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 10. Bullet or Numbered items
-      if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
-        final bulletText = trimmed.replaceFirst(RegExp(r'^[-*•]\s+'), '');
-        buffer.write(_makeParagraph(
-          text: '•  $bulletText',
-          align: 'left',
-          leftIndent: 300,
-        ));
-        i++;
-        continue;
-      }
-
-      // 11. Signature / Date lines at bottom
+      // 13. Signature / Date lines at bottom
       if (trimmed.startsWith('ធ្វើនៅ') || trimmed.startsWith('ថ្ងៃទី') || trimmed.contains('ចៅសង្កាត់') || trimmed.contains('មេឃុំ')) {
         buffer.write(_makeParagraph(
           text: trimmed,
@@ -491,7 +833,17 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 12. Regular paragraph with key-value detection
+      // 14. Regular paragraph with key-value detection
+      final isCvDoc = lines.any((l) =>
+          l.contains('ប្រវត្តិរូបសង្ខេប') ||
+          l.toUpperCase().contains('CURRICULUM VITAE') ||
+          l.toUpperCase() == 'RESUME');
+      if (isCvDoc && (trimmed.contains(': ') || trimmed.contains(' : ') || trimmed.contains('៖ '))) {
+        buffer.write(_buildBulletItemXml(bulletText: trimmed));
+        i++;
+        continue;
+      }
+
       buffer.write(_makeParagraph(
         text: trimmed,
         align: 'left',

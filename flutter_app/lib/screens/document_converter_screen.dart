@@ -1370,6 +1370,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     final bodyWidgets = <Widget>[];
     int idx = 0;
     bool hasEmittedFooterLine = false;
+    final isCv = lines.any((l) =>
+        l.contains('ប្រវត្តិរូបសង្ខេប') ||
+        l.toUpperCase().contains('CURRICULUM VITAE') ||
+        l.toUpperCase().contains('RESUME'));
 
     while (idx < lines.length) {
       final rawLine = lines[idx];
@@ -1393,12 +1397,110 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
 
       // 2. Explicit Divider (--- or ___)
       if (trimmed == '---' || trimmed == '___' || RegExp(r'^-{3,}$').hasMatch(trimmed)) {
-        bodyWidgets.add(_buildGoldenDividerLine());
+        if (isCv) {
+          bodyWidgets.add(_buildNavyDividerLine());
+        } else {
+          bodyWidgets.add(_buildGoldenDividerLine());
+        }
         idx++;
         continue;
       }
 
-      // 3. Centered Company Title with Golden Header Line
+      // 3. Section Banners (CV Category Bars: ព័ត៌មានផ្ទាល់ខ្លួន, ប្រវត្តិសិក្សា, ប្រវត្តិការងារ, ជំនាញ...)
+      if (_isSectionBanner(trimmed)) {
+        bodyWidgets.add(_buildSectionBannerWidget(trimmed, isDark));
+        idx++;
+        continue;
+      }
+
+      // 4. CV / Resume Main Title & Header Profile with Photo Frame
+      if (trimmed.contains('ប្រវត្តិរូបសង្ខេប') ||
+          trimmed.toUpperCase().contains('CURRICULUM VITAE') ||
+          trimmed.toUpperCase() == 'RESUME') {
+        final cleanTitle = trimmed.replaceAll(RegExp(r'^#+\s*'), '').trim();
+        bodyWidgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 6),
+            child: Text(
+              cleanTitle,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 15.5,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        );
+        idx++;
+
+        // Collect subsequent contact lines before first section banner or divider
+        final contactLines = <String>[];
+        while (idx < lines.length) {
+          final nextTrimmed = lines[idx].trim();
+          if (nextTrimmed.isEmpty) {
+            idx++;
+            continue;
+          }
+          if (_isSectionBanner(nextTrimmed) ||
+              nextTrimmed.startsWith('|') ||
+              nextTrimmed == '---' ||
+              nextTrimmed == '___' ||
+              RegExp(r'^[-*•]\s+').hasMatch(nextTrimmed)) {
+            break;
+          }
+          contactLines.add(nextTrimmed);
+          idx++;
+        }
+
+        final headerContact = <String>[];
+        final extraPersonal = <String>[];
+
+        for (final line in contactLines) {
+          final lTrim = line.replaceAll('[PHOTO]', '').trim();
+          if (lTrim.isEmpty) continue;
+
+          final isHeaderField = lTrim.contains('នាម-គោត្តនាម') ||
+              lTrim.contains('អាសយដ្ឋាន') ||
+              lTrim.contains('ទូរស័ព្ទ') ||
+              lTrim.contains('Telegram') ||
+              lTrim.contains('@') ||
+              lTrim.contains('Email') ||
+              (headerContact.length < 3 &&
+                  !lTrim.contains('ភេទ') &&
+                  !lTrim.contains('សញ្ជាតិ') &&
+                  !lTrim.contains('កំណើត'));
+
+          if (isHeaderField && extraPersonal.isEmpty) {
+            headerContact.add(lTrim);
+          } else {
+            extraPersonal.add(lTrim);
+          }
+        }
+
+        if (headerContact.isNotEmpty) {
+          bodyWidgets.add(_buildCvHeaderWidget(headerContact, isDark));
+          bodyWidgets.add(_buildNavyDividerLine());
+        }
+
+        if (extraPersonal.isNotEmpty) {
+          bodyWidgets.add(_buildSectionBannerWidget('ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ', isDark));
+          for (final item in extraPersonal) {
+            bodyWidgets.add(_buildBulletItemWidget(item, isDark));
+          }
+        }
+        continue;
+      }
+
+      // 5. Bullet or List items (*, -, •)
+      if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
+        bodyWidgets.add(_buildBulletItemWidget(trimmed, isDark));
+        idx++;
+        continue;
+      }
+
+      // 6. Centered Company Title with Golden Header Line
       if (trimmed.toUpperCase().contains('VAN VAN CAMBODIA') ||
           trimmed.contains('វ៉ាន់ វ៉ាន់ ខេមបូឌា')) {
         bodyWidgets.add(
@@ -1416,13 +1518,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             ),
           ),
         );
-        // Golden line directly under VAN VAN CAMBODIA
         bodyWidgets.add(_buildGoldenDividerLine());
         idx++;
         continue;
       }
 
-      // 4. Centered Document Titles / Subtitles
+      // 7. Centered Document Titles / Subtitles
       if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
           trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
           trimmed.contains('APPLICATION FOR LEAVE') ||
@@ -1452,7 +1553,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 5. Checkboxes ([x], [ ], ☑, ☐) - Grouped into compact pills
+      // 8. Checkboxes ([x], [ ], ☑, ☐) - Grouped into compact pills
       if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
         final checkboxGroup = <Map<String, dynamic>>[];
         while (idx < lines.length && RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(lines[idx].trim())) {
@@ -1466,7 +1567,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 6. Footer Address & Contact Info with Golden Footer Line
+      // 9. Footer Address & Contact Info with Golden Footer Line
       if (trimmed.contains('ផ្ទះលេខ') ||
           trimmed.contains('No.1AEo') ||
           trimmed.contains('Sangkat Tuol Svay') ||
@@ -1496,7 +1597,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 7. Multi-column lines (Signatures or wide spaces)
+      // 10. Multi-column lines (Signatures or wide spaces)
       final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
       if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
         bodyWidgets.add(
@@ -1530,45 +1631,49 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 8. Key-Value pairs (Label: Value)
-      if (trimmed.contains(': ') || trimmed.contains('៖ ')) {
-        final delim = trimmed.contains('៖ ') ? '៖ ' : ': ';
-        final parts = trimmed.split(delim);
-        final label = parts[0];
-        final val = parts.sublist(1).join(delim);
+      // 11. Key-Value pairs (Label: Value)
+      if (trimmed.contains(': ') || trimmed.contains(' : ') || trimmed.contains('៖ ')) {
+        if (isCv) {
+          bodyWidgets.add(_buildBulletItemWidget(trimmed, isDark));
+        } else {
+          final delim = trimmed.contains(' : ') ? ' : ' : (trimmed.contains('៖ ') ? '៖ ' : ': ');
+          final parts = trimmed.split(delim);
+          final label = parts[0];
+          final val = parts.sublist(1).join(delim);
 
-        bodyWidgets.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: '$label$delim',
-                    style: GoogleFonts.kantumruyPro(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+          bodyWidgets.add(
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$label$delim',
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
                     ),
-                  ),
-                  TextSpan(
-                    text: val,
-                    style: GoogleFonts.kantumruyPro(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
+                    TextSpan(
+                      text: val,
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
+          );
+        }
         idx++;
         continue;
       }
 
-      // 9. Section headings (**Title**)
+      // 12. Section headings (**Title**)
       if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
         final heading = trimmed.substring(2, trimmed.length - 2);
         bodyWidgets.add(
@@ -1588,7 +1693,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 10. Regular text
+      // 13. Regular text
       bodyWidgets.add(
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -1629,6 +1734,318 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             color: const Color(0xFFD97706).withValues(alpha: 0.3),
             blurRadius: 3,
             offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a dark navy divider line for CVs (#184E77)
+  Widget _buildNavyDividerLine({double topMargin = 6, double bottomMargin = 8}) {
+    return Container(
+      margin: EdgeInsets.only(top: topMargin, bottom: bottomMargin),
+      height: 1.8,
+      decoration: BoxDecoration(
+        color: const Color(0xFF184E77),
+        borderRadius: BorderRadius.circular(1),
+      ),
+    );
+  }
+
+  /// Check if a line is a Section Banner Heading (CV categories, official headings)
+  bool _isSectionBanner(String trimmed) {
+    if (trimmed.contains('[BANNER]')) return true;
+    final clean = trimmed
+        .replaceAll(RegExp(r'^#+\s*'), '')
+        .replaceAll('[BANNER]', '')
+        .trim();
+    final lower = clean.toLowerCase();
+    return lower == 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ' ||
+        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន និងទីកន្លែងរស់នៅ' ||
+        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន និងជីវប្រវត្តិ' ||
+        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន' ||
+        lower.startsWith('ប្រវត្តិសិក្សា') ||
+        lower.startsWith('ប្រវត្តិការងារ') ||
+        lower.startsWith('បទពិសោធន៍ការងារ') ||
+        lower.startsWith('ជំនាញផ្ទាល់ខ្លួន') ||
+        lower.startsWith('ចំណេះដឹងទូទៅ') ||
+        lower.startsWith('ចំណេះដឹង') ||
+        lower == 'ភាសាបរទេស' ||
+        lower == 'សេចក្តីបញ្ជាក់' ||
+        lower == 'personal information' ||
+        lower == 'education' ||
+        lower == 'work experience' ||
+        lower == 'skills' ||
+        lower == 'languages' ||
+        lower == 'references';
+  }
+
+  /// Builds a solid Navy Blue Section Banner with bold white text
+  Widget _buildSectionBannerWidget(String title, bool isDark) {
+    final cleanTitle = title
+        .replaceAll(RegExp(r'^#+\s*'), '')
+        .replaceAll(RegExp(r'\[BANNER\]', caseSensitive: false), '')
+        .trim();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10, bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF184E77),
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF184E77).withValues(alpha: 0.25),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        cleanTitle,
+        style: GoogleFonts.kantumruyPro(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  /// Builds a 2-column CV Header (Left: Contact Info, Right: 3x4 Passport Photo Frame)
+  Widget _buildCvHeaderWidget(List<String> contactLines, bool isDark) {
+    final displayLines = contactLines
+        .where((l) => !l.toUpperCase().contains('[PHOTO]'))
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2, bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left Column: Contact details (Expanded)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: displayLines.map((line) {
+                final trimmed = line.trim();
+                if (trimmed.isEmpty) return const SizedBox.shrink();
+
+                if (trimmed.contains(': ') || trimmed.contains(' : ') || trimmed.contains('៖ ')) {
+                  final delim = trimmed.contains(' : ') ? ' : ' : (trimmed.contains('៖ ') ? '៖ ' : ': ');
+                  final parts = trimmed.split(delim);
+                  final key = parts[0].trim();
+                  final val = parts.sublist(1).join(delim).trim();
+                  final isTelegram = val.contains('@') || val.toLowerCase().contains('telegram');
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 108,
+                          child: Text(
+                            key,
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        Text(
+                          ':   ',
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white70 : const Color(0xFF334155),
+                          ),
+                        ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  val,
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                              if (isTelegram) ...[
+                                const SizedBox(width: 4),
+                                const Icon(Icons.send_rounded, size: 12, color: Color(0xFF0284C7)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    trimmed,
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white70 : AppTheme.textPrimary,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Right Column: 3x4 Passport Photo Frame (Matches Image 1)
+          Container(
+            width: 76,
+            height: 98,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF1E3A8A),
+                  Color(0xFF184E77),
+                  Color(0xFF0F172A),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFF184E77), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.person_rounded,
+                  size: 38,
+                  color: Colors.white,
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    'រូបថត 3x4',
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a cleanly aligned bullet item (• Key : Value)
+  Widget _buildBulletItemWidget(String text, bool isDark) {
+    final clean = text.replaceFirst(RegExp(r'^[-*•]\s*'), '').trim();
+
+    if (clean.contains(' : ') || clean.contains(': ') || clean.contains('៖ ')) {
+      final delim = clean.contains(' : ') ? ' : ' : (clean.contains('៖ ') ? '៖ ' : ': ');
+      final parts = clean.split(delim);
+      final key = parts[0].trim();
+      final val = parts.sublist(1).join(delim).trim();
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2.2, horizontal: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 6, right: 8),
+              width: 4.5,
+              height: 4.5,
+              decoration: const BoxDecoration(
+                color: Color(0xFF184E77),
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(
+              width: 120,
+              child: Text(
+                key,
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+            Text(
+              ':   ',
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : const Color(0xFF334155),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                val,
+                style: GoogleFonts.kantumruyPro(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E293B),
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.2, horizontal: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 6, right: 8),
+            width: 4.5,
+            height: 4.5,
+            decoration: const BoxDecoration(
+              color: Color(0xFF184E77),
+              shape: BoxShape.circle,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              clean,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white70 : AppTheme.textPrimary,
+                height: 1.35,
+              ),
+            ),
           ),
         ],
       ),
