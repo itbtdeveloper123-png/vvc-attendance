@@ -1292,13 +1292,14 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
             border: Border.all(
               color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              width: 1.2,
             ),
           ),
           child: Column(
@@ -1320,7 +1321,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                         const Icon(Icons.description_rounded, size: 12, color: Color(0xFF2563EB)),
                         const SizedBox(width: 4),
                         Text(
-                          '${paperSize.name} ${isLandscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"} Preview',
+                          '${paperSize.name} • ${isLandscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"}',
                           style: GoogleFonts.kantumruyPro(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -1339,10 +1340,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
+                        const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF10B981)),
                         const SizedBox(width: 4),
                         Text(
-                          'អក្សរខ្មែរ ១០០%',
+                          'ទម្រង់ក្រដាសពិត ១០០%',
                           style: GoogleFonts.kantumruyPro(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -1356,7 +1357,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               ),
               const Divider(height: 20),
 
-              // Document Body Elements
+              // Document Body Elements (Matches 1-page Word sheet)
               ..._buildPreviewElements(lines, isDark),
             ],
           ),
@@ -1368,13 +1369,13 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
   List<Widget> _buildPreviewElements(List<String> lines, bool isDark) {
     final bodyWidgets = <Widget>[];
     int idx = 0;
+    bool hasEmittedFooterLine = false;
 
     while (idx < lines.length) {
       final rawLine = lines[idx];
       final trimmed = rawLine.trim();
 
       if (trimmed.isEmpty) {
-        bodyWidgets.add(const SizedBox(height: 6));
         idx++;
         continue;
       }
@@ -1390,92 +1391,60 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 2. Centered Company / Document Titles
-      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
-          trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
-          trimmed.toUpperCase() == 'VAN VAN CAMBODIA' ||
-          trimmed == 'វ៉ាន់ វ៉ាន់ ខេមបូឌា' ||
-          trimmed.contains('APPLICATION FOR LEAVE') ||
-          trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក') ||
-          trimmed.contains('សំណើសុំច្បាប់ឈប់សម្រាក') ||
-          trimmed.startsWith('# ')) {
-        final display = trimmed.startsWith('# ') ? trimmed.substring(2) : trimmed;
+      // 2. Explicit Divider (--- or ___)
+      if (trimmed == '---' || trimmed == '___' || RegExp(r'^-{3,}$').hasMatch(trimmed)) {
+        bodyWidgets.add(_buildGoldenDividerLine());
+        idx++;
+        continue;
+      }
+
+      // 3. Centered Company Title with Golden Header Line
+      if (trimmed.toUpperCase().contains('VAN VAN CAMBODIA') ||
+          trimmed.contains('វ៉ាន់ វ៉ាន់ ខេមបូឌា')) {
         bodyWidgets.add(
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.only(top: 4, bottom: 2),
             child: Text(
-              display,
+              trimmed,
               textAlign: TextAlign.center,
               style: GoogleFonts.kantumruyPro(
-                fontSize: display.length < 30 ? 14.5 : 12.5,
+                fontSize: 14.5,
                 fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
             ),
           ),
         );
+        // Golden line directly under VAN VAN CAMBODIA
+        bodyWidgets.add(_buildGoldenDividerLine());
         idx++;
         continue;
       }
 
-      // 3. Checkboxes ([x], [ ], ☑, ☐)
-      if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
-        final isChecked = trimmed.contains('[x]') || trimmed.contains('[X]') || trimmed.contains('☑');
-        final itemText = trimmed.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
-
+      // 4. Centered Document Titles / Subtitles
+      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
+          trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
+          trimmed.contains('APPLICATION FOR LEAVE') ||
+          trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក') ||
+          trimmed.contains('ពាក្យសុំច្បាប់របស់បុគ្គលិក') ||
+          trimmed.contains('សំណុំបែបបទស្នើសុំ') ||
+          trimmed.startsWith('# ')) {
+        final display = trimmed.startsWith('# ') ? trimmed.substring(2) : trimmed;
+        final isMainTitle = display.contains('ពាក្យសុំច្បាប់') || display.contains('APPLICATION');
         bodyWidgets.add(
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 2.5),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isChecked
-                  ? const Color(0xFFFEF3C7)
-                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isChecked
-                    ? const Color(0xFFD97706)
-                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                width: isChecked ? 1.4 : 1,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Text(
+              display,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: isMainTitle ? 14 : 11.5,
+                fontWeight: isMainTitle ? FontWeight.bold : FontWeight.w600,
+                color: isDark
+                    ? (isMainTitle ? Colors.white : Colors.white70)
+                    : (isMainTitle ? const Color(0xFF0F172A) : const Color(0xFF334155)),
               ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isChecked ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                  color: isChecked ? const Color(0xFFD97706) : (isDark ? Colors.white38 : Colors.black38),
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    itemText,
-                    style: GoogleFonts.kantumruyPro(
-                      fontWeight: isChecked ? FontWeight.bold : FontWeight.w500,
-                      color: isChecked
-                          ? const Color(0xFF92400E)
-                          : (isDark ? Colors.white : const Color(0xFF334155)),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                if (isChecked)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD97706),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'បានជ្រើសរើស',
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 9,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ),
         );
@@ -1483,7 +1452,51 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 4. Multi-column lines (Signatures or wide spaces)
+      // 5. Checkboxes ([x], [ ], ☑, ☐) - Grouped into compact pills
+      if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
+        final checkboxGroup = <Map<String, dynamic>>[];
+        while (idx < lines.length && RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(lines[idx].trim())) {
+          final cLine = lines[idx].trim();
+          final isChecked = cLine.contains('[x]') || cLine.contains('[X]') || cLine.contains('☑');
+          final itemText = cLine.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
+          checkboxGroup.add({'text': itemText, 'isChecked': isChecked});
+          idx++;
+        }
+        bodyWidgets.add(_buildCompactCheckboxPills(checkboxGroup, isDark));
+        continue;
+      }
+
+      // 6. Footer Address & Contact Info with Golden Footer Line
+      if (trimmed.contains('ផ្ទះលេខ') ||
+          trimmed.contains('No.1AEo') ||
+          trimmed.contains('Sangkat Tuol Svay') ||
+          trimmed.contains('សង្កាត់ទួលស្វាយព្រៃ') ||
+          trimmed.contains('No.030') ||
+          (trimmed.contains('ទូរស័ព្ទ:') && trimmed.length > 25)) {
+        if (!hasEmittedFooterLine) {
+          bodyWidgets.add(_buildGoldenDividerLine(topMargin: 12));
+          hasEmittedFooterLine = true;
+        }
+        bodyWidgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(
+              trimmed,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: isDark ? const Color(0xFFF59E0B) : const Color(0xFFB45309),
+                height: 1.4,
+              ),
+            ),
+          ),
+        );
+        idx++;
+        continue;
+      }
+
+      // 7. Multi-column lines (Signatures or wide spaces)
       final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
       if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
         bodyWidgets.add(
@@ -1500,7 +1513,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                       c,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.kantumruyPro(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: c.contains('(') || c.contains('Verified') || c.contains('Requested')
                             ? FontWeight.bold
                             : FontWeight.normal,
@@ -1517,7 +1530,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 5. Key-Value pairs (Label: Value)
+      // 8. Key-Value pairs (Label: Value)
       if (trimmed.contains(': ') || trimmed.contains('៖ ')) {
         final delim = trimmed.contains('៖ ') ? '៖ ' : ': ';
         final parts = trimmed.split(delim);
@@ -1526,14 +1539,14 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
 
         bodyWidgets.add(
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2.5),
+            padding: const EdgeInsets.symmetric(vertical: 2),
             child: RichText(
               text: TextSpan(
                 children: [
                   TextSpan(
                     text: '$label$delim',
                     style: GoogleFonts.kantumruyPro(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.bold,
                       color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
@@ -1541,7 +1554,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                   TextSpan(
                     text: val,
                     style: GoogleFonts.kantumruyPro(
-                      fontSize: 12,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w500,
                       color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
                     ),
@@ -1555,16 +1568,16 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 6. Section headings (**Title**)
+      // 9. Section headings (**Title**)
       if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
         final heading = trimmed.substring(2, trimmed.length - 2);
         bodyWidgets.add(
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            padding: const EdgeInsets.only(top: 6, bottom: 3),
             child: Text(
               heading,
               style: GoogleFonts.kantumruyPro(
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
@@ -1575,16 +1588,16 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         continue;
       }
 
-      // 7. Regular text
+      // 10. Regular text
       bodyWidgets.add(
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Text(
             trimmed,
             style: GoogleFonts.kantumruyPro(
-              fontSize: 12,
+              fontSize: 11.5,
               color: isDark ? Colors.white70 : AppTheme.textPrimary,
-              height: 1.5,
+              height: 1.45,
             ),
           ),
         ),
@@ -1593,6 +1606,104 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     }
 
     return bodyWidgets;
+  }
+
+  /// Builds a golden decorative divider line (Header & Footer lines)
+  Widget _buildGoldenDividerLine({double topMargin = 6, double bottomMargin = 6}) {
+    return Container(
+      margin: EdgeInsets.only(top: topMargin, bottom: bottomMargin),
+      height: 2.2,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFB45309),
+            Color(0xFFF59E0B),
+            Color(0xFFFDE68A),
+            Color(0xFFF59E0B),
+            Color(0xFFB45309),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFD97706).withValues(alpha: 0.3),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds compact multi-column checkbox pills to fit cleanly on a single page
+  Widget _buildCompactCheckboxPills(List<Map<String, dynamic>> items, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: items.map((item) {
+          final isChecked = item['isChecked'] as bool;
+          final text = item['text'] as String;
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: isChecked
+                  ? (isDark ? const Color(0xFF78350F).withValues(alpha: 0.35) : const Color(0xFFFEF3C7))
+                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isChecked
+                    ? const Color(0xFFD97706)
+                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                width: isChecked ? 1.4 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isChecked ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                  size: 14,
+                  color: isChecked
+                      ? const Color(0xFFD97706)
+                      : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  text,
+                  style: GoogleFonts.kantumruyPro(
+                    fontSize: 10.5,
+                    fontWeight: isChecked ? FontWeight.bold : FontWeight.w500,
+                    color: isChecked
+                        ? (isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E))
+                        : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                  ),
+                ),
+                if (isChecked) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD97706),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      'ជ្រើសរើស',
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   Widget _buildPreviewTableWidget(List<String> tableLines, bool isDark) {
@@ -1610,13 +1721,13 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     final maxCols = rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0F172A) : Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isDark ? const Color(0xFF475569) : const Color(0xFF0F172A),
-          width: 1.2,
+          width: 1.1,
         ),
       ),
       child: Table(
@@ -1632,18 +1743,31 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           return TableRow(
             decoration: BoxDecoration(
               color: isHeaderRow
-                  ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFFEF3C7))
+                  ? (isDark ? const Color(0xFF78350F).withValues(alpha: 0.3) : const Color(0xFFFEF3C7))
                   : Colors.transparent,
             ),
             children: List.generate(maxCols, (colIdx) {
               final text = colIdx < r.length ? r[colIdx] : '';
-              final isKey = text.contains('៖') || text.contains(':') || isHeaderRow;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              final isKey = isHeaderRow ||
+                  text.contains('៖') ||
+                  text.contains(':') ||
+                  text.contains('ឈ្មោះ') ||
+                  text.contains('ផ្នែក') ||
+                  text.contains('ថ្ងៃ') ||
+                  text.contains('បញ្ជាក់') ||
+                  text.contains('ហត្ថលេខា');
+              return Container(
+                color: (!isHeaderRow && isKey)
+                    ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFFEF9C3).withValues(alpha: 0.7))
+                    : Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
                 child: Text(
                   text,
+                  textAlign: (isHeaderRow || text.contains('ថ្ងៃ') || text.contains(':00') || text.length <= 10)
+                      ? TextAlign.center
+                      : TextAlign.left,
                   style: GoogleFonts.kantumruyPro(
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: isKey ? FontWeight.bold : FontWeight.w500,
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),

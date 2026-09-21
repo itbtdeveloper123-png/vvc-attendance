@@ -74,14 +74,29 @@ class DocxGeneratorService {
     final aspect = longSide / shortSide;
 
     DocxPaperSize bestSize = DocxPaperSize.a4;
-    double bestDiff = 999999.0;
 
-    for (final size in DocxPaperSize.values) {
-      final sizeAspect = size.heightDxa / size.widthDxa;
-      final diff = (aspect - sizeAspect).abs();
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        bestSize = size;
+    // 1. Check Legal first (Aspect ~1.647)
+    if (aspect >= 1.55) {
+      bestSize = DocxPaperSize.legal;
+    }
+    // 2. Check Letter (Aspect ~1.294)
+    else if (aspect <= 1.34) {
+      bestSize = DocxPaperSize.letter;
+    }
+    // 3. ISO 216 Family (Aspect ~1.414: A3, A4, A5)
+    else {
+      // In business documents, forms, and scanned papers, ISO ratio is overwhelmingly A4.
+      // Only classify as A5 or A3 if physical point dimensions (e.g. from PDF DPI 72)
+      // unambiguously indicate non-A4 paper:
+      // A5 points: ~420 x ~595 pt
+      // A3 points: ~842 x ~1191 pt
+      if (shortSide < 450 && longSide < 620 && shortSide > 150) {
+        bestSize = DocxPaperSize.a5;
+      } else if (shortSide > 750 && longSide > 1050) {
+        bestSize = DocxPaperSize.a3;
+      } else {
+        // Standard A4 (e.g. 595x842 pt, or scanned image resolutions like 560x794, 1080x1530)
+        bestSize = DocxPaperSize.a4;
       }
     }
 
@@ -261,7 +276,20 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  /// Parses text lines, detects tables, headings, and alignments
+  /// Golden decorative divider line OpenXML (1.5pt solid gold/amber #D97706)
+  static String _makeGoldenDividerLineXml() {
+    return '''<w:p>
+  <w:pPr>
+    <w:pBdr>
+      <w:bottom w:val="single" w:sz="18" w:space="1" w:color="D97706"/>
+    </w:pBdr>
+    <w:spacing w:line="100" w:lineRule="auto" w:before="60" w:after="80"/>
+  </w:pPr>
+</w:p>
+''';
+  }
+
+  /// Parses text lines, detects tables, headings, checkboxes, and golden divider lines
   static void _parseAndAppendBody(
     StringBuffer buffer,
     String rawText, {
@@ -271,6 +299,7 @@ class DocxGeneratorService {
   }) {
     final lines = rawText.split(RegExp(r'\r?\n'));
     int i = 0;
+    bool hasEmittedFooterLine = false;
 
     // Optional document title (only if genuine custom title and not already at start of document)
     if (docTitle != null &&
@@ -284,7 +313,7 @@ class DocxGeneratorService {
           text: docTitle.trim(),
           align: 'center',
           isBold: true,
-          fontSizePt: 15,
+          fontSizePt: 14.5,
           fontFamily: 'Khmer OS Muol Light',
         ));
       }
@@ -310,13 +339,20 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 2. Headings (# Title or ## Subtitle)
+      // 2. Explicit divider lines (--- or ___)
+      if (trimmed == '---' || trimmed == '___' || RegExp(r'^-{3,}$').hasMatch(trimmed)) {
+        buffer.write(_makeGoldenDividerLineXml());
+        i++;
+        continue;
+      }
+
+      // 3. Headings (# Title or ## Subtitle)
       if (trimmed.startsWith('# ')) {
         buffer.write(_makeParagraph(
           text: trimmed.substring(2).trim(),
           align: 'center',
           isBold: true,
-          fontSizePt: 15,
+          fontSizePt: 14,
           fontFamily: 'Khmer OS Muol Light',
         ));
         i++;
@@ -326,7 +362,7 @@ class DocxGeneratorService {
           text: trimmed.substring(3).trim(),
           align: 'left',
           isBold: true,
-          fontSizePt: 13,
+          fontSizePt: 12.5,
           fontFamily: 'Khmer OS Battambang',
         ));
         i++;
@@ -336,58 +372,95 @@ class DocxGeneratorService {
           text: trimmed.substring(4).trim(),
           align: 'left',
           isBold: true,
-          fontSizePt: 12,
+          fontSizePt: 11.5,
           fontFamily: 'Khmer OS Battambang',
         ));
         i++;
         continue;
       }
 
-      // 3. Centered Document Titles & Company names
-      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
-          trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
-          trimmed.toUpperCase() == 'VAN VAN CAMBODIA' ||
-          trimmed == 'វ៉ាន់ វ៉ាន់ ខេមបូឌា' ||
-          trimmed.contains('APPLICATION FOR LEAVE') ||
-          trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក')) {
+      // 4. Centered Company Header with Golden Header Line
+      if (trimmed.toUpperCase().contains('VAN VAN CAMBODIA') ||
+          trimmed.contains('វ៉ាន់ វ៉ាន់ ខេមបូឌា')) {
         buffer.write(_makeParagraph(
           text: trimmed,
           align: 'center',
           isBold: true,
-          fontSizePt: trimmed.length < 30 ? 14 : 12.5,
+          fontSizePt: 14,
+          fontFamily: 'Khmer OS Muol Light',
+        ));
+        buffer.write(_makeGoldenDividerLineXml());
+        i++;
+        continue;
+      }
+
+      // 5. Centered Document Titles
+      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
+          trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
+          trimmed.contains('APPLICATION FOR LEAVE') ||
+          trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក') ||
+          trimmed.contains('ពាក្យសុំច្បាប់របស់បុគ្គលិក')) {
+        buffer.write(_makeParagraph(
+          text: trimmed,
+          align: 'center',
+          isBold: true,
+          fontSizePt: trimmed.length < 30 ? 14 : 12,
           fontFamily: 'Khmer OS Muol Light',
         ));
         i++;
         continue;
       }
 
-      // 4. Centered Titles (e.g. **ប័ណ្ណប្រកាសអាពាហ៍ពិពាហ៍** or **លិខិតបញ្ជាក់...**)
+      // 6. Centered Bold Section Titles (e.g. **ប័ណ្ណប្រកាស...**)
       if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
         final inner = trimmed.substring(2, trimmed.length - 2).trim();
         buffer.write(_makeParagraph(
           text: inner,
           align: 'center',
           isBold: true,
-          fontSizePt: 13.5,
+          fontSizePt: 13,
           fontFamily: 'Khmer OS Muol Light',
         ));
         i++;
         continue;
       }
 
-      // 5. Checkbox Items (e.g. [x] or [ ] or ☑ or ☐)
+      // 7. Checkbox Items: Group consecutive items into a compact 3-column grid
       if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
-        final isChecked = trimmed.contains('[x]') || trimmed.contains('[X]') || trimmed.contains('☑');
-        final itemText = trimmed.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
-        buffer.write(_makeCheckboxParagraph(
-          text: itemText,
-          isChecked: isChecked,
+        final checkboxItems = <Map<String, dynamic>>[];
+        while (i < lines.length && RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(lines[i].trim())) {
+          final cLine = lines[i].trim();
+          final isChecked = cLine.contains('[x]') || cLine.contains('[X]') || cLine.contains('☑');
+          final itemText = cLine.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
+          checkboxItems.add({'text': itemText, 'isChecked': isChecked});
+          i++;
+        }
+        buffer.write(_buildCompactCheckboxGridXml(checkboxItems, totalWidth: printableWidthDxa));
+        continue;
+      }
+
+      // 8. Footer Address & Contact Info with Golden Footer Line
+      if (trimmed.contains('ផ្ទះលេខ') ||
+          trimmed.contains('No.1AEo') ||
+          trimmed.contains('Sangkat Tuol Svay') ||
+          trimmed.contains('សង្កាត់ទួលស្វាយព្រៃ') ||
+          trimmed.contains('No.030') ||
+          (trimmed.contains('ទូរស័ព្ទ:') && trimmed.length > 25)) {
+        if (!hasEmittedFooterLine) {
+          buffer.write(_makeGoldenDividerLineXml());
+          hasEmittedFooterLine = true;
+        }
+        buffer.write(_makeParagraph(
+          text: trimmed,
+          align: 'center',
+          fontSizePt: 9.5,
+          textColor: 'B45309',
         ));
         i++;
         continue;
       }
 
-      // 6. Multi-column lines (Signatures or wide spacing like \s{3,} or tabs)
+      // 9. Multi-column lines (Signatures or wide spacing like \s{3,} or tabs)
       final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
       if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
         buffer.write(_buildBorderlessRowTableXml(multiCols, totalWidth: printableWidthDxa));
@@ -395,30 +468,30 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 7. Bullet or Numbered items
+      // 10. Bullet or Numbered items
       if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
         final bulletText = trimmed.replaceFirst(RegExp(r'^[-*•]\s+'), '');
         buffer.write(_makeParagraph(
           text: '•  $bulletText',
           align: 'left',
-          leftIndent: 400,
+          leftIndent: 300,
         ));
         i++;
         continue;
       }
 
-      // 8. Signature / Date lines at bottom
+      // 11. Signature / Date lines at bottom
       if (trimmed.startsWith('ធ្វើនៅ') || trimmed.startsWith('ថ្ងៃទី') || trimmed.contains('ចៅសង្កាត់') || trimmed.contains('មេឃុំ')) {
         buffer.write(_makeParagraph(
           text: trimmed,
           align: 'right',
-          fontSizePt: 11.5,
+          fontSizePt: 11,
         ));
         i++;
         continue;
       }
 
-      // 9. Regular paragraph with key-value detection
+      // 12. Regular paragraph with key-value detection
       buffer.write(_makeParagraph(
         text: trimmed,
         align: 'left',
@@ -428,13 +501,15 @@ class DocxGeneratorService {
   }
 
   /// Generates XML for a single Paragraph with smart key-value bolding
+  /// Strictly follows ECMA-376 CT_PPrBase sequence: spacing -> ind -> jc
   static String _makeParagraph({
     required String text,
     String align = 'left',
     bool isBold = false,
-    double fontSizePt = 11.5,
+    double fontSizePt = 11.0,
     String fontFamily = 'Khmer OS Battambang',
     int? leftIndent,
+    String? textColor,
   }) {
     final cleanText = _escapeXml(text);
     final halfPt = (fontSizePt * 2).round();
@@ -442,51 +517,53 @@ class DocxGeneratorService {
     final buffer = StringBuffer();
     buffer.write('<w:p>\n');
     buffer.write('  <w:pPr>\n');
-    if (align != 'left') {
-      buffer.write('    <w:jc w:val="$align"/>\n');
-    }
+    // ECMA-376: spacing MUST come before ind and jc
+    buffer.write('    <w:spacing w:line="280" w:lineRule="auto" w:after="50"/>\n');
     if (leftIndent != null) {
       buffer.write('    <w:ind w:left="$leftIndent"/>\n');
     }
-    buffer.write('    <w:spacing w:line="320" w:lineRule="auto" w:after="80"/>\n');
+    if (align != 'left') {
+      buffer.write('    <w:jc w:val="$align"/>\n');
+    }
     buffer.write('  </w:pPr>\n');
+
+    final colorTag = textColor != null ? '      <w:color w:val="$textColor"/>\n' : '';
 
     // Parse key-value format (Key: Value) to bold the Key
     if (cleanText.contains(': ') && !isBold) {
       final parts = cleanText.split(': ');
       for (int k = 0; k < parts.length; k++) {
         if (k == 0) {
-          // First key
           buffer.write('  <w:r>\n');
           buffer.write('    <w:rPr>\n');
           buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
           buffer.write('      <w:b/>\n');
+          buffer.write(colorTag);
           buffer.write('      <w:sz w:val="$halfPt"/>\n');
           buffer.write('      <w:szCs w:val="$halfPt"/>\n');
           buffer.write('    </w:rPr>\n');
           buffer.write('    <w:t xml:space="preserve">${parts[0]}: </w:t>\n');
           buffer.write('  </w:r>\n');
         } else if (k < parts.length - 1) {
-          // Middle value + next key
           final sub = parts[k];
           final lastSpace = sub.lastIndexOf(' ');
           if (lastSpace != -1) {
             final val = sub.substring(0, lastSpace);
             final nextKey = sub.substring(lastSpace + 1);
-            // Value
             buffer.write('  <w:r>\n');
             buffer.write('    <w:rPr>\n');
             buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+            buffer.write(colorTag);
             buffer.write('      <w:sz w:val="$halfPt"/>\n');
             buffer.write('      <w:szCs w:val="$halfPt"/>\n');
             buffer.write('    </w:rPr>\n');
             buffer.write('    <w:t xml:space="preserve">$val  </w:t>\n');
             buffer.write('  </w:r>\n');
-            // Next Key
             buffer.write('  <w:r>\n');
             buffer.write('    <w:rPr>\n');
             buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
             buffer.write('      <w:b/>\n');
+            buffer.write(colorTag);
             buffer.write('      <w:sz w:val="$halfPt"/>\n');
             buffer.write('      <w:szCs w:val="$halfPt"/>\n');
             buffer.write('    </w:rPr>\n');
@@ -496,6 +573,7 @@ class DocxGeneratorService {
             buffer.write('  <w:r>\n');
             buffer.write('    <w:rPr>\n');
             buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+            buffer.write(colorTag);
             buffer.write('      <w:sz w:val="$halfPt"/>\n');
             buffer.write('      <w:szCs w:val="$halfPt"/>\n');
             buffer.write('    </w:rPr>\n');
@@ -503,10 +581,10 @@ class DocxGeneratorService {
             buffer.write('  </w:r>\n');
           }
         } else {
-          // Final value
           buffer.write('  <w:r>\n');
           buffer.write('    <w:rPr>\n');
           buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+          buffer.write(colorTag);
           buffer.write('      <w:sz w:val="$halfPt"/>\n');
           buffer.write('      <w:szCs w:val="$halfPt"/>\n');
           buffer.write('    </w:rPr>\n');
@@ -519,6 +597,7 @@ class DocxGeneratorService {
       buffer.write('    <w:rPr>\n');
       buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
       if (isBold) buffer.write('      <w:b/>\n');
+      buffer.write(colorTag);
       buffer.write('      <w:sz w:val="$halfPt"/>\n');
       buffer.write('      <w:szCs w:val="$halfPt"/>\n');
       buffer.write('    </w:rPr>\n');
@@ -530,53 +609,118 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  /// Generates a clean checkbox paragraph with ballot box glyph
-  static String _makeCheckboxParagraph({
-    required String text,
-    required bool isChecked,
-    double fontSizePt = 11.5,
-    String fontFamily = 'Khmer OS Battambang',
-  }) {
-    final halfPt = (fontSizePt * 2).round();
-    final boxChar = isChecked ? '☑' : '☐';
+  /// Compact 3-Column Checkbox Grid in Word OpenXML
+  /// Keeps all leave options neatly packed on a single page
+  static String _buildCompactCheckboxGridXml(List<Map<String, dynamic>> items, {int totalWidth = 9500}) {
+    if (items.isEmpty) return '';
 
+    const numCols = 3;
+    final colWidth = (totalWidth / numCols).floor();
     final buffer = StringBuffer();
-    buffer.write('<w:p>\n');
-    buffer.write('  <w:pPr>\n');
-    buffer.write('    <w:ind w:left="400"/>\n');
-    buffer.write('    <w:spacing w:line="300" w:lineRule="auto" w:after="70"/>\n');
-    buffer.write('  </w:pPr>\n');
 
-    // Checkbox Box Glyph
-    buffer.write('  <w:r>\n');
-    buffer.write('    <w:rPr>\n');
-    buffer.write('      <w:rFonts w:ascii="Segoe UI Symbol" w:hAnsi="Segoe UI Symbol" w:cs="Segoe UI Symbol"/>\n');
-    if (isChecked) {
-      buffer.write('      <w:b/>\n');
-      buffer.write('      <w:color w:val="2563EB"/>\n'); // Bold blue
+    buffer.write('<w:tbl>\n');
+    buffer.write('  <w:tblPr>\n');
+    buffer.write('    <w:tblW w:w="$totalWidth" w:type="dxa"/>\n');
+    buffer.write('    <w:jc w:val="center"/>\n');
+    buffer.write('    <w:tblBorders>\n');
+    buffer.write('      <w:top w:val="none"/>\n');
+    buffer.write('      <w:left w:val="none"/>\n');
+    buffer.write('      <w:bottom w:val="none"/>\n');
+    buffer.write('      <w:right w:val="none"/>\n');
+    buffer.write('      <w:insideH w:val="none"/>\n');
+    buffer.write('      <w:insideV w:val="none"/>\n');
+    buffer.write('    </w:tblBorders>\n');
+    buffer.write('  </w:tblPr>\n');
+
+    buffer.write('  <w:tblGrid>\n');
+    for (int c = 0; c < numCols; c++) {
+      buffer.write('    <w:gridCol w:w="$colWidth"/>\n');
     }
-    buffer.write('      <w:sz w:val="${halfPt + 4}"/>\n');
-    buffer.write('      <w:szCs w:val="${halfPt + 4}"/>\n');
-    buffer.write('    </w:rPr>\n');
-    buffer.write('    <w:t xml:space="preserve">$boxChar  </w:t>\n');
-    buffer.write('  </w:r>\n');
+    buffer.write('  </w:tblGrid>\n');
 
-    // Checkbox Label
-    buffer.write('  <w:r>\n');
-    buffer.write('    <w:rPr>\n');
-    buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
-    if (isChecked) buffer.write('      <w:b/>\n');
-    buffer.write('      <w:sz w:val="$halfPt"/>\n');
-    buffer.write('      <w:szCs w:val="$halfPt"/>\n');
-    buffer.write('    </w:rPr>\n');
-    buffer.write('    <w:t>${_escapeXml(text)}</w:t>\n');
-    buffer.write('  </w:r>\n');
+    final numRows = (items.length / numCols).ceil();
+    for (int r = 0; r < numRows; r++) {
+      buffer.write('  <w:tr>\n');
+      buffer.write('    <w:trPr><w:cantSplit/></w:trPr>\n');
 
-    buffer.write('</w:p>\n');
+      for (int c = 0; c < numCols; c++) {
+        final itemIndex = r * numCols + c;
+        if (itemIndex < items.length) {
+          final item = items[itemIndex];
+          final isChecked = item['isChecked'] as bool;
+          final text = item['text'] as String;
+          final boxChar = isChecked ? '☑' : '☐';
+
+          buffer.write('    <w:tc>\n');
+          buffer.write('      <w:tcPr>\n');
+          buffer.write('        <w:tcW w:w="$colWidth" w:type="dxa"/>\n');
+          if (isChecked) {
+            buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="FEF3C7"/>\n');
+          }
+          buffer.write('        <w:tcMar>\n');
+          buffer.write('          <w:top w:w="40" w:type="dxa"/>\n');
+          buffer.write('          <w:bottom w:w="40" w:type="dxa"/>\n');
+          buffer.write('          <w:left w:w="60" w:type="dxa"/>\n');
+          buffer.write('          <w:right w:w="60" w:type="dxa"/>\n');
+          buffer.write('        </w:tcMar>\n');
+          buffer.write('        <w:vAlign w:val="center"/>\n');
+          buffer.write('      </w:tcPr>\n');
+
+          buffer.write('      <w:p>\n');
+          buffer.write('        <w:pPr>\n');
+          buffer.write('          <w:spacing w:line="240" w:lineRule="auto" w:after="20"/>\n');
+          buffer.write('        </w:pPr>\n');
+
+          // Box symbol
+          buffer.write('        <w:r>\n');
+          buffer.write('          <w:rPr>\n');
+          buffer.write('            <w:rFonts w:ascii="Segoe UI Symbol" w:hAnsi="Segoe UI Symbol" w:cs="Segoe UI Symbol"/>\n');
+          if (isChecked) {
+            buffer.write('            <w:b/>\n');
+            buffer.write('            <w:color w:val="D97706"/>\n');
+          } else {
+            buffer.write('            <w:color w:val="64748B"/>\n');
+          }
+          buffer.write('            <w:sz w:val="22"/>\n');
+          buffer.write('            <w:szCs w:val="22"/>\n');
+          buffer.write('          </w:rPr>\n');
+          buffer.write('          <w:t xml:space="preserve">$boxChar  </w:t>\n');
+          buffer.write('        </w:r>\n');
+
+          // Label
+          buffer.write('        <w:r>\n');
+          buffer.write('          <w:rPr>\n');
+          buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+          if (isChecked) {
+            buffer.write('            <w:b/>\n');
+            buffer.write('            <w:color w:val="92400E"/>\n');
+          }
+          buffer.write('            <w:sz w:val="19"/>\n');
+          buffer.write('            <w:szCs w:val="19"/>\n');
+          buffer.write('          </w:rPr>\n');
+          buffer.write('          <w:t>${_escapeXml(text)}</w:t>\n');
+          buffer.write('        </w:r>\n');
+
+          buffer.write('      </w:p>\n');
+          buffer.write('    </w:tc>\n');
+        } else {
+          // Empty cell for grid balance
+          buffer.write('    <w:tc>\n');
+          buffer.write('      <w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/></w:tcPr>\n');
+          buffer.write('      <w:p><w:pPr><w:spacing w:line="240" w:lineRule="auto" w:after="0"/></w:pPr></w:p>\n');
+          buffer.write('    </w:tc>\n');
+        }
+      }
+
+      buffer.write('  </w:tr>\n');
+    }
+
+    buffer.write('</w:tbl>\n');
     return buffer.toString();
   }
 
   /// Builds a borderless table row for multi-column signature blocks or headers
+  /// Strictly follows ECMA-376 CT_PPrBase sequence: spacing -> jc
   static String _buildBorderlessRowTableXml(List<String> cols, {int totalWidth = 9500}) {
     if (cols.isEmpty) return '';
 
@@ -610,17 +754,17 @@ class DocxGeneratorService {
       buffer.write('      <w:tcPr>\n');
       buffer.write('        <w:tcW w:w="$colWidth" w:type="dxa"/>\n');
       buffer.write('        <w:tcMar>\n');
-      buffer.write('          <w:top w:w="80" w:type="dxa"/>\n');
-      buffer.write('          <w:bottom w:w="80" w:type="dxa"/>\n');
-      buffer.write('          <w:left w:w="100" w:type="dxa"/>\n');
-      buffer.write('          <w:right w:w="100" w:type="dxa"/>\n');
+      buffer.write('          <w:top w:w="60" w:type="dxa"/>\n');
+      buffer.write('          <w:bottom w:w="60" w:type="dxa"/>\n');
+      buffer.write('          <w:left w:w="80" w:type="dxa"/>\n');
+      buffer.write('          <w:right w:w="80" w:type="dxa"/>\n');
       buffer.write('        </w:tcMar>\n');
       buffer.write('        <w:vAlign w:val="center"/>\n');
       buffer.write('      </w:tcPr>\n');
       buffer.write('      <w:p>\n');
       buffer.write('        <w:pPr>\n');
+      buffer.write('          <w:spacing w:line="240" w:lineRule="auto" w:after="30"/>\n');
       buffer.write('          <w:jc w:val="center"/>\n');
-      buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:after="40"/>\n');
       buffer.write('        </w:pPr>\n');
       buffer.write('        <w:r>\n');
       buffer.write('          <w:rPr>\n');
@@ -628,8 +772,8 @@ class DocxGeneratorService {
       if (col.contains('(') || col.contains('Verified') || col.contains('Requested')) {
         buffer.write('            <w:b/>\n');
       }
-      buffer.write('            <w:sz w:val="21"/>\n');
-      buffer.write('            <w:szCs w:val="21"/>\n');
+      buffer.write('            <w:sz w:val="20"/>\n');
+      buffer.write('            <w:szCs w:val="20"/>\n');
       buffer.write('          </w:rPr>\n');
       buffer.write('          <w:t>${_escapeXml(col)}</w:t>\n');
       buffer.write('        </w:r>\n');
@@ -643,6 +787,10 @@ class DocxGeneratorService {
   }
 
   /// Builds a genuine OpenXML `<w:tbl>` from Markdown table rows
+  /// Strictly follows ECMA-376 schema sequence:
+  /// - trPr: cantSplit before tblHeader
+  /// - pPr: spacing before jc
+  /// - rPr: rFonts -> b -> sz -> szCs (NO invalid cs tag)
   static String _buildTableXml(List<String> tableLines, {int totalWidth = 9500}) {
     if (tableLines.isEmpty) return '';
 
@@ -692,8 +840,9 @@ class DocxGeneratorService {
       final row = rows[r];
       buffer.write('  <w:tr>\n');
       buffer.write('    <w:trPr>\n');
-      if (isHeader) buffer.write('      <w:tblHeader/>\n');
+      // ECMA-376: cantSplit MUST come BEFORE tblHeader
       buffer.write('      <w:cantSplit/>\n');
+      if (isHeader) buffer.write('      <w:tblHeader/>\n');
       buffer.write('    </w:trPr>\n');
 
       for (int c = 0; c < maxCols; c++) {
@@ -706,27 +855,26 @@ class DocxGeneratorService {
           buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="FEF9C3"/>\n');
         }
         buffer.write('        <w:tcMar>\n');
-        buffer.write('          <w:top w:w="120" w:type="dxa"/>\n');
-        buffer.write('          <w:bottom w:w="120" w:type="dxa"/>\n');
-        buffer.write('          <w:left w:w="160" w:type="dxa"/>\n');
-        buffer.write('          <w:right w:w="160" w:type="dxa"/>\n');
+        buffer.write('          <w:top w:w="80" w:type="dxa"/>\n');
+        buffer.write('          <w:bottom w:w="80" w:type="dxa"/>\n');
+        buffer.write('          <w:left w:w="120" w:type="dxa"/>\n');
+        buffer.write('          <w:right w:w="120" w:type="dxa"/>\n');
         buffer.write('        </w:tcMar>\n');
         buffer.write('        <w:vAlign w:val="center"/>\n');
         buffer.write('      </w:tcPr>\n');
 
-        // Paragraph inside cell
+        // Paragraph inside cell: spacing MUST come before jc
         buffer.write('      <w:p>\n');
         buffer.write('        <w:pPr>\n');
+        buffer.write('          <w:spacing w:line="240" w:lineRule="auto" w:after="20"/>\n');
         if (isHeader) buffer.write('          <w:jc w:val="center"/>\n');
-        buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:after="40"/>\n');
         buffer.write('        </w:pPr>\n');
         buffer.write('        <w:r>\n');
         buffer.write('          <w:rPr>\n');
         buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-        buffer.write('            <w:cs/>\n');
         if (isKey) buffer.write('            <w:b/>\n');
-        buffer.write('            <w:sz w:val="21"/>\n');
-        buffer.write('            <w:szCs w:val="21"/>\n');
+        buffer.write('            <w:sz w:val="20"/>\n');
+        buffer.write('            <w:szCs w:val="20"/>\n');
         buffer.write('          </w:rPr>\n');
         buffer.write('          <w:t>${_escapeXml(cellText)}</w:t>\n');
         buffer.write('        </w:r>\n');
