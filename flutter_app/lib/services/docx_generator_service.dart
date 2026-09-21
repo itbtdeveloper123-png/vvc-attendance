@@ -151,15 +151,22 @@ class DocxGeneratorService {
     final lines = rawText.split(RegExp(r'\r?\n'));
     int i = 0;
 
-    // Optional document title
-    if (docTitle != null && docTitle.trim().isNotEmpty) {
-      buffer.write(_makeParagraph(
-        text: docTitle.trim(),
-        align: 'center',
-        isBold: true,
-        fontSizePt: 16,
-        fontFamily: 'Khmer OS Muol Light',
-      ));
+    // Optional document title (only if genuine custom title and not already at start of document)
+    if (docTitle != null &&
+        docTitle.trim().isNotEmpty &&
+        docTitle != 'ឯកសារស្កេន' &&
+        docTitle != 'Khmer' &&
+        docTitle != 'Scan') {
+      final firstLines = rawText.split('\n').take(4).map((l) => l.trim().toLowerCase()).toList();
+      if (!firstLines.contains(docTitle.trim().toLowerCase())) {
+        buffer.write(_makeParagraph(
+          text: docTitle.trim(),
+          align: 'center',
+          isBold: true,
+          fontSizePt: 15,
+          fontFamily: 'Khmer OS Muol Light',
+        ));
+      }
     }
 
     while (i < lines.length) {
@@ -215,34 +222,59 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 3. Kingdom Header (ព្រះរាជាណាចក្រកម្ពុជា ជាតិ សាសនា ព្រះមហាក្សត្រ)
-      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') || trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ')) {
+      // 3. Centered Document Titles & Company names
+      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
+          trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
+          trimmed.toUpperCase() == 'VAN VAN CAMBODIA' ||
+          trimmed == 'វ៉ាន់ វ៉ាន់ ខេមបូឌា' ||
+          trimmed.contains('APPLICATION FOR LEAVE') ||
+          trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក')) {
         buffer.write(_makeParagraph(
           text: trimmed,
           align: 'center',
           isBold: true,
-          fontSizePt: 13,
+          fontSizePt: trimmed.length < 30 ? 14 : 12.5,
           fontFamily: 'Khmer OS Muol Light',
         ));
         i++;
         continue;
       }
 
-      // 4. Centered Titles (e.g. ប័ណ្ណប្រកាសអាពាហ៍ពិពាហ៍ or លិខិតបញ្ជាក់...)
+      // 4. Centered Titles (e.g. **ប័ណ្ណប្រកាសអាពាហ៍ពិពាហ៍** or **លិខិតបញ្ជាក់...**)
       if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
         final inner = trimmed.substring(2, trimmed.length - 2).trim();
         buffer.write(_makeParagraph(
           text: inner,
           align: 'center',
           isBold: true,
-          fontSizePt: 14,
+          fontSizePt: 13.5,
           fontFamily: 'Khmer OS Muol Light',
         ));
         i++;
         continue;
       }
 
-      // 5. Bullet or Numbered items
+      // 5. Checkbox Items (e.g. [x] or [ ] or ☑ or ☐)
+      if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
+        final isChecked = trimmed.contains('[x]') || trimmed.contains('[X]') || trimmed.contains('☑');
+        final itemText = trimmed.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
+        buffer.write(_makeCheckboxParagraph(
+          text: itemText,
+          isChecked: isChecked,
+        ));
+        i++;
+        continue;
+      }
+
+      // 6. Multi-column lines (Signatures or wide spacing like \s{3,} or tabs)
+      final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
+      if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
+        buffer.write(_buildBorderlessRowTableXml(multiCols));
+        i++;
+        continue;
+      }
+
+      // 7. Bullet or Numbered items
       if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
         final bulletText = trimmed.replaceFirst(RegExp(r'^[-*•]\s+'), '');
         buffer.write(_makeParagraph(
@@ -254,7 +286,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 6. Signature / Date lines at bottom (e.g. ធ្វើនៅ... ថ្ងៃទី... ឬ ចៅសង្កាត់)
+      // 8. Signature / Date lines at bottom
       if (trimmed.startsWith('ធ្វើនៅ') || trimmed.startsWith('ថ្ងៃទី') || trimmed.contains('ចៅសង្កាត់') || trimmed.contains('មេឃុំ')) {
         buffer.write(_makeParagraph(
           text: trimmed,
@@ -265,7 +297,7 @@ class DocxGeneratorService {
         continue;
       }
 
-      // 7. Regular paragraph with key-value detection
+      // 9. Regular paragraph with key-value detection
       buffer.write(_makeParagraph(
         text: trimmed,
         align: 'left',
@@ -274,7 +306,7 @@ class DocxGeneratorService {
     }
   }
 
-  /// Generates XML for a single Paragraph
+  /// Generates XML for a single Paragraph with smart key-value bolding
   static String _makeParagraph({
     required String text,
     String align = 'left',
@@ -298,32 +330,69 @@ class DocxGeneratorService {
     buffer.write('    <w:spacing w:line="320" w:lineRule="auto" w:after="80"/>\n');
     buffer.write('  </w:pPr>\n');
 
-    // Parse simple key-value format (Key: Value) to bold the Key
+    // Parse key-value format (Key: Value) to bold the Key
     if (cleanText.contains(': ') && !isBold) {
       final parts = cleanText.split(': ');
-      final key = parts[0];
-      final val = parts.sublist(1).join(': ');
-
-      // Bold key
-      buffer.write('  <w:r>\n');
-      buffer.write('    <w:rPr>\n');
-      buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
-      buffer.write('      <w:b/>\n');
-      buffer.write('      <w:sz w:val="$halfPt"/>\n');
-      buffer.write('      <w:szCs w:val="$halfPt"/>\n');
-      buffer.write('    </w:rPr>\n');
-      buffer.write('    <w:t xml:space="preserve">$key: </w:t>\n');
-      buffer.write('  </w:r>\n');
-
-      // Regular value
-      buffer.write('  <w:r>\n');
-      buffer.write('    <w:rPr>\n');
-      buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
-      buffer.write('      <w:sz w:val="$halfPt"/>\n');
-      buffer.write('      <w:szCs w:val="$halfPt"/>\n');
-      buffer.write('    </w:rPr>\n');
-      buffer.write('    <w:t>$val</w:t>\n');
-      buffer.write('  </w:r>\n');
+      for (int k = 0; k < parts.length; k++) {
+        if (k == 0) {
+          // First key
+          buffer.write('  <w:r>\n');
+          buffer.write('    <w:rPr>\n');
+          buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+          buffer.write('      <w:b/>\n');
+          buffer.write('      <w:sz w:val="$halfPt"/>\n');
+          buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+          buffer.write('    </w:rPr>\n');
+          buffer.write('    <w:t xml:space="preserve">${parts[0]}: </w:t>\n');
+          buffer.write('  </w:r>\n');
+        } else if (k < parts.length - 1) {
+          // Middle value + next key
+          final sub = parts[k];
+          final lastSpace = sub.lastIndexOf(' ');
+          if (lastSpace != -1) {
+            final val = sub.substring(0, lastSpace);
+            final nextKey = sub.substring(lastSpace + 1);
+            // Value
+            buffer.write('  <w:r>\n');
+            buffer.write('    <w:rPr>\n');
+            buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+            buffer.write('      <w:sz w:val="$halfPt"/>\n');
+            buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+            buffer.write('    </w:rPr>\n');
+            buffer.write('    <w:t xml:space="preserve">$val  </w:t>\n');
+            buffer.write('  </w:r>\n');
+            // Next Key
+            buffer.write('  <w:r>\n');
+            buffer.write('    <w:rPr>\n');
+            buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+            buffer.write('      <w:b/>\n');
+            buffer.write('      <w:sz w:val="$halfPt"/>\n');
+            buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+            buffer.write('    </w:rPr>\n');
+            buffer.write('    <w:t xml:space="preserve">$nextKey: </w:t>\n');
+            buffer.write('  </w:r>\n');
+          } else {
+            buffer.write('  <w:r>\n');
+            buffer.write('    <w:rPr>\n');
+            buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+            buffer.write('      <w:sz w:val="$halfPt"/>\n');
+            buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+            buffer.write('    </w:rPr>\n');
+            buffer.write('    <w:t xml:space="preserve">${parts[k]}: </w:t>\n');
+            buffer.write('  </w:r>\n');
+          }
+        } else {
+          // Final value
+          buffer.write('  <w:r>\n');
+          buffer.write('    <w:rPr>\n');
+          buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+          buffer.write('      <w:sz w:val="$halfPt"/>\n');
+          buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+          buffer.write('    </w:rPr>\n');
+          buffer.write('    <w:t>${parts[k]}</w:t>\n');
+          buffer.write('  </w:r>\n');
+        }
+      }
     } else {
       buffer.write('  <w:r>\n');
       buffer.write('    <w:rPr>\n');
@@ -337,6 +406,119 @@ class DocxGeneratorService {
     }
 
     buffer.write('</w:p>\n');
+    return buffer.toString();
+  }
+
+  /// Generates a clean checkbox paragraph with ballot box glyph
+  static String _makeCheckboxParagraph({
+    required String text,
+    required bool isChecked,
+    double fontSizePt = 11.5,
+    String fontFamily = 'Khmer OS Battambang',
+  }) {
+    final halfPt = (fontSizePt * 2).round();
+    final boxChar = isChecked ? '☑' : '☐';
+
+    final buffer = StringBuffer();
+    buffer.write('<w:p>\n');
+    buffer.write('  <w:pPr>\n');
+    buffer.write('    <w:ind w:left="400"/>\n');
+    buffer.write('    <w:spacing w:line="300" w:lineRule="auto" w:after="70"/>\n');
+    buffer.write('  </w:pPr>\n');
+
+    // Checkbox Box Glyph
+    buffer.write('  <w:r>\n');
+    buffer.write('    <w:rPr>\n');
+    buffer.write('      <w:rFonts w:ascii="Segoe UI Symbol" w:hAnsi="Segoe UI Symbol" w:cs="Segoe UI Symbol"/>\n');
+    if (isChecked) {
+      buffer.write('      <w:b/>\n');
+      buffer.write('      <w:color w:val="2563EB"/>\n'); // Bold blue
+    }
+    buffer.write('      <w:sz w:val="${halfPt + 4}"/>\n');
+    buffer.write('      <w:szCs w:val="${halfPt + 4}"/>\n');
+    buffer.write('    </w:rPr>\n');
+    buffer.write('    <w:t xml:space="preserve">$boxChar  </w:t>\n');
+    buffer.write('  </w:r>\n');
+
+    // Checkbox Label
+    buffer.write('  <w:r>\n');
+    buffer.write('    <w:rPr>\n');
+    buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+    if (isChecked) buffer.write('      <w:b/>\n');
+    buffer.write('      <w:sz w:val="$halfPt"/>\n');
+    buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+    buffer.write('    </w:rPr>\n');
+    buffer.write('    <w:t>${_escapeXml(text)}</w:t>\n');
+    buffer.write('  </w:r>\n');
+
+    buffer.write('</w:p>\n');
+    return buffer.toString();
+  }
+
+  /// Builds a borderless table row for multi-column signature blocks or headers
+  static String _buildBorderlessRowTableXml(List<String> cols) {
+    if (cols.isEmpty) return '';
+
+    const totalWidth = 9500; // dxa
+    final colWidth = (totalWidth / cols.length).floor();
+
+    final buffer = StringBuffer();
+    buffer.write('<w:tbl>\n');
+    buffer.write('  <w:tblPr>\n');
+    buffer.write('    <w:tblW w:w="$totalWidth" w:type="dxa"/>\n');
+    buffer.write('    <w:jc w:val="center"/>\n');
+    buffer.write('    <w:tblBorders>\n');
+    buffer.write('      <w:top w:val="none"/>\n');
+    buffer.write('      <w:left w:val="none"/>\n');
+    buffer.write('      <w:bottom w:val="none"/>\n');
+    buffer.write('      <w:right w:val="none"/>\n');
+    buffer.write('      <w:insideH w:val="none"/>\n');
+    buffer.write('      <w:insideV w:val="none"/>\n');
+    buffer.write('    </w:tblBorders>\n');
+    buffer.write('  </w:tblPr>\n');
+
+    buffer.write('  <w:tblGrid>\n');
+    for (int c = 0; c < cols.length; c++) {
+      buffer.write('    <w:gridCol w:w="$colWidth"/>\n');
+    }
+    buffer.write('  </w:tblGrid>\n');
+
+    buffer.write('  <w:tr>\n');
+    buffer.write('    <w:trPr><w:cantSplit/></w:trPr>\n');
+    for (final col in cols) {
+      buffer.write('    <w:tc>\n');
+      buffer.write('      <w:tcPr>\n');
+      buffer.write('        <w:tcW w:w="$colWidth" w:type="dxa"/>\n');
+      buffer.write('        <w:tcMar>\n');
+      buffer.write('          <w:top w:w="80" w:type="dxa"/>\n');
+      buffer.write('          <w:bottom w:w="80" w:type="dxa"/>\n');
+      buffer.write('          <w:left w:w="100" w:type="dxa"/>\n');
+      buffer.write('          <w:right w:w="100" w:type="dxa"/>\n');
+      buffer.write('        </w:tcMar>\n');
+      buffer.write('        <w:vAlign w:val="center"/>\n');
+      buffer.write('      </w:tcPr>\n');
+      buffer.write('      <w:p>\n');
+      buffer.write('        <w:pPr>\n');
+      buffer.write('          <w:jc w:val="center"/>\n');
+      buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:after="40"/>\n');
+      buffer.write('        </w:pPr>\n');
+      buffer.write('        <w:r>\n');
+      buffer.write('          <w:rPr>\n');
+      buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+      if (col.contains('(') || col.contains('Verified') || col.contains('Requested')) {
+        buffer.write('            <w:b/>\n');
+      }
+      buffer.write('            <w:sz w:val="21"/>\n');
+      buffer.write('            <w:szCs w:val="21"/>\n');
+      buffer.write('          </w:rPr>\n');
+      buffer.write('          <w:t>${_escapeXml(col)}</w:t>\n');
+      buffer.write('        </w:r>\n');
+      buffer.write('      </w:p>\n');
+      buffer.write('    </w:tc>\n');
+    }
+    buffer.write('  </w:tr>\n');
+    buffer.write('</w:tbl>\n');
+
     return buffer.toString();
   }
 

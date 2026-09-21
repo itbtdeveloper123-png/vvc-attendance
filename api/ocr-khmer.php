@@ -39,12 +39,20 @@ if (file_exists($envFile)) {
 }
 
 // Configuration
+if (file_exists(__DIR__ . '/../config.php')) {
+    require_once __DIR__ . '/../config.php';
+}
 if (file_exists(__DIR__ . '/../enterprise_helpers.php')) {
     require_once __DIR__ . '/../enterprise_helpers.php';
 }
 
+$dbConn = $mysqli ?? ($conn ?? null);
+$allKeys = function_exists('get_all_active_gemini_keys') ? get_all_active_gemini_keys($dbConn) : [];
+$activeKey = !empty($allKeys) ? $allKeys[0] : (getenv('GEMINI_API_KEY') ?: '');
+
 $config = [
-    'gemini_api_key' => function_exists('get_active_gemini_key') ? get_active_gemini_key() : getenv('GEMINI_API_KEY'),
+    'gemini_api_key' => $activeKey,
+    'all_gemini_keys' => !empty($allKeys) ? $allKeys : [$activeKey],
     'api_auth_key' => getenv('OCR_API_KEY'),
     'max_file_size' => 10 * 1024 * 1024, // 10MB
     'allowed_formats' => ['jpg', 'jpeg', 'png', 'webp'],
@@ -122,23 +130,16 @@ try {
  * Extract text from image using Google Gemini 1.5 Flash API
  */
 function extractTextWithGemini($base64Image, $mimeType, $config) {
-    $apiKey = $config['gemini_api_key'];
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    
-    $prompt = "You are an expert Khmer OCR system. Extract ALL text from this document image into accurate, beautifully formatted Khmer text. Preserve numbered lists, line breaks, headings, and paragraph structures. Return ONLY the extracted text with no extra commentary.";
-    
+    $keys = !empty($config['all_gemini_keys']) ? $config['all_gemini_keys'] : [$config['gemini_api_key']];
+    $lastError = '';
+
+    $prompt = "អ្នកជាអ្នកជំនាញផ្នែកស្កេន និងបម្លែងឯកសារខ្មែរ (Khmer Document & OCR Expert)។ សូមធ្វើការអាន និងស្រង់អត្ថបទទាំងអស់ពីឯកសាររូបភាពនេះជាភាសាខ្មែរឱ្យបានសុក្រឹត ១០០% ដោយរក្សាទម្រង់ដើម ចំណងជើង ព័ត៌មានលម្អិត តារាង និងប្រអប់ Checkbox ([x] ឬ [ ]) ឱ្យបានត្រឹមត្រូវបំផុត។ បញ្ចេញតែអត្ថបទសុទ្ធ មិនបាច់ដាក់ពាក្យនាំមុខឡើយ។";
+
     $payload = [
         'contents' => [
             [
                 'parts' => [
-                    [
-                        'text' => $prompt
-                    ],
+                    ['text' => $prompt],
                     [
                         'inline_data' => [
                             'mime_type' => $mimeType,
@@ -149,27 +150,36 @@ function extractTextWithGemini($base64Image, $mimeType, $config) {
             ]
         ]
     ];
-    
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-    
-    if ($error) {
-        throw new Exception('cURL Error: ' . $error);
+    $jsonPayload = json_encode($payload);
+
+    foreach ($keys as $apiKey) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey);
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            $lastError = 'cURL Error: ' . $error;
+            continue;
+        }
+
+        if ($httpCode === 200) {
+            $result = json_decode($response, true);
+            if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
+                return trim($result['candidates'][0]['content']['parts'][0]['text']);
+            }
+        } else {
+            $lastError = 'Gemini API Error: HTTP ' . $httpCode . ' - ' . substr($response, 0, 200);
+        }
     }
-    
-    if ($httpCode !== 200) {
-        throw new Exception('Gemini API Error: HTTP ' . $httpCode . ' - ' . $response);
-    }
-    
-    $result = json_decode($response, true);
-    
-    if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-        return trim($result['candidates'][0]['content']['parts'][0]['text']);
-    }
-    
-    throw new Exception('Failed to parse Gemini response');
+
+    throw new Exception('All Gemini keys failed. Last error: ' . $lastError);
 }

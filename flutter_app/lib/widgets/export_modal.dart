@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
+import '../utils/app_theme.dart';
 
 /// PDF Page Size Options
 enum PdfPageSize {
@@ -82,10 +85,25 @@ class _ExportModalState extends State<ExportModal> {
 
   @override
   Widget build(BuildContext context) {
+    bool isDark = false;
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      isDark = userProvider.companyTheme.isDarkTheme;
+    } catch (_) {
+      isDark = AppTheme.isDarkMode;
+    }
+
+    final bgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF334155) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMutedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: isDark ? null : Border(top: BorderSide(color: borderColor)),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -99,7 +117,7 @@ class _ExportModalState extends State<ExportModal> {
                 height: 4.5,
                 margin: const EdgeInsets.only(top: 12, bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
+                  color: isDark ? Colors.white.withValues(alpha: 0.25) : AppTheme.border,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -113,7 +131,7 @@ class _ExportModalState extends State<ExportModal> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -126,14 +144,14 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     'នាំចេញឯកសារ',
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                    icon: Icon(Icons.close_rounded, color: textMutedColor),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -151,7 +169,7 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     'ឈ្មោះឯកសារ',
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFF94A3B8),
+                      color: textColor,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -160,29 +178,29 @@ class _ExportModalState extends State<ExportModal> {
                   TextField(
                     controller: _nameController,
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 14.5,
                     ),
                     cursorColor: const Color(0xFF0284C7),
                     decoration: InputDecoration(
                       hintText: 'បញ្ចូលឈ្មោះឯកសារ',
                       hintStyle: GoogleFonts.kantumruyPro(
-                        color: Colors.white38,
+                        color: textMutedColor.withValues(alpha: 0.7),
                         fontSize: 14,
                       ),
                       filled: true,
-                      fillColor: const Color(0xFF1E293B),
+                      fillColor: cardColor,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 13,
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFF334155)),
+                        borderSide: BorderSide(color: borderColor),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xFF334155)),
+                        borderSide: BorderSide(color: borderColor),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -214,7 +232,7 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     'ទម្រង់ឯកសារនាំចេញ',
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFF94A3B8),
+                      color: textColor,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -225,6 +243,11 @@ class _ExportModalState extends State<ExportModal> {
                     icon: Icons.picture_as_pdf_rounded,
                     label: 'ឯកសារ PDF ច្រើនទំព័រ',
                     description: 'បញ្ចូលទំព័រទាំងអស់ជាឯកសារ PDF តែមួយ',
+                    isDark: isDark,
+                    cardColor: cardColor,
+                    borderColor: borderColor,
+                    textColor: textColor,
+                    textMutedColor: textMutedColor,
                   ),
                   const SizedBox(height: 8),
                   _buildFormatOption(
@@ -232,6 +255,11 @@ class _ExportModalState extends State<ExportModal> {
                     icon: Icons.photo_library_rounded,
                     label: 'រូបភាពច្បាស់កម្រិតខ្ពស់ (Ultra HD Photos)',
                     description: 'រក្សាទុកជារូបភាព JPG គុណភាព 100% គ្មានបែកគ្រាប់អក្សរ',
+                    isDark: isDark,
+                    cardColor: cardColor,
+                    borderColor: borderColor,
+                    textColor: textColor,
+                    textMutedColor: textMutedColor,
                   ),
                   if (widget.ocrText != null && widget.ocrText!.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -240,6 +268,11 @@ class _ExportModalState extends State<ExportModal> {
                       icon: Icons.text_snippet_rounded,
                       label: 'អត្ថបទ OCR',
                       description: 'ទាញយកអត្ថបទដែលបានស្កេនជាឯកសារ TXT',
+                      isDark: isDark,
+                      cardColor: cardColor,
+                      borderColor: borderColor,
+                      textColor: textColor,
+                      textMutedColor: textMutedColor,
                     ),
                   ],
                 ],
@@ -265,7 +298,7 @@ class _ExportModalState extends State<ExportModal> {
                         Text(
                           'ទំហំ និងប្លង់ក្រដាស PDF',
                           style: GoogleFonts.kantumruyPro(
-                            color: const Color(0xFF94A3B8),
+                            color: textColor,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -278,6 +311,11 @@ class _ExportModalState extends State<ExportModal> {
                       icon: Icons.fit_screen_rounded,
                       label: 'ពេញក្រដាសឯកសារ ១០០% (Auto-Fit ណែនាំ)',
                       description: 'ទំហំ PDF ផ្គូផ្គងតាមឯកសារ ១០០% គ្មានគែមសលើក្រោមឆ្វេងស្តាំ និងមិនបាត់ទម្រង់ដើម',
+                      isDark: isDark,
+                      cardColor: cardColor,
+                      borderColor: borderColor,
+                      textColor: textColor,
+                      textMutedColor: textMutedColor,
                     ),
                     const SizedBox(height: 8),
                     _buildPageSizeOption(
@@ -285,6 +323,11 @@ class _ExportModalState extends State<ExportModal> {
                       icon: Icons.fullscreen_rounded,
                       label: 'ក្រដាស A4 ស្ដង់ដារ (Standard A4 Full)',
                       description: 'លាតសន្ធឹងពេញក្រដាស A4 (210 x 297mm) គ្មានគែមស',
+                      isDark: isDark,
+                      cardColor: cardColor,
+                      borderColor: borderColor,
+                      textColor: textColor,
+                      textMutedColor: textMutedColor,
                     ),
                     const SizedBox(height: 8),
                     _buildPageSizeOption(
@@ -292,6 +335,11 @@ class _ExportModalState extends State<ExportModal> {
                       icon: Icons.crop_free_rounded,
                       label: 'ក្រដាស A4 (មានគែមស្ដើង 8pt)',
                       description: 'សមស្របសម្រាប់ការព្រីនលើម៉ាស៊ីនបោះពុម្ពទូទៅ',
+                      isDark: isDark,
+                      cardColor: cardColor,
+                      borderColor: borderColor,
+                      textColor: textColor,
+                      textMutedColor: textMutedColor,
                     ),
                   ],
                 ),
@@ -304,12 +352,12 @@ class _ExportModalState extends State<ExportModal> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: cardColor,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: _includeWatermark
                           ? const Color(0xFF0284C7).withValues(alpha: 0.6)
-                          : const Color(0xFF334155),
+                          : borderColor,
                     ),
                   ),
                   child: Column(
@@ -329,7 +377,7 @@ class _ExportModalState extends State<ExportModal> {
                                 Text(
                                   'ត្រាទឹកផ្លូវការ (Official Watermark)',
                                   style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white,
+                                    color: textColor,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13,
                                   ),
@@ -337,7 +385,7 @@ class _ExportModalState extends State<ExportModal> {
                                 Text(
                                   'បោះត្រាទឹកសម្គាល់ភាពស្របច្បាប់លើក្រដាស PDF',
                                   style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white54,
+                                    color: textMutedColor,
                                     fontSize: 11,
                                   ),
                                 ),
@@ -356,20 +404,24 @@ class _ExportModalState extends State<ExportModal> {
                         TextField(
                           controller: _watermarkController,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: textColor,
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Watermark Text',
-                            hintStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+                            hintStyle: GoogleFonts.inter(color: textMutedColor, fontSize: 13),
                             isDense: true,
                             filled: true,
-                            fillColor: const Color(0xFF0F172A),
+                            fillColor: isDark ? const Color(0xFF1E293B) : Colors.white,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: Color(0xFF334155)),
+                              borderSide: BorderSide(color: borderColor),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: borderColor),
                             ),
                           ),
                         ),
@@ -388,10 +440,10 @@ class _ExportModalState extends State<ExportModal> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withValues(alpha: 0.1),
+                  color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.1 : 0.08),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                    color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.25 : 0.2),
                   ),
                 ),
                 child: Row(
@@ -406,8 +458,9 @@ class _ExportModalState extends State<ExportModal> {
                       child: Text(
                         'ឯកសារសរុបមានចំនួន ${widget.imagePaths.length} ទំព័រ ត្រៀមរួចរាល់',
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: isDark ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF0369A1),
                           fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -509,18 +562,18 @@ class _ExportModalState extends State<ExportModal> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: _handleSaveToPhone,
-                        icon: const Icon(Icons.download_rounded, size: 20, color: Color(0xFF38BDF8)),
+                        icon: const Icon(Icons.download_rounded, size: 20, color: Color(0xFF0284C7)),
                         label: Text(
                           'រក្សាទុក PDF ក្នុងទូរស័ព្ទ (Save to Device)',
                           style: GoogleFonts.kantumruyPro(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF38BDF8),
+                            color: const Color(0xFF0284C7),
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFF0284C7), width: 1.2),
-                          backgroundColor: const Color(0xFF1E293B),
+                          backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F9FF),
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -568,6 +621,11 @@ class _ExportModalState extends State<ExportModal> {
     required IconData icon,
     required String label,
     required String description,
+    required bool isDark,
+    required Color cardColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color textMutedColor,
   }) {
     final isSelected = _selectedFormat == format;
 
@@ -577,11 +635,11 @@ class _ExportModalState extends State<ExportModal> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF0284C7).withValues(alpha: 0.15)
-              : const Color(0xFF1E293B),
+              ? const Color(0xFF0284C7).withValues(alpha: isDark ? 0.15 : 0.08)
+              : cardColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF334155),
+            color: isSelected ? const Color(0xFF0284C7) : borderColor,
             width: isSelected ? 1.8 : 1,
           ),
         ),
@@ -592,12 +650,12 @@ class _ExportModalState extends State<ExportModal> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? const Color(0xFF0284C7)
-                    : Colors.white.withValues(alpha: 0.06),
+                    : (isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFE2E8F0)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
-                color: isSelected ? Colors.white : Colors.white70,
+                color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 size: 22,
               ),
             ),
@@ -609,7 +667,7 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     label,
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -618,7 +676,7 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     description,
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFF94A3B8),
+                      color: textMutedColor,
                       fontSize: 11.5,
                     ),
                   ),
@@ -642,6 +700,11 @@ class _ExportModalState extends State<ExportModal> {
     required IconData icon,
     required String label,
     required String description,
+    required bool isDark,
+    required Color cardColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color textMutedColor,
   }) {
     final isSelected = _selectedPageSize == size;
 
@@ -651,11 +714,11 @@ class _ExportModalState extends State<ExportModal> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF0284C7).withValues(alpha: 0.12)
-              : const Color(0xFF1E293B).withValues(alpha: 0.6),
+              ? const Color(0xFF0284C7).withValues(alpha: isDark ? 0.12 : 0.08)
+              : cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF334155),
+            color: isSelected ? const Color(0xFF0284C7) : borderColor,
             width: isSelected ? 1.6 : 1,
           ),
         ),
@@ -663,7 +726,7 @@ class _ExportModalState extends State<ExportModal> {
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFF0284C7) : Colors.white60,
+              color: isSelected ? const Color(0xFF0284C7) : (isDark ? Colors.white60 : textMutedColor),
               size: 20,
             ),
             const SizedBox(width: 12),
@@ -674,7 +737,7 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     label,
                     style: GoogleFonts.kantumruyPro(
-                      color: isSelected ? Colors.white : Colors.white70,
+                      color: isSelected ? const Color(0xFF0284C7) : textColor,
                       fontSize: 13,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     ),
@@ -683,7 +746,7 @@ class _ExportModalState extends State<ExportModal> {
                   Text(
                     description,
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFF94A3B8),
+                      color: textMutedColor,
                       fontSize: 11,
                     ),
                   ),

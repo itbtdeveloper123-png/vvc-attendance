@@ -10,6 +10,7 @@ import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/gemini_ocr_service.dart';
 import '../services/document_conversion_service.dart';
+import '../services/docx_generator_service.dart';
 import 'document_scanner_screen.dart';
 
 /// Supported conversion tools
@@ -271,6 +272,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           }
         },
       );
+
+      if (!ocrResult.success || ocrResult.fullText.trim().isEmpty) {
+        throw Exception(ocrResult.errorMessage ?? 'មិនអាចស្រង់អត្ថបទពីឯកសារ PDF បានឡើយ។ សូមពិនិត្យមើលគុណភាពឯកសារ ឬការតភ្ជាប់អ៊ីនធឺណិត។');
+      }
 
       final timeStamp = DateTime.now().millisecondsSinceEpoch;
       final docxPath = '${tempDir.path}/PDF_to_Word_$timeStamp.docx';
@@ -656,187 +661,691 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark || AppTheme.isDarkMode;
-        return Container(
-          height: MediaQuery.of(ctx).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              // Sheet Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
+        int activeTab = 0; // 0: Preview, 1: Raw Text
+        String currentText = extractedText ?? '';
+        String? currentFilePath = filePath;
 
-              // Title Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            final hasText = currentText.trim().isNotEmpty;
+
+            return Container(
+              height: MediaQuery.of(ctx).size.height * 0.88,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Sheet Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
+                        color: AppTheme.border,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 24),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: GoogleFonts.kantumruyPro(
-                              color: isDark ? Colors.white : AppTheme.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
+                  ),
+
+                  // Title Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
                           ),
-                          Text(
-                            subtitle,
-                            style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textMuted,
-                              fontSize: 11.5,
+                          child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                subtitle,
+                                style: GoogleFonts.kantumruyPro(
+                                  color: AppTheme.textMuted,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          color: AppTheme.textMuted,
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Segmented Tabs (If text exists)
+                  if (hasText) ...[
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        height: 38,
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppTheme.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setModalState(() => activeTab = 0),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: activeTab == 0
+                                        ? (isDark ? const Color(0xFF2563EB) : Colors.white)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: activeTab == 0 && !isDark
+                                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                                        : null,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.visibility_rounded,
+                                        size: 15,
+                                        color: activeTab == 0
+                                            ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                            : AppTheme.textMuted,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'ទិដ្ឋភាពឯកសារ (Preview)',
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontSize: 12,
+                                          fontWeight: activeTab == 0 ? FontWeight.bold : FontWeight.w500,
+                                          color: activeTab == 0
+                                              ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                              : AppTheme.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setModalState(() => activeTab = 1),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: activeTab == 1
+                                        ? (isDark ? const Color(0xFF2563EB) : Colors.white)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    boxShadow: activeTab == 1 && !isDark
+                                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                                        : null,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.text_fields_rounded,
+                                        size: 15,
+                                        color: activeTab == 1
+                                            ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                            : AppTheme.textMuted,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'អត្ថបទសុទ្ធ (Raw Text)',
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontSize: 12,
+                                          fontWeight: activeTab == 1 ? FontWeight.bold : FontWeight.w500,
+                                          color: activeTab == 1
+                                              ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                              : AppTheme.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  // Main Content View
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: hasText
+                          ? (activeTab == 0
+                              ? _buildDocumentPreviewCard(currentText, isDark)
+                              : Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: AppTheme.border),
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: SelectableText(
+                                      currentText,
+                                      style: GoogleFonts.kantumruyPro(
+                                        color: isDark ? Colors.white : AppTheme.textPrimary,
+                                        fontSize: 12.5,
+                                        height: 1.6,
+                                      ),
+                                    ),
+                                  ),
+                                ))
+                          : Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    isDocx ? Icons.description_rounded : Icons.picture_as_pdf_rounded,
+                                    size: 54,
+                                    color: isDocx ? const Color(0xFF2563EB) : const Color(0xFFE11D48),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    currentFilePath?.split('/').last ?? 'ឯកសារបម្លែងរួចរាល់',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.kantumruyPro(
+                                      color: isDark ? Colors.white : AppTheme.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'ឯកសារត្រៀមរួចជាស្រេចសម្រាប់ការទាញយក ឬផ្ញើ',
+                                    style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  // Bottom Action Buttons
+                  SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                      child: Row(
+                        children: [
+                          if (hasText) ...[
+                            // Copy Text Button
+                            IconButton.filledTonal(
+                              tooltip: 'ចម្លងអត្ថបទ',
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: currentText));
+                                _showToast('បានចម្លងអត្ថបទទៅ Clipboard');
+                              },
+                              icon: const Icon(Icons.copy_rounded, size: 18),
+                              style: IconButton.styleFrom(
+                                padding: const EdgeInsets.all(12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Quick Edit Button
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final edited = await _showEditTextDialog(
+                                  context: ctx,
+                                  initialText: currentText,
+                                );
+                                if (edited != null && edited.trim().isNotEmpty) {
+                                  // Re-generate DOCX with updated text
+                                  try {
+                                    final tempDir = await getTemporaryDirectory();
+                                    final timeStamp = DateTime.now().millisecondsSinceEpoch;
+                                    final updatedPath = '${tempDir.path}/PDF_to_Word_$timeStamp.docx';
+                                    final newDocx = await DocxGeneratorService.generateDocx(
+                                      title: 'ពាក្យសុំច្បាប់ឈប់សម្រាក',
+                                      content: edited,
+                                      outputPath: updatedPath,
+                                    );
+                                    setModalState(() {
+                                      currentText = edited;
+                                      currentFilePath = newDocx.path;
+                                    });
+                                    _showToast('បានធ្វើបច្ចុប្បន្នភាព Word ដោយជោគជ័យ!');
+                                  } catch (e) {
+                                    _showToast('កំហុសធ្វើបច្ចុប្បន្នភាព: $e', isError: true);
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.edit_note_rounded, size: 18),
+                              label: Text(
+                                'កែប្រែ',
+                                style: GoogleFonts.kantumruyPro(fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                side: BorderSide(color: AppTheme.border),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+
+                          // Share / Open in Word Button
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                if (currentFilePath != null) {
+                                  await Share.shareXFiles(
+                                    [XFile(currentFilePath!)],
+                                    text: 'ឯកសារបម្លែងពី VVC Attendance',
+                                  );
+                                } else if (hasText) {
+                                  await Share.share(currentText);
+                                }
+                              },
+                              icon: const Icon(Icons.share_rounded, size: 17, color: Colors.white),
+                              label: Text(
+                                isDocx ? 'ចែករំលែក / បើកក្នុង Word' : 'ចែករំលែក / ផ្ញើ',
+                                style: GoogleFonts.kantumruyPro(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isDocx ? const Color(0xFF2563EB) : const Color(0xFF0284C7),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      color: AppTheme.textMuted,
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Divider(height: 24),
-
-              // Content Preview / Text
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppTheme.border),
-                    ),
-                    child: extractedText != null && extractedText.isNotEmpty
-                        ? SingleChildScrollView(
-                            child: SelectableText(
-                              extractedText,
-                              style: GoogleFonts.kantumruyPro(
-                                color: isDark ? Colors.white : AppTheme.textPrimary,
-                                fontSize: 12.5,
-                                height: 1.6,
-                              ),
-                            ),
-                          )
-                        : Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  isDocx ? Icons.description_rounded : Icons.picture_as_pdf_rounded,
-                                  size: 48,
-                                  color: isDocx ? const Color(0xFF2563EB) : const Color(0xFFE11D48),
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  filePath?.split('/').last ?? 'ឯកសារបម្លែងរួចរាល់',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: isDark ? Colors.white : AppTheme.textPrimary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                   ),
-                ),
+                ],
               ),
+            );
+          },
+        );
+      },
+    );
+  }
 
-              // Bottom Action Buttons
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
-                  child: Row(
-                    children: [
-                      // Copy Button (if text available)
-                      if (extractedText != null && extractedText.isNotEmpty)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Clipboard.setData(ClipboardData(text: extractedText));
-                              _showToast('បានចម្លងអត្ថបទទៅ Clipboard');
-                            },
-                            icon: const Icon(Icons.copy_rounded, size: 16),
-                            label: Text(
-                              'ចម្លងអត្ថបទ',
-                              style: GoogleFonts.kantumruyPro(fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              side: BorderSide(color: AppTheme.border),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
+  Widget _buildDocumentPreviewCard(String text, bool isDark) {
+    final lines = text.split('\n');
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Subtle A4 watermark / header banner
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.description_rounded, size: 12, color: Color(0xFF2563EB)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'A4 Word Document Preview',
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF2563EB),
                           ),
                         ),
-                      if (extractedText != null && extractedText.isNotEmpty) const SizedBox(width: 10),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'អក្សរខ្មែរ ១០០%',
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
 
-                      // Share / Open File Button
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            if (filePath != null) {
-                              await Share.shareXFiles(
-                                [XFile(filePath)],
-                                text: 'ឯកសារបម្លែងពី VVC Attendance',
-                              );
-                            } else if (extractedText != null) {
-                              await Share.share(extractedText);
-                            }
-                          },
-                          icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
-                          label: Text(
-                            'ចែករំលែក / ផ្ញើ',
+              // Document Body Elements
+              ...lines.map((rawLine) {
+                final trimmed = rawLine.trim();
+                if (trimmed.isEmpty) {
+                  return const SizedBox(height: 8);
+                }
+
+                // 1. Centered Company / Document Titles
+                if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
+                    trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
+                    trimmed.toUpperCase() == 'VAN VAN CAMBODIA' ||
+                    trimmed == 'វ៉ាន់ វ៉ាន់ ខេមបូឌា' ||
+                    trimmed.contains('APPLICATION FOR LEAVE') ||
+                    trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក') ||
+                    trimmed.startsWith('# ')) {
+                  final display = trimmed.startsWith('# ') ? trimmed.substring(2) : trimmed;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      display,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: display.length < 30 ? 14 : 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  );
+                }
+
+                // 2. Checkboxes ([x], [ ], ☑, ☐)
+                if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
+                  final isChecked = trimmed.contains('[x]') || trimmed.contains('[X]') || trimmed.contains('☑');
+                  final itemText = trimmed.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
+
+                  if (isChecked) {
+                    return Container(
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_box_rounded, color: Color(0xFF2563EB), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              itemText,
+                              style: GoogleFonts.kantumruyPro(
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : const Color(0xFF1E293B),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'ជ្រើសរើស',
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 9.5,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_box_outline_blank_rounded,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              itemText,
+                              style: GoogleFonts.kantumruyPro(
+                                color: isDark ? Colors.white70 : AppTheme.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                }
+
+                // 3. Multi-column lines (Signatures or wide spaces)
+                final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
+                if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: multiCols.map((c) {
+                        return Expanded(
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            alignment: Alignment.center,
+                            child: Text(
+                              c,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 11,
+                                fontWeight: c.contains('(') || c.contains('Verified') || c.contains('Requested')
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: isDark ? Colors.white : AppTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  );
+                }
+
+                // 4. Key-Value pairs (Label: Value)
+                if (trimmed.contains(': ')) {
+                  final parts = trimmed.split(': ');
+                  final label = parts[0];
+                  final val = parts.sublist(1).join(': ');
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.5),
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '$label: ',
                             style: GoogleFonts.kantumruyPro(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0284C7),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
+                          TextSpan(
+                            text: val,
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
+                  );
+                }
+
+                // 5. Section headings (e.g. **ចំណងជើង**)
+                if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+                  final heading = trimmed.substring(2, trimmed.length - 2);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    child: Text(
+                      heading,
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  );
+                }
+
+                // 6. Regular text
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    trimmed,
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : AppTheme.textPrimary,
+                      height: 1.5,
+                    ),
                   ),
-                ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Dialog to allow user to tweak extracted text before re-generating docx
+  Future<String?> _showEditTextDialog({
+    required BuildContext context,
+    required String initialText,
+  }) async {
+    final controller = TextEditingController(text: initialText);
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+
+    return await showDialog<String>(
+      context: context,
+      builder: (dlgCtx) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.edit_note_rounded, color: Color(0xFF2563EB)),
+              const SizedBox(width: 8),
+              Text(
+                'កែសម្រួលអត្ថបទឯកសារ',
+                style: GoogleFonts.kantumruyPro(fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ],
           ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 380,
+            child: TextField(
+              controller: controller,
+              maxLines: null,
+              expands: true,
+              style: GoogleFonts.kantumruyPro(fontSize: 12.5, height: 1.5),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppTheme.border),
+                ),
+                hintText: 'បញ្ចូល ឬកែសម្រួលអត្ថបទនៅទីនេះ...',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx, null),
+              child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dlgCtx, controller.text),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(
+                'រក្សាទុក & បង្កើត Word ឡើងវិញ',
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -849,35 +1358,35 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final topInset = MediaQuery.paddingOf(context).top;
+    final headerTotalHeight = topInset + 60.0;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : AppTheme.bgSurface,
-      appBar: VvcAppBar(
-        backgroundColor: isDark ? const Color(0xFF0F172A) : AppTheme.bgSurface,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          'បំប្លែងឯកសារ & AI',
-          style: GoogleFonts.kantumruyPro(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : AppTheme.textPrimary,
-          ),
+    return VvcLiquidGlassScaffold(
+      showHeader: true,
+      showTopTransitionZone: true,
+      topTransitionZoneHeight: headerTotalHeight,
+      alwaysShowTitle: true,
+      alwaysShowGlass: true,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      title: 'បំប្លែងឯកសារ & AI',
+      leading: IconButton(
+        icon: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 19,
+          color: isDark ? Colors.white : AppTheme.textPrimary,
         ),
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            size: 19,
-            color: isDark ? Colors.white : AppTheme.textPrimary,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        onPressed: () => Navigator.pop(context),
       ),
       body: Stack(
         children: [
           CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
+              // 0. Top spacing for floating liquid glass header
+              SliverToBoxAdapter(
+                child: SizedBox(height: headerTotalHeight + 6.0),
+              ),
+
               // 1. Hero AI & Converter Banner
               SliverToBoxAdapter(
                 child: _buildHeroBanner(isDark),
