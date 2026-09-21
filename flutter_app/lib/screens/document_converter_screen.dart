@@ -1086,202 +1086,301 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               const Divider(height: 20),
 
               // Document Body Elements
-              ...lines.map((rawLine) {
-                final trimmed = rawLine.trim();
-                if (trimmed.isEmpty) {
-                  return const SizedBox(height: 8);
-                }
-
-                // 1. Centered Company / Document Titles
-                if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
-                    trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
-                    trimmed.toUpperCase() == 'VAN VAN CAMBODIA' ||
-                    trimmed == 'វ៉ាន់ វ៉ាន់ ខេមបូឌា' ||
-                    trimmed.contains('APPLICATION FOR LEAVE') ||
-                    trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក') ||
-                    trimmed.startsWith('# ')) {
-                  final display = trimmed.startsWith('# ') ? trimmed.substring(2) : trimmed;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text(
-                      display,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: display.length < 30 ? 14 : 12.5,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                  );
-                }
-
-                // 2. Checkboxes ([x], [ ], ☑, ☐)
-                if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
-                  final isChecked = trimmed.contains('[x]') || trimmed.contains('[X]') || trimmed.contains('☑');
-                  final itemText = trimmed.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
-
-                  if (isChecked) {
-                    return Container(
-                      margin: const EdgeInsets.symmetric(vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.25)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_box_rounded, color: Color(0xFF2563EB), size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              itemText,
-                              style: GoogleFonts.kantumruyPro(
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : const Color(0xFF1E293B),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'ជ្រើសរើស',
-                              style: GoogleFonts.kantumruyPro(
-                                fontSize: 9.5,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_box_outline_blank_rounded,
-                            color: isDark ? Colors.white38 : Colors.black38,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              itemText,
-                              style: GoogleFonts.kantumruyPro(
-                                color: isDark ? Colors.white70 : AppTheme.textMuted,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                }
-
-                // 3. Multi-column lines (Signatures or wide spaces)
-                final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
-                if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: multiCols.map((c) {
-                        return Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            alignment: Alignment.center,
-                            child: Text(
-                              c,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.kantumruyPro(
-                                fontSize: 11,
-                                fontWeight: c.contains('(') || c.contains('Verified') || c.contains('Requested')
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isDark ? Colors.white : AppTheme.textPrimary,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  );
-                }
-
-                // 4. Key-Value pairs (Label: Value)
-                if (trimmed.contains(': ')) {
-                  final parts = trimmed.split(': ');
-                  final label = parts[0];
-                  final val = parts.sublist(1).join(': ');
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.5),
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '$label: ',
-                            style: GoogleFonts.kantumruyPro(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          TextSpan(
-                            text: val,
-                            style: GoogleFonts.kantumruyPro(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                // 5. Section headings (e.g. **ចំណងជើង**)
-                if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-                  final heading = trimmed.substring(2, trimmed.length - 2);
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 4),
-                    child: Text(
-                      heading,
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                  );
-                }
-
-                // 6. Regular text
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    trimmed,
-                    style: GoogleFonts.kantumruyPro(
-                      fontSize: 12,
-                      color: isDark ? Colors.white70 : AppTheme.textPrimary,
-                      height: 1.5,
-                    ),
-                  ),
-                );
-              }),
+              ..._buildPreviewElements(lines, isDark),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  List<Widget> _buildPreviewElements(List<String> lines, bool isDark) {
+    final bodyWidgets = <Widget>[];
+    int idx = 0;
+
+    while (idx < lines.length) {
+      final rawLine = lines[idx];
+      final trimmed = rawLine.trim();
+
+      if (trimmed.isEmpty) {
+        bodyWidgets.add(const SizedBox(height: 6));
+        idx++;
+        continue;
+      }
+
+      // 1. Detect consecutive Markdown Table lines (| col1 | col2 |)
+      if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.contains('|')) {
+        final tableLines = <String>[];
+        while (idx < lines.length && lines[idx].trim().startsWith('|') && lines[idx].trim().endsWith('|')) {
+          tableLines.add(lines[idx].trim());
+          idx++;
+        }
+        bodyWidgets.add(_buildPreviewTableWidget(tableLines, isDark));
+        continue;
+      }
+
+      // 2. Centered Company / Document Titles
+      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') ||
+          trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ') ||
+          trimmed.toUpperCase() == 'VAN VAN CAMBODIA' ||
+          trimmed == 'វ៉ាន់ វ៉ាន់ ខេមបូឌា' ||
+          trimmed.contains('APPLICATION FOR LEAVE') ||
+          trimmed.contains('ពាក្យសុំច្បាប់ឈប់សម្រាក') ||
+          trimmed.contains('សំណើសុំច្បាប់ឈប់សម្រាក') ||
+          trimmed.startsWith('# ')) {
+        final display = trimmed.startsWith('# ') ? trimmed.substring(2) : trimmed;
+        bodyWidgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              display,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: display.length < 30 ? 14.5 : 12.5,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        );
+        idx++;
+        continue;
+      }
+
+      // 3. Checkboxes ([x], [ ], ☑, ☐)
+      if (RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*').hasMatch(trimmed)) {
+        final isChecked = trimmed.contains('[x]') || trimmed.contains('[X]') || trimmed.contains('☑');
+        final itemText = trimmed.replaceFirst(RegExp(r'^\s*(\[[ xX]\]|[☑☐])\s*'), '').trim();
+
+        bodyWidgets.add(
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 2.5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isChecked
+                  ? const Color(0xFFFEF3C7)
+                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isChecked
+                    ? const Color(0xFFD97706)
+                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                width: isChecked ? 1.4 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isChecked ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                  color: isChecked ? const Color(0xFFD97706) : (isDark ? Colors.white38 : Colors.black38),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    itemText,
+                    style: GoogleFonts.kantumruyPro(
+                      fontWeight: isChecked ? FontWeight.bold : FontWeight.w500,
+                      color: isChecked
+                          ? const Color(0xFF92400E)
+                          : (isDark ? Colors.white : const Color(0xFF334155)),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                if (isChecked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD97706),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'បានជ្រើសរើស',
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 9,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+        idx++;
+        continue;
+      }
+
+      // 4. Multi-column lines (Signatures or wide spaces)
+      final multiCols = trimmed.split(RegExp(r'\s{3,}|\t+')).where((c) => c.trim().isNotEmpty).toList();
+      if (multiCols.length >= 2 && !trimmed.startsWith('|')) {
+        bodyWidgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: multiCols.map((c) {
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    alignment: Alignment.center,
+                    child: Text(
+                      c,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 11,
+                        fontWeight: c.contains('(') || c.contains('Verified') || c.contains('Requested')
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isDark ? Colors.white : AppTheme.textPrimary,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        );
+        idx++;
+        continue;
+      }
+
+      // 5. Key-Value pairs (Label: Value)
+      if (trimmed.contains(': ') || trimmed.contains('៖ ')) {
+        final delim = trimmed.contains('៖ ') ? '៖ ' : ': ';
+        final parts = trimmed.split(delim);
+        final label = parts[0];
+        final val = parts.sublist(1).join(delim);
+
+        bodyWidgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2.5),
+            child: RichText(
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$label$delim',
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  TextSpan(
+                    text: val,
+                    style: GoogleFonts.kantumruyPro(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        idx++;
+        continue;
+      }
+
+      // 6. Section headings (**Title**)
+      if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+        final heading = trimmed.substring(2, trimmed.length - 2);
+        bodyWidgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(
+              heading,
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 12.5,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        );
+        idx++;
+        continue;
+      }
+
+      // 7. Regular text
+      bodyWidgets.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Text(
+            trimmed,
+            style: GoogleFonts.kantumruyPro(
+              fontSize: 12,
+              color: isDark ? Colors.white70 : AppTheme.textPrimary,
+              height: 1.5,
+            ),
+          ),
+        ),
+      );
+      idx++;
+    }
+
+    return bodyWidgets;
+  }
+
+  Widget _buildPreviewTableWidget(List<String> tableLines, bool isDark) {
+    final rows = <List<String>>[];
+    for (final line in tableLines) {
+      if (RegExp(r'^\|[\s\-:|]+\|$').hasMatch(line)) continue;
+      final raw = line.split('|');
+      if (raw.length >= 2) {
+        final cells = raw.sublist(1, raw.length - 1).map((c) => c.trim()).toList();
+        if (cells.isNotEmpty) rows.add(cells);
+      }
+    }
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    final maxCols = rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? const Color(0xFF475569) : const Color(0xFF0F172A),
+          width: 1.2,
+        ),
+      ),
+      child: Table(
+        border: TableBorder.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+          width: 0.8,
+        ),
+        columnWidths: {
+          for (int c = 0; c < maxCols; c++) c: const FlexColumnWidth(),
+        },
+        children: rows.map((r) {
+          final isHeaderRow = r == rows.first;
+          return TableRow(
+            decoration: BoxDecoration(
+              color: isHeaderRow
+                  ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFFEF3C7))
+                  : Colors.transparent,
+            ),
+            children: List.generate(maxCols, (colIdx) {
+              final text = colIdx < r.length ? r[colIdx] : '';
+              final isKey = text.contains('៖') || text.contains(':') || isHeaderRow;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Text(
+                  text,
+                  style: GoogleFonts.kantumruyPro(
+                    fontSize: 10.5,
+                    fontWeight: isKey ? FontWeight.bold : FontWeight.w500,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              );
+            }),
+          );
+        }).toList(),
       ),
     );
   }

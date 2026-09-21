@@ -76,7 +76,7 @@ class DocumentConversionService {
     final outputImages = <String>[];
 
     int pageNum = 0;
-    await for (final page in Printing.raster(bytes, dpi: 200)) {
+    await for (final page in Printing.raster(bytes, dpi: 250)) {
       pageNum++;
       if (onProgress != null) onProgress(pageNum, pageNum);
 

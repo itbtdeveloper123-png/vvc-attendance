@@ -552,12 +552,12 @@ class DocxGeneratorService {
     buffer.write('    <w:tblW w:w="$totalWidth" w:type="dxa"/>\n');
     buffer.write('    <w:jc w:val="center"/>\n');
     buffer.write('    <w:tblBorders>\n');
-    buffer.write('      <w:top w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
-    buffer.write('      <w:left w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
-    buffer.write('      <w:bottom w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
-    buffer.write('      <w:right w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
-    buffer.write('      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>\n');
-    buffer.write('      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>\n');
+    buffer.write('      <w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>\n');
+    buffer.write('      <w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>\n');
+    buffer.write('      <w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>\n');
+    buffer.write('      <w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>\n');
+    buffer.write('      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>\n');
+    buffer.write('      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>\n');
     buffer.write('    </w:tblBorders>\n');
     buffer.write('  </w:tblPr>\n');
 
@@ -579,11 +579,12 @@ class DocxGeneratorService {
 
       for (int c = 0; c < maxCols; c++) {
         final cellText = c < row.length ? row[c] : '';
+        final isKey = isHeader || cellText.contains('៖') || cellText.contains(':') || cellText.contains('ឈ្មោះ') || cellText.contains('ផ្នែក') || cellText.contains('ថ្ងៃ');
         buffer.write('    <w:tc>\n');
         buffer.write('      <w:tcPr>\n');
         buffer.write('        <w:tcW w:w="$colWidth" w:type="dxa"/>\n');
-        if (isHeader) {
-          buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>\n');
+        if (isKey) {
+          buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="FEF9C3"/>\n');
         }
         buffer.write('        <w:tcMar>\n');
         buffer.write('          <w:top w:w="120" w:type="dxa"/>\n');
@@ -603,7 +604,8 @@ class DocxGeneratorService {
         buffer.write('        <w:r>\n');
         buffer.write('          <w:rPr>\n');
         buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-        if (isHeader) buffer.write('            <w:b/>\n');
+        buffer.write('            <w:cs/>\n');
+        if (isKey) buffer.write('            <w:b/>\n');
         buffer.write('            <w:sz w:val="21"/>\n');
         buffer.write('            <w:szCs w:val="21"/>\n');
         buffer.write('          </w:rPr>\n');
