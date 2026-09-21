@@ -1,0 +1,450 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:archive/archive.dart';
+
+/// Professional Docx Generator Service for Khmer & Multi-lingual Documents.
+/// Produces genuine Microsoft Word (.docx) OpenXML archives.
+/// Preserves Khmer typography (Khmer OS Battambang / Kantumruy Pro),
+/// tables, alignments, headings, and original document structure.
+class DocxGeneratorService {
+  /// Generate a .docx file from structured text/markdown and save to [outputPath]
+  static Future<File> generateDocx({
+    required String title,
+    required String content,
+    required String outputPath,
+    List<String>? multiPageContents,
+  }) async {
+    final archive = Archive();
+
+    // 1. [Content_Types].xml
+    const contentTypesXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
+</Types>''';
+    archive.addFile(ArchiveFile('[Content_Types].xml', contentTypesXml.length, utf8.encode(contentTypesXml)));
+
+    // 2. _rels/.rels
+    const relsXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>''';
+    archive.addFile(ArchiveFile('_rels/.rels', relsXml.length, utf8.encode(relsXml)));
+
+    // 3. word/_rels/document.xml.rels
+    const docRelsXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
+</Relationships>''';
+    archive.addFile(ArchiveFile('word/_rels/document.xml.rels', docRelsXml.length, utf8.encode(docRelsXml)));
+
+    // 4. word/fontTable.xml
+    const fontTableXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Khmer OS Battambang">
+    <w:panose1 w:val="02000503050603020002"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="auto"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+  <w:font w:name="Kantumruy Pro">
+    <w:panose1 w:val="02000503050603020002"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="auto"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+  <w:font w:name="Khmer OS Muol Light">
+    <w:panose1 w:val="02000503050603020002"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="auto"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+</w:fonts>''';
+    archive.addFile(ArchiveFile('word/fontTable.xml', fontTableXml.length, utf8.encode(fontTableXml)));
+
+    // 5. word/styles.xml
+    const stylesXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>
+        <w:sz w:val="23"/>
+        <w:szCs w:val="23"/>
+        <w:lang w:val="en-US" w:bidi="km-KH"/>
+      </w:rPr>
+    </w:rPrDefault>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:spacing w:line="320" w:lineRule="auto" w:after="120"/>
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+</w:styles>''';
+    archive.addFile(ArchiveFile('word/styles.xml', stylesXml.length, utf8.encode(stylesXml)));
+
+    // 6. word/document.xml - Parse structured text / markdown into Word XML
+    final documentXml = _buildDocumentXml(
+      title: title,
+      content: content,
+      multiPageContents: multiPageContents,
+    );
+    archive.addFile(ArchiveFile('word/document.xml', documentXml.length, utf8.encode(documentXml)));
+
+    // Zip and write to file
+    final zipEncoder = ZipEncoder();
+    final zipData = zipEncoder.encode(archive);
+
+    final file = File(outputPath);
+    await file.writeAsBytes(zipData);
+    return file;
+  }
+
+  /// Builds the complete `word/document.xml`
+  static String _buildDocumentXml({
+    required String title,
+    required String content,
+    List<String>? multiPageContents,
+  }) {
+    final buffer = StringBuffer();
+    buffer.write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
+    buffer.write('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n');
+    buffer.write('<w:body>\n');
+
+    if (multiPageContents != null && multiPageContents.length > 1) {
+      for (int i = 0; i < multiPageContents.length; i++) {
+        if (i > 0) {
+          // Page Break
+          buffer.write('<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n');
+        }
+        _parseAndAppendBody(buffer, multiPageContents[i], isFirstPage: i == 0, docTitle: i == 0 ? title : null);
+      }
+    } else {
+      _parseAndAppendBody(buffer, content, isFirstPage: true, docTitle: title);
+    }
+
+    // Page margin settings: Standard A4
+    buffer.write('''
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/>
+      <w:cols w:space="708"/>
+      <w:docGrid w:linePitch="360"/>
+    </w:sectPr>
+''');
+    buffer.write('</w:body>\n');
+    buffer.write('</w:document>');
+    return buffer.toString();
+  }
+
+  /// Parses text lines, detects tables, headings, and alignments
+  static void _parseAndAppendBody(
+    StringBuffer buffer,
+    String rawText, {
+    bool isFirstPage = true,
+    String? docTitle,
+  }) {
+    final lines = rawText.split(RegExp(r'\r?\n'));
+    int i = 0;
+
+    // Optional document title
+    if (docTitle != null && docTitle.trim().isNotEmpty) {
+      buffer.write(_makeParagraph(
+        text: docTitle.trim(),
+        align: 'center',
+        isBold: true,
+        fontSizePt: 16,
+        fontFamily: 'Khmer OS Muol Light',
+      ));
+    }
+
+    while (i < lines.length) {
+      final line = lines[i];
+      final trimmed = line.trim();
+
+      if (trimmed.isEmpty) {
+        i++;
+        continue;
+      }
+
+      // 1. Detect Markdown Table (| col1 | col2 |)
+      if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.contains('|')) {
+        final tableLines = <String>[];
+        while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+          tableLines.add(lines[i].trim());
+          i++;
+        }
+        buffer.write(_buildTableXml(tableLines));
+        continue;
+      }
+
+      // 2. Headings (# Title or ## Subtitle)
+      if (trimmed.startsWith('# ')) {
+        buffer.write(_makeParagraph(
+          text: trimmed.substring(2).trim(),
+          align: 'center',
+          isBold: true,
+          fontSizePt: 15,
+          fontFamily: 'Khmer OS Muol Light',
+        ));
+        i++;
+        continue;
+      } else if (trimmed.startsWith('## ')) {
+        buffer.write(_makeParagraph(
+          text: trimmed.substring(3).trim(),
+          align: 'left',
+          isBold: true,
+          fontSizePt: 13,
+          fontFamily: 'Khmer OS Battambang',
+        ));
+        i++;
+        continue;
+      } else if (trimmed.startsWith('### ')) {
+        buffer.write(_makeParagraph(
+          text: trimmed.substring(4).trim(),
+          align: 'left',
+          isBold: true,
+          fontSizePt: 12,
+          fontFamily: 'Khmer OS Battambang',
+        ));
+        i++;
+        continue;
+      }
+
+      // 3. Kingdom Header (ព្រះរាជាណាចក្រកម្ពុជា ជាតិ សាសនា ព្រះមហាក្សត្រ)
+      if (trimmed.contains('ព្រះរាជាណាចក្រកម្ពុជា') || trimmed.contains('ជាតិ សាសនា ព្រះមហាក្សត្រ')) {
+        buffer.write(_makeParagraph(
+          text: trimmed,
+          align: 'center',
+          isBold: true,
+          fontSizePt: 13,
+          fontFamily: 'Khmer OS Muol Light',
+        ));
+        i++;
+        continue;
+      }
+
+      // 4. Centered Titles (e.g. ប័ណ្ណប្រកាសអាពាហ៍ពិពាហ៍ or លិខិតបញ្ជាក់...)
+      if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+        final inner = trimmed.substring(2, trimmed.length - 2).trim();
+        buffer.write(_makeParagraph(
+          text: inner,
+          align: 'center',
+          isBold: true,
+          fontSizePt: 14,
+          fontFamily: 'Khmer OS Muol Light',
+        ));
+        i++;
+        continue;
+      }
+
+      // 5. Bullet or Numbered items
+      if (RegExp(r'^[-*•]\s+').hasMatch(trimmed)) {
+        final bulletText = trimmed.replaceFirst(RegExp(r'^[-*•]\s+'), '');
+        buffer.write(_makeParagraph(
+          text: '•  $bulletText',
+          align: 'left',
+          leftIndent: 400,
+        ));
+        i++;
+        continue;
+      }
+
+      // 6. Signature / Date lines at bottom (e.g. ធ្វើនៅ... ថ្ងៃទី... ឬ ចៅសង្កាត់)
+      if (trimmed.startsWith('ធ្វើនៅ') || trimmed.startsWith('ថ្ងៃទី') || trimmed.contains('ចៅសង្កាត់') || trimmed.contains('មេឃុំ')) {
+        buffer.write(_makeParagraph(
+          text: trimmed,
+          align: 'right',
+          fontSizePt: 11.5,
+        ));
+        i++;
+        continue;
+      }
+
+      // 7. Regular paragraph with key-value detection
+      buffer.write(_makeParagraph(
+        text: trimmed,
+        align: 'left',
+      ));
+      i++;
+    }
+  }
+
+  /// Generates XML for a single Paragraph
+  static String _makeParagraph({
+    required String text,
+    String align = 'left',
+    bool isBold = false,
+    double fontSizePt = 11.5,
+    String fontFamily = 'Khmer OS Battambang',
+    int? leftIndent,
+  }) {
+    final cleanText = _escapeXml(text);
+    final halfPt = (fontSizePt * 2).round();
+
+    final buffer = StringBuffer();
+    buffer.write('<w:p>\n');
+    buffer.write('  <w:pPr>\n');
+    if (align != 'left') {
+      buffer.write('    <w:jc w:val="$align"/>\n');
+    }
+    if (leftIndent != null) {
+      buffer.write('    <w:ind w:left="$leftIndent"/>\n');
+    }
+    buffer.write('    <w:spacing w:line="320" w:lineRule="auto" w:after="80"/>\n');
+    buffer.write('  </w:pPr>\n');
+
+    // Parse simple key-value format (Key: Value) to bold the Key
+    if (cleanText.contains(': ') && !isBold) {
+      final parts = cleanText.split(': ');
+      final key = parts[0];
+      final val = parts.sublist(1).join(': ');
+
+      // Bold key
+      buffer.write('  <w:r>\n');
+      buffer.write('    <w:rPr>\n');
+      buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+      buffer.write('      <w:b/>\n');
+      buffer.write('      <w:sz w:val="$halfPt"/>\n');
+      buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+      buffer.write('    </w:rPr>\n');
+      buffer.write('    <w:t xml:space="preserve">$key: </w:t>\n');
+      buffer.write('  </w:r>\n');
+
+      // Regular value
+      buffer.write('  <w:r>\n');
+      buffer.write('    <w:rPr>\n');
+      buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+      buffer.write('      <w:sz w:val="$halfPt"/>\n');
+      buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+      buffer.write('    </w:rPr>\n');
+      buffer.write('    <w:t>$val</w:t>\n');
+      buffer.write('  </w:r>\n');
+    } else {
+      buffer.write('  <w:r>\n');
+      buffer.write('    <w:rPr>\n');
+      buffer.write('      <w:rFonts w:ascii="$fontFamily" w:hAnsi="$fontFamily" w:cs="$fontFamily"/>\n');
+      if (isBold) buffer.write('      <w:b/>\n');
+      buffer.write('      <w:sz w:val="$halfPt"/>\n');
+      buffer.write('      <w:szCs w:val="$halfPt"/>\n');
+      buffer.write('    </w:rPr>\n');
+      buffer.write('    <w:t>$cleanText</w:t>\n');
+      buffer.write('  </w:r>\n');
+    }
+
+    buffer.write('</w:p>\n');
+    return buffer.toString();
+  }
+
+  /// Builds a genuine OpenXML `<w:tbl>` from Markdown table rows
+  static String _buildTableXml(List<String> tableLines) {
+    if (tableLines.isEmpty) return '';
+
+    // Filter out divider lines like |---|---|
+    final rows = <List<String>>[];
+    for (final line in tableLines) {
+      if (RegExp(r'^\|[\s\-:|]+\|$').hasMatch(line)) continue;
+      final rawCells = line.split('|');
+      if (rawCells.length >= 2) {
+        final row = rawCells
+            .sublist(1, rawCells.length - 1)
+            .map((c) => c.trim())
+            .toList();
+        if (row.isNotEmpty) rows.add(row);
+      }
+    }
+
+    if (rows.isEmpty) return '';
+
+    final maxCols = rows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
+    const totalWidth = 9500; // dxa
+    final colWidth = (totalWidth / maxCols).floor();
+
+    final buffer = StringBuffer();
+    buffer.write('<w:tbl>\n');
+    buffer.write('  <w:tblPr>\n');
+    buffer.write('    <w:tblW w:w="$totalWidth" w:type="dxa"/>\n');
+    buffer.write('    <w:jc w:val="center"/>\n');
+    buffer.write('    <w:tblBorders>\n');
+    buffer.write('      <w:top w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
+    buffer.write('      <w:left w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
+    buffer.write('      <w:bottom w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
+    buffer.write('      <w:right w:val="single" w:sz="6" w:space="0" w:color="94A3B8"/>\n');
+    buffer.write('      <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>\n');
+    buffer.write('      <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>\n');
+    buffer.write('    </w:tblBorders>\n');
+    buffer.write('  </w:tblPr>\n');
+
+    // Table grid
+    buffer.write('  <w:tblGrid>\n');
+    for (int c = 0; c < maxCols; c++) {
+      buffer.write('    <w:gridCol w:w="$colWidth"/>\n');
+    }
+    buffer.write('  </w:tblGrid>\n');
+
+    for (int r = 0; r < rows.length; r++) {
+      final isHeader = r == 0;
+      final row = rows[r];
+      buffer.write('  <w:tr>\n');
+      buffer.write('    <w:trPr>\n');
+      if (isHeader) buffer.write('      <w:tblHeader/>\n');
+      buffer.write('      <w:cantSplit/>\n');
+      buffer.write('    </w:trPr>\n');
+
+      for (int c = 0; c < maxCols; c++) {
+        final cellText = c < row.length ? row[c] : '';
+        buffer.write('    <w:tc>\n');
+        buffer.write('      <w:tcPr>\n');
+        buffer.write('        <w:tcW w:w="$colWidth" w:type="dxa"/>\n');
+        if (isHeader) {
+          buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>\n');
+        }
+        buffer.write('        <w:tcMar>\n');
+        buffer.write('          <w:top w:w="120" w:type="dxa"/>\n');
+        buffer.write('          <w:bottom w:w="120" w:type="dxa"/>\n');
+        buffer.write('          <w:left w:w="160" w:type="dxa"/>\n');
+        buffer.write('          <w:right w:w="160" w:type="dxa"/>\n');
+        buffer.write('        </w:tcMar>\n');
+        buffer.write('        <w:vAlign w:val="center"/>\n');
+        buffer.write('      </w:tcPr>\n');
+
+        // Paragraph inside cell
+        buffer.write('      <w:p>\n');
+        buffer.write('        <w:pPr>\n');
+        if (isHeader) buffer.write('          <w:jc w:val="center"/>\n');
+        buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:after="40"/>\n');
+        buffer.write('        </w:pPr>\n');
+        buffer.write('        <w:r>\n');
+        buffer.write('          <w:rPr>\n');
+        buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+        if (isHeader) buffer.write('            <w:b/>\n');
+        buffer.write('            <w:sz w:val="21"/>\n');
+        buffer.write('            <w:szCs w:val="21"/>\n');
+        buffer.write('          </w:rPr>\n');
+        buffer.write('          <w:t>${_escapeXml(cellText)}</w:t>\n');
+        buffer.write('        </w:r>\n');
+        buffer.write('      </w:p>\n');
+        buffer.write('    </w:tc>\n');
+      }
+
+      buffer.write('  </w:tr>\n');
+    }
+
+    buffer.write('</w:tbl>\n');
+    return buffer.toString();
+  }
+
+  /// Escapes special XML characters
+  static String _escapeXml(String input) {
+    return input
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+  }
+}

@@ -82,6 +82,7 @@ dependencies:
   firebase_auth: ^5.7.0
   tflite_flutter: ^0.11.0
   gal: ^2.3.3
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:

@@ -427,18 +427,29 @@ class _MultiPageReviewScreenState extends State<MultiPageReviewScreen> {
         if (await file.exists()) {
           final bytes = await file.readAsBytes();
           final imageProvider = pw.MemoryImage(bytes);
+
+          // Calculate exact aspect ratio to eliminate white borders
+          final decoded = img.decodeImage(bytes);
+          final int imgW = decoded?.width ?? 1200;
+          final int imgH = decoded?.height ?? 1600;
+          final bool isLandscape = imgW > imgH;
+          final double baseWidth = PdfPageFormat.a4.width;
+          final double pageW = isLandscape ? (baseWidth * (imgW / imgH)) : baseWidth;
+          final double pageH = isLandscape ? baseWidth : (baseWidth * (imgH / imgW));
+          final pageFormat = PdfPageFormat(pageW, pageH, marginAll: 0);
+
           pdf.addPage(
             pw.Page(
-              pageFormat: PdfPageFormat.a4,
+              pageFormat: pageFormat,
               margin: pw.EdgeInsets.zero,
               build: (pw.Context context) {
                 return pw.FullPage(
                   ignoreMargins: true,
-                  child: pw.Center(
-                    child: pw.Image(
-                      imageProvider,
-                      fit: pw.BoxFit.contain,
-                    ),
+                  child: pw.Image(
+                    imageProvider,
+                    fit: pw.BoxFit.fill,
+                    width: pageFormat.width,
+                    height: pageFormat.height,
                   ),
                 );
               },

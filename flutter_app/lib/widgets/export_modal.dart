@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 
 /// PDF Page Size Options
 enum PdfPageSize {
-  a4Full,    // ពេញក្រដាស A4 (Full Bleed - គ្មានគែមស)
-  autoFit,   // សមាមាត្ររូបភាពជាក់ស្តែង (100% Exact Image Size - គ្មានគែមស)
+  autoFit,   // ពេញក្រដាសឯកសារ ១០០% (Auto-Fit គ្មានគែមស - ណែនាំ)
+  a4Full,    // ពេញក្រដាស A4 ស្ដង់ដារ (Standard A4 Full Page)
   a4Margin,  // A4 មានគែមស្តើង (8pt Margin)
 }
 
@@ -53,7 +53,7 @@ class _ExportModalState extends State<ExportModal> {
   late TextEditingController _nameController;
   late TextEditingController _watermarkController;
   ExportFormat _selectedFormat = ExportFormat.pdf;
-  PdfPageSize _selectedPageSize = PdfPageSize.a4Full;
+  PdfPageSize _selectedPageSize = PdfPageSize.autoFit;
   bool _includeWatermark = false;
 
   @override
@@ -230,8 +230,8 @@ class _ExportModalState extends State<ExportModal> {
                   _buildFormatOption(
                     format: ExportFormat.images,
                     icon: Icons.photo_library_rounded,
-                    label: 'រូបភាពគុណភាពខ្ពស់',
-                    description: 'នាំចេញជារូបភាព JPG ដាច់ដោយឡែក',
+                    label: 'រូបភាពច្បាស់កម្រិតខ្ពស់ (Ultra HD Photos)',
+                    description: 'រក្សាទុកជារូបភាព JPG គុណភាព 100% គ្មានបែកគ្រាប់អក្សរ',
                   ),
                   if (widget.ocrText != null && widget.ocrText!.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -274,23 +274,23 @@ class _ExportModalState extends State<ExportModal> {
                     ),
                     const SizedBox(height: 10),
                     _buildPageSizeOption(
-                      size: PdfPageSize.a4Full,
-                      icon: Icons.fullscreen_rounded,
-                      label: 'ពេញក្រដាស A4 (ណែនាំ)',
-                      description: 'លាតសន្ធឹងពេញក្រដាស A4 ស្អាត គ្មានចន្លោះគែមសរំខាន',
+                      size: PdfPageSize.autoFit,
+                      icon: Icons.fit_screen_rounded,
+                      label: 'ពេញក្រដាសឯកសារ ១០០% (Auto-Fit ណែនាំ)',
+                      description: 'ទំហំ PDF ផ្គូផ្គងតាមឯកសារ ១០០% គ្មានគែមសលើក្រោមឆ្វេងស្តាំ និងមិនបាត់ទម្រង់ដើម',
                     ),
                     const SizedBox(height: 8),
                     _buildPageSizeOption(
-                      size: PdfPageSize.autoFit,
-                      icon: Icons.fit_screen_rounded,
-                      label: 'សមាមាត្ររូបភាពដើម (Auto-Fit)',
-                      description: 'ទំហំ PDF ផ្គូផ្គងតាមរូបភាពស្កេន ១០០% គ្មានគែមសលើក្រោម',
+                      size: PdfPageSize.a4Full,
+                      icon: Icons.fullscreen_rounded,
+                      label: 'ក្រដាស A4 ស្ដង់ដារ (Standard A4 Full)',
+                      description: 'លាតសន្ធឹងពេញក្រដាស A4 (210 x 297mm) គ្មានគែមស',
                     ),
                     const SizedBox(height: 8),
                     _buildPageSizeOption(
                       size: PdfPageSize.a4Margin,
                       icon: Icons.crop_free_rounded,
-                      label: 'ក្រដាស A4 (មានគែមស្ដើង)',
+                      label: 'ក្រដាស A4 (មានគែមស្ដើង 8pt)',
                       description: 'សមស្របសម្រាប់ការព្រីនលើម៉ាស៊ីនបោះពុម្ពទូទៅ',
                     ),
                   ],

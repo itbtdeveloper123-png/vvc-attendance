@@ -20,6 +20,7 @@ import '../services/document_history_service.dart';
 import '../widgets/export_modal.dart';
 import 'passport_photo_screen.dart';
 import 'digital_ink_screen.dart';
+import 'document_converter_screen.dart';
 import '../widgets/app_widgets.dart';
 import '../utils/app_theme.dart';
 
@@ -77,11 +78,118 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
   final ocr.OCRService _ocrService = ocr.OCRService();
   final DocumentHistoryService _historyService = DocumentHistoryService();
   
-  // Selected filter
-  ImageFilter _selectedFilter = ImageFilter.original;
+  // Selected filter - defaults to CamScanner-style Magic Color for crystal clear documents
+  ImageFilter _selectedFilter = ImageFilter.magicColor;
 
   // Page rotations (index -> angle degrees: 0, 90, 180, 270)
   final Map<int, int> _pageRotations = {};
+
+  /// CamScanner-Grade Magic Color Document Enhancement:
+  /// 1. White Background Normalization: Flattens paper shadows and yellowish/gray tint into bright clean white (245-255).
+  /// 2. Khmer Text Deepening: Darkens printed & handwritten ink so letters and small diacritics stand out boldly.
+  /// 3. Stamp & Signature Protection: Retains official red seals and blue ink signatures with rich, vibrant saturation.
+  /// 4. 3x3 Unsharp Mask Sharpening: Sharpens fine Khmer vowels (◌ិ, ◌ី, ◌ឹ, ◌ឺ, ◌ុ, ◌ូ) and subscript feet (ជើង).
+  static img.Image enhanceDocumentMagicColor(img.Image src) {
+    for (final frame in src.frames) {
+      for (final p in frame) {
+        final r = p.r.toDouble();
+        final g = p.g.toDouble();
+        final b = p.b.toDouble();
+
+        // Calculate perceived luminance (standard Rec.601)
+        final lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        // Detect colored seals/stamps and signatures
+        final isRedStamp = (r > g + 26) && (r > b + 26);
+        final isBlueSignature = (b > r + 18) && (b > g + 18);
+
+        if (isRedStamp) {
+          // Vivid official red seal
+          p.r = (r * 1.25).clamp(0, 255);
+          p.g = (g * 0.85).clamp(0, 255);
+          p.b = (b * 0.85).clamp(0, 255);
+        } else if (isBlueSignature) {
+          // Vivid blue pen signature
+          p.r = (r * 0.85).clamp(0, 255);
+          p.g = (g * 0.95).clamp(0, 255);
+          p.b = (b * 1.30).clamp(0, 255);
+        } else {
+          // Document paper vs text ink
+          if (lum > 140) {
+            // Background paper: push smoothly towards pure white (255)
+            final factor = (lum - 140) / (255 - 140);
+            final targetLum = 225.0 + factor * 30.0; // 225..255
+            final scale = targetLum / (lum > 0 ? lum : 1);
+            p.r = (r * scale).clamp(0, 255);
+            p.g = (g * scale).clamp(0, 255);
+            p.b = (b * scale).clamp(0, 255);
+          } else {
+            // Text and borders: deepen ink to sharp dark
+            final scale = math.pow(lum / 140, 1.45).toDouble();
+            p.r = (r * scale).clamp(0, 255);
+            p.g = (g * scale).clamp(0, 255);
+            p.b = (b * scale).clamp(0, 255);
+          }
+        }
+      }
+    }
+
+    // Apply unsharp mask sharpening convolution for crisp text edges
+    return img.convolution(
+      src,
+      filter: [
+        0, -0.3, 0,
+        -0.3, 2.2, -0.3,
+        0, -0.3, 0,
+      ],
+      div: 1.0,
+    );
+  }
+
+  /// Clean High-Contrast B&W Document (Photocopy Mode):
+  /// Removes all paper shadows and background noise, leaving pure crisp black text on pure white paper.
+  static img.Image enhanceDocumentBW(img.Image src) {
+    src = img.grayscale(src);
+    for (final frame in src.frames) {
+      for (final p in frame) {
+        final lum = p.r.toDouble();
+        if (lum > 140) {
+          p.r = 255;
+          p.g = 255;
+          p.b = 255;
+        } else {
+          final darkVal = (lum * 0.55).clamp(0, 255);
+          p.r = darkVal;
+          p.g = darkVal;
+          p.b = darkVal;
+        }
+      }
+    }
+    return img.convolution(
+      src,
+      filter: [
+        0, -0.25, 0,
+        -0.25, 2.0, -0.25,
+        0, -0.25, 0,
+      ],
+      div: 1.0,
+    );
+  }
+
+  /// Super HD Sharpening & Contrast Enhancement:
+  /// Eliminates blurriness from slight phone shake and boosts document clarity.
+  static img.Image enhanceDocumentSuperHD(img.Image src) {
+    src = img.adjustColor(src, contrast: 1.35, brightness: 1.08, saturation: 1.20);
+    return img.convolution(
+      src,
+      filter: [
+        0, -0.4, 0,
+        -0.4, 2.6, -0.4,
+        0, -0.4, 0,
+      ],
+      div: 1.0,
+    );
+  }
 
   /// Helper to prepare processed image paths (baking filters and rotation)
   Future<List<String>> _prepareProcessedImagePaths() async {
@@ -99,7 +207,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     return processedPaths.isNotEmpty ? processedPaths : [_scannedImagePath ?? ''];
   }
 
-  /// Bake rotation and filter effects into a temporary JPG file
+  /// Bake rotation and filter effects into a temporary JPG file with Ultra-HD 98% quality
   Future<File> _bakeImageEffects(String imagePath, int rotationDegrees, ImageFilter filter) async {
     try {
       final bytes = await File(imagePath).readAsBytes();
@@ -111,20 +219,22 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       }
 
       if (filter == ImageFilter.blackAndWhite) {
-        image = img.grayscale(image);
+        image = enhanceDocumentBW(image);
       } else if (filter == ImageFilter.magicColor) {
-        image = img.adjustColor(image, contrast: 1.25, saturation: 1.25);
+        image = enhanceDocumentMagicColor(image);
       } else if (filter == ImageFilter.enhanced) {
-        image = img.adjustColor(image, contrast: 1.4, amount: 1.1);
+        image = enhanceDocumentSuperHD(image);
       }
 
       final tempDir = await getTemporaryDirectory();
       final outPath = '${tempDir.path}/proc_${DateTime.now().millisecondsSinceEpoch}_${path.basename(imagePath)}';
-      final encodedJpg = img.encodeJpg(image, quality: 92);
+      // Ultra-HD Quality 98% eliminates JPEG ringing artifacts and preserves fine Khmer fonts
+      final encodedJpg = img.encodeJpg(image, quality: 98);
       final outFile = File(outPath);
       await outFile.writeAsBytes(encodedJpg);
       return outFile;
     } catch (e) {
+      debugPrint('Error baking image effects: $e');
       return File(imagePath);
     }
   }
@@ -218,6 +328,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       final scannedImages = await CunningDocumentScanner.getPictures(
         noOfPages: 50, // Allow up to 50 pages (must be > 0)
         scannerSource: ScannerSource.cameraAndGallery,
+        androidScannerMode: AndroidScannerMode.full,
+        iosScannerOptions: const IosScannerOptions(
+          imageFormat: IosImageFormat.png,
+          jpgCompressionQuality: 1.0,
+        ),
       );
 
       if (scannedImages != null && scannedImages.isNotEmpty) {
@@ -226,6 +341,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _scannedImagePaths.addAll(scannedImages);
           _scannedImagePath = _scannedImagePaths.first;
           _filteredImagePath = _scannedImagePaths.first;
+          _selectedFilter = ImageFilter.magicColor; // Auto-enhance to crystal clear Magic Color
           _currentStep = ScannerStep.filterSelection;
           _isMultiPageMode = _scannedImagePaths.length > 1;
           _currentPageIndex = _scannedImagePaths.length - 1; // Jump to last page
@@ -274,6 +390,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       final scannedImages = await CunningDocumentScanner.getPictures(
         noOfPages: 50,
         scannerSource: ScannerSource.gallery,
+        androidScannerMode: AndroidScannerMode.full,
+        iosScannerOptions: const IosScannerOptions(
+          imageFormat: IosImageFormat.png,
+          jpgCompressionQuality: 1.0,
+        ),
       );
 
       if (scannedImages != null && scannedImages.isNotEmpty) {
@@ -281,6 +402,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           _scannedImagePaths.addAll(scannedImages);
           _scannedImagePath = _scannedImagePaths.first;
           _filteredImagePath = _scannedImagePaths.first;
+          _selectedFilter = ImageFilter.magicColor;
           _currentStep = ScannerStep.filterSelection;
           _isMultiPageMode = _scannedImagePaths.length > 1;
           _currentPageIndex = _scannedImagePaths.length - 1;
@@ -301,13 +423,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     // 2. Fallback: If native gallery scanner was canceled or unsupported, use ImagePicker with interactive cropper
     final ImagePicker picker = ImagePicker();
     try {
-      final List<XFile> images = await picker.pickMultiImage();
+      final List<XFile> images = await picker.pickMultiImage(imageQuality: 100);
       if (images.isNotEmpty) {
         final List<String> paths = images.map((e) => e.path).toList();
         setState(() {
           _scannedImagePaths.addAll(paths);
           _scannedImagePath = _scannedImagePaths.first;
           _filteredImagePath = _scannedImagePaths.first;
+          _selectedFilter = ImageFilter.magicColor;
           _currentStep = ScannerStep.filterSelection;
           _isMultiPageMode = _scannedImagePaths.length > 1;
           _currentPageIndex = _scannedImagePaths.length - 1;
@@ -546,10 +669,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         builder: (context) => ExportModal(
           imagePaths: imagePaths,
           ocrText: _ocrResult?.fullText,
-          onExport: (fileName, format, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT', pageSize = PdfPageSize.a4Full}) =>
+          onExport: (fileName, format, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT', pageSize = PdfPageSize.autoFit}) =>
               _handleExport(fileName, format, imagePaths,
                   includeWatermark: includeWatermark, watermarkText: watermarkText, pageSize: pageSize),
-          onSaveToPhone: (fileName, format, paths, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT', pageSize = PdfPageSize.a4Full}) =>
+          onSaveToPhone: (fileName, format, paths, {includeWatermark = false, watermarkText = 'VVC OFFICIAL DOCUMENT', pageSize = PdfPageSize.autoFit}) =>
               _handleSaveToPhone(fileName, format, paths,
                   includeWatermark: includeWatermark, watermarkText: watermarkText, pageSize: pageSize),
         ),
@@ -564,7 +687,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
-    PdfPageSize pageSize = PdfPageSize.a4Full,
+    PdfPageSize pageSize = PdfPageSize.autoFit,
   }) async {
     switch (format) {
       case ExportFormat.images:
@@ -592,7 +715,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
-    PdfPageSize pageSize = PdfPageSize.a4Full,
+    PdfPageSize pageSize = PdfPageSize.autoFit,
   }) async {
     setState(() {
       _isProcessing = true;
@@ -661,7 +784,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
-    PdfPageSize pageSize = PdfPageSize.a4Full,
+    PdfPageSize pageSize = PdfPageSize.autoFit,
   }) async {
     final pdf = pw.Document();
 
@@ -681,19 +804,20 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       pw.EdgeInsets margin;
 
       switch (pageSize) {
-        case PdfPageSize.a4Full:
-          format = isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
+        case PdfPageSize.autoFit:
+          // Standard document width based on A4 standard (595.28 pt) scaled to exact aspect ratio
+          // Result: ZERO white margins, 100% full bleed, 100% original document aspect ratio (0% distortion)
+          final double baseWidth = PdfPageFormat.a4.width; // 595.28 pt
+          final double pageW = isLandscape ? (baseWidth * (imgW / imgH)) : baseWidth;
+          final double pageH = isLandscape ? baseWidth : (baseWidth * (imgH / imgW));
+          format = PdfPageFormat(pageW, pageH, marginAll: 0);
           margin = pw.EdgeInsets.zero;
-          final double ratio = isLandscape ? (imgH / imgW) : (imgW / imgH);
-          if (ratio >= 0.62 && ratio <= 0.82) {
-            fitMode = pw.BoxFit.fill;
-          } else {
-            fitMode = pw.BoxFit.contain;
-          }
+          fitMode = pw.BoxFit.fill;
           break;
 
-        case PdfPageSize.autoFit:
-          format = PdfPageFormat(imgW.toDouble(), imgH.toDouble(), marginAll: 0);
+        case PdfPageSize.a4Full:
+          // Full A4 page (standard 210mm x 297mm) with zero margin
+          format = isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4;
           margin = pw.EdgeInsets.zero;
           fitMode = pw.BoxFit.fill;
           break;
@@ -715,11 +839,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               children: [
                 pw.FullPage(
                   ignoreMargins: true,
-                  child: pw.Center(
-                    child: pw.Image(
-                      pdfImage,
-                      fit: fitMode,
-                    ),
+                  child: pw.Image(
+                    pdfImage,
+                    fit: fitMode,
+                    width: format.width,
+                    height: format.height,
                   ),
                 ),
                 if (includeWatermark)
@@ -792,7 +916,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
-    PdfPageSize pageSize = PdfPageSize.a4Full,
+    PdfPageSize pageSize = PdfPageSize.autoFit,
   }) async {
     final pdfBytes = await _generatePdfBytes(
       imagePaths,
@@ -809,7 +933,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     List<String> imagePaths, {
     bool includeWatermark = false,
     String watermarkText = 'VVC OFFICIAL DOCUMENT',
-    PdfPageSize pageSize = PdfPageSize.a4Full,
+    PdfPageSize pageSize = PdfPageSize.autoFit,
   }) async {
     setState(() {
       _isProcessing = true;
@@ -1416,13 +1540,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     final isDashboard = _currentStep == ScannerStep.selectImage;
     final showFab = isDashboard && !_isProcessing;
     return Scaffold(
-      backgroundColor: isDashboard ? AppTheme.bgSurface : const Color(0xFF0F172A),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : AppTheme.bgSurface,
       extendBodyBehindAppBar: false,
       appBar: VvcAppBar(
-        backgroundColor: isDashboard ? AppTheme.bgSurface : const Color(0xFF0F172A),
+        backgroundColor: isDark ? const Color(0xFF0F172A) : AppTheme.bgSurface,
         elevation: 0,
         centerTitle: true,
         title: Text(
@@ -1434,14 +1559,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           style: GoogleFonts.kantumruyPro(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: isDashboard ? AppTheme.textPrimary : Colors.white,
+            color: isDark ? Colors.white : AppTheme.textPrimary,
           ),
         ),
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back_ios_new_rounded,
             size: 20,
-            color: isDashboard ? AppTheme.textPrimary : Colors.white,
+            color: isDark ? Colors.white : AppTheme.textPrimary,
           ),
           onPressed: () {
             if (_currentStep != ScannerStep.selectImage) {
@@ -1457,7 +1582,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               padding: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
               child: IconButton(
                 style: IconButton.styleFrom(
-                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  backgroundColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1465,7 +1590,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 onPressed: _resetScanner,
                 tooltip: 'Start Over',
-                color: Colors.white,
+                color: isDark ? Colors.white : AppTheme.textPrimary,
               ),
             ),
         ],
@@ -1971,7 +2096,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     );
   }
 
-  /// Grid view for Quick Actions (2 rows x 4 columns)
+  /// Grid view for Quick Actions (2 rows x 4 columns) - Clean & Balanced
   Widget _buildQuickActionsGrid(bool isDark) {
     return Column(
       children: [
@@ -1986,18 +2111,32 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               isDark: isDark,
             ),
             _buildQuickActionItem(
-              icon: Icons.picture_as_pdf_rounded,
-              label: 'ឧបករណ៍ PDF',
-              color: const Color(0xFFE11D48),
-              onTap: () async {
-                if (_scannedImagePaths.isNotEmpty) {
-                  await _exportToPDF();
-                } else {
-                  await _importFromGallery();
-                  if (_scannedImagePaths.isNotEmpty && mounted) {
-                    await _exportToPDF();
-                  }
-                }
+              icon: Icons.transform_rounded,
+              label: 'បំប្លែងឯកសារ',
+              color: const Color(0xFF6366F1),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DocumentConverterScreen(),
+                  ),
+                );
+              },
+              isDark: isDark,
+            ),
+            _buildQuickActionItem(
+              icon: Icons.auto_awesome_rounded,
+              label: 'ស្កេន AI ខ្មែរ',
+              color: const Color(0xFF8B5CF6),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DocumentConverterScreen(
+                      initialTool: ConverterTool.geminiKhmerDocx,
+                    ),
+                  ),
+                );
               },
               isDark: isDark,
             ),
@@ -2008,19 +2147,28 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               onTap: _importFromGallery,
               isDark: isDark,
             ),
-            _buildQuickActionItem(
-              icon: Icons.folder_shared_rounded,
-              label: 'នាំចូលឯកសារ',
-              color: const Color(0xFF7C3AED),
-              onTap: _importFromGallery,
-              isDark: isDark,
-            ),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            _buildQuickActionItem(
+              icon: Icons.picture_as_pdf_rounded,
+              label: 'ឧបករណ៍ PDF',
+              color: const Color(0xFFE11D48),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DocumentConverterScreen(
+                      initialTool: ConverterTool.imageToPdf,
+                    ),
+                  ),
+                );
+              },
+              isDark: isDark,
+            ),
             _buildQuickActionItem(
               icon: Icons.badge_rounded,
               label: 'រូប 4x6 / 3x4',
@@ -2046,20 +2194,6 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const DigitalInkScreen()),
                 );
-              },
-              isDark: isDark,
-            ),
-            _buildQuickActionItem(
-              icon: Icons.text_snippet_rounded,
-              label: 'អត្ថបទ OCR',
-              color: const Color(0xFFDB2777),
-              onTap: () async {
-                if (_scannedImagePaths.isEmpty) {
-                  await _importFromGallery();
-                }
-                if (_scannedImagePaths.isNotEmpty) {
-                  await _extractText();
-                }
               },
               isDark: isDark,
             ),
@@ -2495,8 +2629,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     );
   }
 
-  /// Step 2: CamScanner-style Filter Edit Screen (Cohesive Obsidian Studio & Electric Blue Palette)
+  /// Step 2: CamScanner-style Filter Edit Screen (Theme-aware Studio Canvas)
   Widget _buildFilterSelectionStep() {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     return Column(
       children: [
         // ── 1. Large image preview (Canvas) ───────────────────────────
@@ -2504,7 +2639,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
           child: Stack(
             children: [
               Container(
-                color: const Color(0xFF090D16), // Deep clean studio canvas
+                color: isDark ? const Color(0xFF090D16) : const Color(0xFFF1F5F9), // Theme-adaptive studio canvas
                 child: _scannedImagePaths.isNotEmpty
                     ? PageView.builder(
                         controller: _pageController,
@@ -2527,7 +2662,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.65),
+                                      color: Colors.black.withValues(alpha: isDark ? 0.65 : 0.15),
                                       blurRadius: 24,
                                       offset: const Offset(0, 8),
                                     ),
@@ -2548,9 +2683,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                           );
                         },
                       )
-                    : const Center(
+                    : Center(
                         child: Icon(Icons.image_not_supported_rounded,
-                            size: 60, color: Colors.white24),
+                            size: 60, color: isDark ? Colors.white24 : AppTheme.textMuted),
                       ),
               ),
 
@@ -2578,9 +2713,15 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E293B).withValues(alpha: 0.9),
+                        color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.95),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24),
+                        border: Border.all(color: AppTheme.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                       child: const Icon(Icons.delete_outline_rounded,
                           color: Colors.redAccent, size: 20),
@@ -2593,14 +2734,20 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
         // ── 2. Page navigation bar ─────────────────────────────────────
         Container(
-          color: const Color(0xFF0F172A),
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : AppTheme.bgCard,
+            border: Border(
+              top: BorderSide(color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8)),
+              bottom: BorderSide(color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8)),
+            ),
+          ),
           child: Row(
             children: [
               // Previous page button
               IconButton(
-                icon: const Icon(Icons.chevron_left_rounded,
-                    color: Colors.white, size: 26),
+                icon: Icon(Icons.chevron_left_rounded,
+                    color: isDark ? Colors.white : AppTheme.textPrimary, size: 26),
                 onPressed: _currentPageIndex > 0
                     ? () {
                         _pageController.previousPage(
@@ -2614,16 +2761,16 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF334155)),
+                  border: Border.all(color: AppTheme.border),
                 ),
                 child: Text(
                   _scannedImagePaths.isNotEmpty
                       ? '${_currentPageIndex + 1}/${_scannedImagePaths.length}'
                       : '0/0',
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
+                    color: isDark ? Colors.white : AppTheme.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2631,8 +2778,8 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               ),
               // Next page button
               IconButton(
-                icon: const Icon(Icons.chevron_right_rounded,
-                    color: Colors.white, size: 26),
+                icon: Icon(Icons.chevron_right_rounded,
+                    color: isDark ? Colors.white : AppTheme.textPrimary, size: 26),
                 onPressed: _currentPageIndex < _scannedImagePaths.length - 1
                     ? () {
                         _pageController.nextPage(
@@ -2649,9 +2796,9 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF334155)),
+                    border: Border.all(color: AppTheme.border),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -2662,7 +2809,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                       Text(
                         'រៀបចំជួរ',
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: isDark ? Colors.white : AppTheme.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2678,11 +2825,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
         // ── 3. Filter thumbnail strip ──────────────────────────────────
         Container(
           height: 94,
-          decoration: const BoxDecoration(
-            color: Color(0xFF0F172A),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : AppTheme.bgCard,
             border: Border(
-              top: BorderSide(color: Color(0xFF1E293B), width: 1),
-              bottom: BorderSide(color: Color(0xFF1E293B), width: 1),
+              bottom: BorderSide(color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8)),
             ),
           ),
           child: ListView.builder(
@@ -2703,7 +2849,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                     border: Border.all(
                       color: isSelected
                           ? const Color(0xFF0284C7)
-                          : const Color(0xFF1E293B),
+                          : (isDark ? const Color(0xFF1E293B) : AppTheme.border),
                       width: isSelected ? 2.5 : 1,
                     ),
                     boxShadow: isSelected
@@ -2734,11 +2880,11 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                                 ),
                               )
                             : Container(
-                                color: Colors.white.withValues(alpha: 0.05),
+                                color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
                                 width: 68,
                                 height: 76,
-                                child: const Icon(Icons.image_rounded,
-                                    color: Colors.white24),
+                                child: Icon(Icons.image_rounded,
+                                    color: isDark ? Colors.white24 : AppTheme.textMuted),
                               ),
                       ),
                       Positioned(
@@ -2777,12 +2923,17 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
 
         // ── 4. Bottom action toolbar ───────────────────────────────────
         Container(
-          color: const Color(0xFF0B0F19),
           padding: EdgeInsets.only(
             left: 10,
             right: 14,
             top: 10,
             bottom: MediaQuery.of(context).padding.bottom + 10,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0B0F19) : AppTheme.bgCard,
+            border: Border(
+              top: BorderSide(color: AppTheme.border.withValues(alpha: isDark ? 0.6 : 0.8)),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2792,12 +2943,14 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                 icon: Icons.add_photo_alternate_rounded,
                 label: 'បន្ថែមទំព័រ',
                 onTap: _openNativeScanner,
+                isDark: isDark,
               ),
               // Crop
               _buildToolbarItem(
                 icon: Icons.crop_rounded,
                 label: 'កាត់គែម',
                 onTap: _cropCurrentImage,
+                isDark: isDark,
               ),
               // Rotate
               _buildToolbarItem(
@@ -2809,6 +2962,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                     _pageRotations[_currentPageIndex] = (currentRot + 90) % 360;
                   });
                 },
+                isDark: isDark,
               ),
               // OCR
               _buildToolbarItem(
@@ -2816,6 +2970,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                 label: 'ស្រង់អក្សរ',
                 onTap: _extractText,
                 iconColor: const Color(0xFF38BDF8),
+                isDark: isDark,
               ),
               // Save to Phone (Direct 1-tap save)
               _buildToolbarItem(
@@ -2823,6 +2978,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
                 label: 'រក្សាទុក',
                 onTap: _quickSaveCurrentToPhone,
                 iconColor: const Color(0xFF10B981),
+                isDark: isDark,
               ),
               // Confirm / Done FAB
               GestureDetector(
@@ -2864,8 +3020,10 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
-    Color iconColor = Colors.white,
+    Color? iconColor,
+    required bool isDark,
   }) {
+    final finalIconColor = iconColor ?? (isDark ? Colors.white : AppTheme.textPrimary);
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -2878,13 +3036,13 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF334155).withValues(alpha: 0.6),
+                  color: isDark ? const Color(0xFF334155).withValues(alpha: 0.6) : AppTheme.border,
                 ),
               ),
-              child: Icon(icon, color: iconColor, size: 20),
+              child: Icon(icon, color: finalIconColor, size: 20),
             ),
             const SizedBox(height: 5),
             Text(
@@ -2893,7 +3051,7 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.kantumruyPro(
-                color: const Color(0xFF94A3B8),
+                color: isDark ? const Color(0xFF94A3B8) : AppTheme.textMuted,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -2910,28 +3068,28 @@ class _DocumentScannerScreenState extends State<DocumentScannerScreen> {
       case ImageFilter.original:
         return const ColorFilter.mode(Colors.transparent, BlendMode.dst);
       case ImageFilter.magicColor:
-        // Enhanced contrast and color saturation
+        // Enhanced contrast, whiter paper background, and vibrant colored seals/ink
         return const ColorFilter.matrix(<double>[
-          1.5,  0.0,  0.0, 0.0, -30,
-          0.0,  1.5,  0.0, 0.0, -30,
-          0.0,  0.0,  1.5, 0.0, -30,
+          1.55,  0.0,  0.0, 0.0, -25,
+          0.0,  1.55,  0.0, 0.0, -25,
+          0.0,  0.0,  1.55, 0.0, -25,
           0.0,  0.0,  0.0, 1.0,   0,
         ]);
       case ImageFilter.blackAndWhite:
-        // Grayscale
+        // Clean High-Contrast Document B&W
         return const ColorFilter.matrix(<double>[
-          0.33, 0.59, 0.11, 0.0, 0.0,
-          0.33, 0.59, 0.11, 0.0, 0.0,
-          0.33, 0.59, 0.11, 0.0, 0.0,
-          0.00, 0.00, 0.00, 1.0, 0.0,
+          0.7,  0.7,  0.7, 0.0, -110,
+          0.7,  0.7,  0.7, 0.0, -110,
+          0.7,  0.7,  0.7, 0.0, -110,
+          0.0,  0.0,  0.0, 1.0,    0,
         ]);
       case ImageFilter.enhanced:
-        // High contrast sharpened
+        // High Definition text sharpening & contrast
         return const ColorFilter.matrix(<double>[
-          2.0, -0.5, -0.5, 0.0, -20,
-         -0.5,  2.0, -0.5, 0.0, -20,
-         -0.5, -0.5,  2.0, 0.0, -20,
-          0.0,  0.0,  0.0, 1.0,   0,
+          1.7, -0.35, -0.35, 0.0, -15,
+         -0.35,  1.7, -0.35, 0.0, -15,
+         -0.35, -0.35,  1.7, 0.0, -15,
+          0.0,   0.0,   0.0, 1.0,   0,
         ]);
     }
   }
@@ -3086,11 +3244,37 @@ class ImageCropperDialog extends StatefulWidget {
 
 class _ImageCropperDialogState extends State<ImageCropperDialog> {
   // 4 corners normalized (0.0 to 1.0): Top-Left, Top-Right, Bottom-Right, Bottom-Left
-  Offset _tl = const Offset(0.06, 0.06);
-  Offset _tr = const Offset(0.94, 0.06);
-  Offset _br = const Offset(0.94, 0.94);
-  Offset _bl = const Offset(0.06, 0.94);
+  Offset _tl = const Offset(0.02, 0.02);
+  Offset _tr = const Offset(0.98, 0.02);
+  Offset _br = const Offset(0.98, 0.98);
+  Offset _bl = const Offset(0.02, 0.98);
   bool _isProcessing = false;
+  int? _imageWidth;
+  int? _imageHeight;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageDimensions();
+  }
+
+  Future<void> _loadImageDimensions() async {
+    try {
+      final bytes = await File(widget.imagePath).readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null && mounted) {
+        setState(() {
+          if (widget.initialRotation % 180 != 0) {
+            _imageWidth = decoded.height;
+            _imageHeight = decoded.width;
+          } else {
+            _imageWidth = decoded.width;
+            _imageHeight = decoded.height;
+          }
+        });
+      }
+    } catch (_) {}
+  }
 
   void _resetCrop() {
     setState(() {
@@ -3103,10 +3287,10 @@ class _ImageCropperDialogState extends State<ImageCropperDialog> {
 
   void _applyDefaultAutoQuad() {
     setState(() {
-      _tl = const Offset(0.06, 0.06);
-      _tr = const Offset(0.94, 0.06);
-      _br = const Offset(0.94, 0.94);
-      _bl = const Offset(0.06, 0.94);
+      _tl = const Offset(0.02, 0.02);
+      _tr = const Offset(0.98, 0.02);
+      _br = const Offset(0.98, 0.98);
+      _bl = const Offset(0.02, 0.98);
     });
   }
 
@@ -3116,10 +3300,10 @@ class _ImageCropperDialogState extends State<ImageCropperDialog> {
       return;
     }
     setState(() {
-      double w = 0.88;
+      double w = 0.92;
       double h = w / ratio;
-      if (h > 0.88) {
-        h = 0.88;
+      if (h > 0.92) {
+        h = 0.92;
         w = h * ratio;
       }
       double left = 0.5 - w / 2;
@@ -3163,7 +3347,8 @@ class _ImageCropperDialogState extends State<ImageCropperDialog> {
 
       final tempDir = await getTemporaryDirectory();
       final outPath = '${tempDir.path}/unwarped_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final croppedJpg = img.encodeJpg(unwarped, quality: 92);
+      // Save with Ultra-HD Quality 98% to preserve full sharpness
+      final croppedJpg = img.encodeJpg(unwarped, quality: 98);
       final outFile = File(outPath);
       await outFile.writeAsBytes(croppedJpg);
 
@@ -3306,78 +3491,111 @@ class _ImageCropperDialogState extends State<ImageCropperDialog> {
                         final maxWidth = constraints.maxWidth;
                         final maxHeight = constraints.maxHeight;
 
+                        double renderW = maxWidth;
+                        double renderH = maxHeight;
+                        double leftOffset = 0;
+                        double topOffset = 0;
+
+                        if (_imageWidth != null && _imageHeight != null && _imageWidth! > 0 && _imageHeight! > 0) {
+                          final imgAspect = _imageWidth! / _imageHeight!;
+                          final containerAspect = maxWidth / maxHeight;
+
+                          if (imgAspect > containerAspect) {
+                            renderW = maxWidth;
+                            renderH = maxWidth / imgAspect;
+                            leftOffset = 0;
+                            topOffset = (maxHeight - renderH) / 2;
+                          } else {
+                            renderH = maxHeight;
+                            renderW = maxHeight * imgAspect;
+                            leftOffset = (maxWidth - renderW) / 2;
+                            topOffset = 0;
+                          }
+                        }
+
                         return Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            // Base Image
-                            Positioned.fill(
-                              child: Transform.rotate(
-                                angle: widget.initialRotation * (math.pi / 180),
-                                child: Image.file(
-                                  File(widget.imagePath),
-                                  fit: BoxFit.contain,
-                                ),
+                            Positioned(
+                              left: leftOffset,
+                              top: topOffset,
+                              width: renderW,
+                              height: renderH,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // Base Image (precisely scaled to rendered bounds, zero letterbox offset)
+                                  Positioned.fill(
+                                    child: Transform.rotate(
+                                      angle: widget.initialRotation * (math.pi / 180),
+                                      child: Image.file(
+                                        File(widget.imagePath),
+                                        fit: BoxFit.fill,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Overlay Polygon Dimming
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      painter: PolygonCropOverlayPainter(
+                                        tl: _tl,
+                                        tr: _tr,
+                                        br: _br,
+                                        bl: _bl,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Corner Handle: Top-Left
+                                  _buildCornerWidget(
+                                    pos: _tl,
+                                    maxWidth: renderW,
+                                    maxHeight: renderH,
+                                    onDrag: (newPos) {
+                                      setState(() {
+                                        _tl = newPos;
+                                      });
+                                    },
+                                  ),
+
+                                  // Corner Handle: Top-Right
+                                  _buildCornerWidget(
+                                    pos: _tr,
+                                    maxWidth: renderW,
+                                    maxHeight: renderH,
+                                    onDrag: (newPos) {
+                                      setState(() {
+                                        _tr = newPos;
+                                      });
+                                    },
+                                  ),
+
+                                  // Corner Handle: Bottom-Right
+                                  _buildCornerWidget(
+                                    pos: _br,
+                                    maxWidth: renderW,
+                                    maxHeight: renderH,
+                                    onDrag: (newPos) {
+                                      setState(() {
+                                        _br = newPos;
+                                      });
+                                    },
+                                  ),
+
+                                  // Corner Handle: Bottom-Left
+                                  _buildCornerWidget(
+                                    pos: _bl,
+                                    maxWidth: renderW,
+                                    maxHeight: renderH,
+                                    onDrag: (newPos) {
+                                      setState(() {
+                                        _bl = newPos;
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
-                            ),
-
-                            // Overlay Polygon Dimming
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: PolygonCropOverlayPainter(
-                                  tl: _tl,
-                                  tr: _tr,
-                                  br: _br,
-                                  bl: _bl,
-                                ),
-                              ),
-                            ),
-
-                            // Corner Handle: Top-Left
-                            _buildCornerWidget(
-                              pos: _tl,
-                              maxWidth: maxWidth,
-                              maxHeight: maxHeight,
-                              onDrag: (newPos) {
-                                setState(() {
-                                  _tl = newPos;
-                                });
-                              },
-                            ),
-
-                            // Corner Handle: Top-Right
-                            _buildCornerWidget(
-                              pos: _tr,
-                              maxWidth: maxWidth,
-                              maxHeight: maxHeight,
-                              onDrag: (newPos) {
-                                setState(() {
-                                  _tr = newPos;
-                                });
-                              },
-                            ),
-
-                            // Corner Handle: Bottom-Right
-                            _buildCornerWidget(
-                              pos: _br,
-                              maxWidth: maxWidth,
-                              maxHeight: maxHeight,
-                              onDrag: (newPos) {
-                                setState(() {
-                                  _br = newPos;
-                                });
-                              },
-                            ),
-
-                            // Corner Handle: Bottom-Left
-                            _buildCornerWidget(
-                              pos: _bl,
-                              maxWidth: maxWidth,
-                              maxHeight: maxHeight,
-                              onDrag: (newPos) {
-                                setState(() {
-                                  _bl = newPos;
-                                });
-                              },
                             ),
                           ],
                         );
