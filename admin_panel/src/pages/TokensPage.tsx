@@ -229,6 +229,7 @@ export const testIlovePdfKeyRealtime = async (publicKey: string): Promise<{
   latencyMs: number;
   message: string;
   remainingFiles?: number;
+  credits?: number;
   detail?: string;
 }> => {
   const trimmed = publicKey.trim();
@@ -278,13 +279,15 @@ export const testIlovePdfKeyRealtime = async (publicKey: string): Promise<{
       }
     } catch (_) {}
 
+    const credits = remainingFiles * 10;
     return {
       success: true,
       httpCode: 200,
       status: 'active',
       latencyMs: latency,
-      message: `Key ត្រឹមត្រូវ និងដំណើរការល្អ! (Remaining Files: ${remainingFiles})`,
+      message: `Key ត្រឹមត្រូវ និងដំណើរការល្អ! (${credits.toLocaleString()} Credits / ~${remainingFiles} ឯកសារ)`,
       remainingFiles,
+      credits,
       detail: `Token: ${token.substring(0, 15)}...`,
     };
   } catch (err: any) {
@@ -1855,6 +1858,13 @@ export const TokensPage: React.FC = () => {
                 subtitle={apiKeyStats.current_active_last_used ? `ប្រើចុងក្រោយ៖ ${apiKeyStats.current_active_last_used.split(' ')[1] || ''}` : 'ត្រៀមឆ្លើយតប Auto-Failover'}
                 icon={<Zap size={22} color="#10B981" />}
               />
+            ) : activeTab === 'ilovepdf_keys' ? (
+              <StatCard
+                title="iLoveAPI Credits នៅសល់"
+                value={`${(apiKeyStats.total_credits || (apiKeyStats.total_free_calls * 10) || 2500).toLocaleString()} Credits`}
+                subtitle={`ស្មើនឹង ~${(apiKeyStats.total_free_calls || 250).toLocaleString()} ឯកសារ (10 Cr/File)`}
+                icon={<Sparkles size={22} color="#E11D48" />}
+              />
             ) : (
               <StatCard
                 title={activeTab === 'cutout_pro_keys' ? 'Free Credits នៅសល់' : 'Free Calls នៅសល់ / ខែ'}
@@ -1864,10 +1874,10 @@ export const TokensPage: React.FC = () => {
               />
             )}
             <StatCard
-              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : 'Full-Res Credits'}
-              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : `${apiKeyStats.total_credits}`}
-              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : 'កាត់រូបច្បាស់ High-Res'}
-              icon={<Sparkles size={22} color="#F59E0B" />}
+              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : activeTab === 'ilovepdf_keys' ? 'ឯកសារអាចបម្លែងបាន' : 'Full-Res Credits'}
+              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : activeTab === 'ilovepdf_keys' ? `~${(apiKeyStats.total_free_calls || 250).toLocaleString()} Files` : `${apiKeyStats.total_credits}`}
+              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : activeTab === 'ilovepdf_keys' ? 'PDF ទៅ Word .docx' : 'កាត់រូបច្បាស់ High-Res'}
+              icon={activeTab === 'ilovepdf_keys' ? <FileText size={22} color="#F59E0B" /> : <Sparkles size={22} color="#F59E0B" />}
             />
             <StatCard
               title={activeTab === 'gemini_keys' ? 'ម៉ោង Reset Daily Limit' : 'ស្ថានភាពប្រព័ន្ធ Failover'}
@@ -1980,7 +1990,7 @@ export const TokensPage: React.FC = () => {
                     <th>ឈ្មោះសម្គាល់ (Label)</th>
                     <th>{activeTab === 'ilovepdf_keys' ? 'Public Key & Secret Key' : 'API Key (Secret)'}</th>
                     <th style={{ textAlign: 'center' }}>
-                      {activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits' : activeTab === 'ilovepdf_keys' ? 'Remaining Files' : 'Free Calls / ខែ'}
+                      {activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits' : activeTab === 'ilovepdf_keys' ? 'Credits & Files នៅសល់' : 'Free Calls / ខែ'}
                     </th>
                     <th style={{ textAlign: 'center' }}>
                       {activeTab === 'gemini_keys' ? 'Daily Limit (RPD)' : activeTab === 'cutout_pro_keys' ? 'Paid / Total Credits' : activeTab === 'ilovepdf_keys' ? 'Conversion Type' : 'Full-Res Credits'}
@@ -2150,25 +2160,40 @@ export const TokensPage: React.FC = () => {
                               )}
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <span
-                                style={{
-                                  display: 'inline-block',
-                                  padding: '3px 10px',
-                                  borderRadius: '20px',
-                                  fontSize: '12px',
-                                  fontWeight: 700,
-                                  background: activeTab === 'ilovepdf_keys'
-                                    ? 'rgba(225, 29, 72, 0.12)'
-                                    : k.free_calls > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                                  color: activeTab === 'ilovepdf_keys'
-                                    ? '#E11D48'
-                                    : k.free_calls > 0 ? '#10B981' : '#EF4444',
-                                }}
-                              >
-                                {activeTab === 'ilovepdf_keys'
-                                  ? `${k.free_calls ?? 250} Files`
-                                  : `${k.free_calls} ${activeTab === 'gemini_keys' ? 'RPM' : activeTab === 'cutout_pro_keys' ? 'Credits' : '/ 50'}`}
-                              </span>
+                              {activeTab === 'ilovepdf_keys' ? (
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                  <span
+                                    style={{
+                                      display: 'inline-block',
+                                      padding: '2px 10px',
+                                      borderRadius: '20px',
+                                      fontSize: '12px',
+                                      fontWeight: 800,
+                                      background: 'rgba(225, 29, 72, 0.12)',
+                                      color: '#E11D48',
+                                    }}
+                                  >
+                                    {(k.credits || ((k.free_calls ?? 250) * 10) || 2500).toLocaleString()} Credits
+                                  </span>
+                                  <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    ~{k.free_calls ?? 250} ឯកសារ (Files)
+                                  </span>
+                                </div>
+                              ) : (
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '3px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    background: k.free_calls > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                                    color: k.free_calls > 0 ? '#10B981' : '#EF4444',
+                                  }}
+                                >
+                                  {k.free_calls} {activeTab === 'gemini_keys' ? 'RPM' : activeTab === 'cutout_pro_keys' ? 'Credits' : '/ 50'}
+                                </span>
+                              )}
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               {activeTab === 'gemini_keys' ? (

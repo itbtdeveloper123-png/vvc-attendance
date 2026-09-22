@@ -945,20 +945,23 @@ function verify_ilovepdf_key(string $publicKey, ?string $secretKey = null): arra
     $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
     curl_close($ch2);
 
+    $remainingFiles = 250;
+    $remainingCredits = 2500;
     if ($httpCode2 === 200) {
         $startData = json_decode((string)$resp2, true);
         if (isset($startData['remaining_files'])) {
             $remainingFiles = (int)$startData['remaining_files'];
+            $remainingCredits = $remainingFiles * 10;
         }
     }
 
     return [
         'success' => true,
-        'message' => "iLovePDF Key ត្រឹមត្រូវ និងដំណើរការល្អ! (Remaining Files: {$remainingFiles})",
+        'message' => "iLovePDF Key ត្រឹមត្រូវ និងដំណើរការល្អ! ({$remainingCredits} Credits / ~{$remainingFiles} Files)",
         'http_code' => 200,
         'status' => 'active',
         'free_calls' => $remainingFiles,
-        'credits' => $remainingFiles,
+        'credits' => $remainingCredits,
         'remaining_files' => $remainingFiles,
         'token' => $token,
     ];
@@ -1683,6 +1686,9 @@ try {
                 @dbQuery("UPDATE admin_api_keys SET last_reset_date = ? WHERE service_name = 'gemini' AND last_reset_date IS NULL", [$geminiCycle]);
                 // Only reset keys if their last_reset_date is from a previous cycle date
                 @dbQuery("UPDATE admin_api_keys SET daily_requests_used = 0, last_reset_date = ? WHERE service_name = 'gemini' AND last_reset_date != ?", [$geminiCycle, $geminiCycle]);
+            } elseif ($service === 'ilovepdf') {
+                // Ensure credits reflects 2,500 Credits (250 Files * 10 Credits/File)
+                @dbQuery("UPDATE admin_api_keys SET credits = GREATEST(credits, free_calls * 10, 2500) WHERE service_name = 'ilovepdf' AND credits < 2500");
             }
 
             $rows = dbQuery("SELECT id, service_name, key_label, api_key, secret_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
@@ -1808,7 +1814,7 @@ try {
             }
 
             $freeCalls = $verify['free_calls'] ?? ($service === 'ilovepdf' ? 250 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 15 : 50)));
-            $credits = $verify['credits'] ?? ($service === 'ilovepdf' ? 250 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1)));
+            $credits = $verify['credits'] ?? ($service === 'ilovepdf' ? 2500 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1)));
             $status = $verify['status'] ?? 'active';
 
             $priorityCount = dbQuery("SELECT MAX(priority) as max_p FROM admin_api_keys WHERE service_name = ?", [$service]);
