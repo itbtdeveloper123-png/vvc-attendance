@@ -43,9 +43,12 @@ if ($shellExecEnabled) {
         // Test importing pdf2docx with auto-detection of user site-packages (~/.local/lib/python*/site-packages)
         $testScript = 'import sys, os, glob; [sys.path.insert(0, p) for p in glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")]; import pdf2docx; print("INSTALLED")';
         $testOut = @shell_exec($pythonCmd . ' -c ' . escapeshellarg($testScript) . ' 2>&1');
+        $debugTestOut = trim((string)$testOut);
         if ($testOut && strpos($testOut, 'INSTALLED') !== false) {
             $pdf2docxInstalled = true;
         }
+
+        $pipVersion = trim((string)(@shell_exec("$pythonCmd -m pip --version 2>&1") ?: @shell_exec("pip --version 2>&1") ?: 'រកមិនឃើញ'));
     }
 }
 
@@ -201,12 +204,18 @@ $allPassed = $shellExecEnabled && !empty($pythonCmd);
                 Hosting របស់បងអនុញ្ញាត <code>shell_exec()</code> និងមាន <code>pdf2docx</code> រួចជាស្រេច។ Microservice ដំណើរការបម្លែង PDF to Word បានយ៉ាងរលូន!
             </div>
         <?php elseif ($shellExecEnabled && !empty($pythonCmd)): ?>
-            <div class="conclusion pass">
-                👍 <strong>Hosting អនុញ្ញាត <code>shell_exec()</code> និងមាន Python រួចរាល់!</strong><br>
-                នៅសល់តែ ១ ជំហានប៉ុណ្ណោះ៖ សូមបើក <strong>Terminal</strong> ក្នុង cPanel រួចវាយពាក្យបញ្ជាខាងក្រោមដើម្បី Install package៖
-                <div class="box" style="background:#022c22; color:#34d399; margin-top:8px;">
-                    pip install pdf2docx python-docx PyMuPDF
+            <div class="conclusion pass" style="background: rgba(234, 179, 8, 0.1); border: 1px solid #eab308; color: #fef08a;">
+                💡 <strong>សូមដំណើរការ Command នេះក្នុង cPanel Terminal៖</strong><br>
+                ដើម្បីធានាថា Package ត្រូវបានដំឡើងត្រូវតាមកំណែ <code><?= htmlspecialchars($pythonVersion) ?></code> សូមវាយបញ្ជាខាងក្រោម៖
+                <div class="box" style="background:#1e1b4b; color:#a5b4fc; margin-top:8px;">
+                    python3 -m pip install --user pdf2docx python-docx PyMuPDF
                 </div>
+                <?php if (!empty($debugTestOut)): ?>
+                    <div style="margin-top: 10px; font-size: 11px; color: #f87171;">
+                        <strong>Debug Error ពី Python៖</strong><br>
+                        <pre style="white-space: pre-wrap; word-break: break-all; margin: 4px 0;"><?= htmlspecialchars($debugTestOut) ?></pre>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="conclusion fail">
