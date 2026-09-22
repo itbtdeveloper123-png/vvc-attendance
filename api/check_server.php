@@ -16,29 +16,39 @@ $execEnabled = is_func_enabled('exec');
 $shellExecEnabled = is_func_enabled('shell_exec');
 $procOpenEnabled = is_func_enabled('proc_open');
 
-// Test running python command
-$pythonVersion = 'មិនអាចដំណើរការបានឡើយ';
-$pythonPath = 'រកមិនឃើញ';
-if ($execEnabled) {
-    $output = [];
-    $ret = 0;
-    @exec('python3 --version 2>&1', $output, $ret);
-    if ($ret === 0 && !empty($output)) {
-        $pythonVersion = implode(' ', $output);
-        $pythonPath = 'python3 (System default)';
-    } else {
-        $output2 = [];
-        $ret2 = 0;
-        @exec('python --version 2>&1', $output2, $ret2);
-        if ($ret2 === 0 && !empty($output2)) {
-            $pythonVersion = implode(' ', $output2);
-            $pythonPath = 'python (System default)';
+// Test running python command via shell_exec (which is enabled on the server!)
+$pythonVersion = 'រកមិនឃើញ';
+$pythonCmd = '';
+$pdf2docxInstalled = false;
+
+if ($shellExecEnabled) {
+    $candidatePaths = [
+        'python3',
+        '/usr/bin/python3',
+        '/usr/local/bin/python3',
+        '/bin/python3',
+        'python',
+    ];
+
+    foreach ($candidatePaths as $cmd) {
+        $out = @shell_exec("$cmd --version 2>&1");
+        if ($out && strpos(strtolower($out), 'python') !== false) {
+            $pythonVersion = trim($out);
+            $pythonCmd = $cmd;
+            break;
+        }
+    }
+
+    if (!empty($pythonCmd)) {
+        $testOut = @shell_exec("$pythonCmd -c \"import pdf2docx; print('INSTALLED')\" 2>&1");
+        if ($testOut && strpos($testOut, 'INSTALLED') !== false) {
+            $pdf2docxInstalled = true;
         }
     }
 }
 
 $disableFunctions = ini_get('disable_functions') ?: 'គ្មាន (អនុញ្ញាតទាំងអស់ - All Allowed)';
-$allPassed = $execEnabled || $shellExecEnabled;
+$allPassed = $shellExecEnabled && !empty($pythonCmd);
 ?>
 <!DOCTYPE html>
 <html lang="km">
@@ -155,12 +165,26 @@ $allPassed = $execEnabled || $shellExecEnabled;
         <div class="item">
             <div>
                 <div class="label">កម្រិត Python ដែលរកឃើញ</div>
-                <div class="subtext"><?= htmlspecialchars($pythonPath) ?></div>
+                <div class="subtext"><?= htmlspecialchars($pythonCmd ?: 'គ្មាន') ?></div>
             </div>
             <div>
-                <span class="status-badge <?= ($pythonVersion !== 'មិនអាចដំណើរការបានឡើយ') ? 'badge-success' : 'badge-danger' ?>">
+                <span class="status-badge <?= ($pythonVersion !== 'រកមិនឃើញ') ? 'badge-success' : 'badge-danger' ?>">
                     <?= htmlspecialchars($pythonVersion) ?>
                 </span>
+            </div>
+        </div>
+
+        <div class="item">
+            <div>
+                <div class="label">កញ្ចប់បណ្ណាល័យ <code>pdf2docx</code></div>
+                <div class="subtext">ស្នូលសម្រាប់បម្លែង Layout និងរូបភាព</div>
+            </div>
+            <div>
+                <?php if ($pdf2docxInstalled): ?>
+                    <span class="status-badge badge-success">✅ បានតម្លើងរួចរាល់ (Installed)</span>
+                <?php else: ?>
+                    <span class="status-badge badge-danger">⚠️ មិនទាន់តម្លើង (Not Installed)</span>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -169,13 +193,22 @@ $allPassed = $execEnabled || $shellExecEnabled;
             <div class="box"><?= htmlspecialchars($disableFunctions) ?></div>
         </div>
 
-        <?php if ($allPassed): ?>
+        <?php if ($shellExecEnabled && $pdf2docxInstalled): ?>
             <div class="conclusion pass">
-                🎉 <strong>អបអរសាទរ!</strong> Hosting របស់បងអនុញ្ញាតមុខងារ <code>exec()</code> ពេញលេញ។ បងអាចដំណើរការ Microservice PDF to Word ដោយឥតគិតថ្លៃ ១០០% បានយ៉ាងរលូន!
+                🎉 <strong>អបអរសាទរ! ប្រព័ន្ធរួចរាល់ ១០០%!</strong><br>
+                Hosting របស់បងអនុញ្ញាត <code>shell_exec()</code> និងមាន <code>pdf2docx</code> រួចជាស្រេច។ Microservice ដំណើរការបម្លែង PDF to Word បានយ៉ាងរលូន!
+            </div>
+        <?php elseif ($shellExecEnabled && !empty($pythonCmd)): ?>
+            <div class="conclusion pass">
+                👍 <strong>Hosting អនុញ្ញាត <code>shell_exec()</code> និងមាន Python រួចរាល់!</strong><br>
+                នៅសល់តែ ១ ជំហានប៉ុណ្ណោះ៖ សូមបើក <strong>Terminal</strong> ក្នុង cPanel រួចវាយពាក្យបញ្ជាខាងក្រោមដើម្បី Install package៖
+                <div class="box" style="background:#022c22; color:#34d399; margin-top:8px;">
+                    pip install pdf2docx python-docx PyMuPDF
+                </div>
             </div>
         <?php else: ?>
             <div class="conclusion fail">
-                ⚠️ <strong>បញ្ជាក់៖</strong> Hosting របស់បងកំពុងបិទមុខងារ <code>exec()</code>។ សូមចូលទៅកាន់ <strong>cPanel -> Select PHP Version -> Options</strong> រួចលុបពាក្យ <code>exec, shell_exec</code> ចេញពីប្រអប់ <strong>disable_functions</strong> ដើម្បីបើកដំណើរការ។
+                ⚠️ <strong>បញ្ជាក់៖</strong> Hosting របស់បងអនុញ្ញាត <code>shell_exec()</code> ប៉ុន្តែរកមិនទាន់ឃើញ Python 3 ឡើយ។ សូមចូលទៅ <strong>Setup Python App</strong> ក្នុង cPanel ដើម្បីបង្កើត Python Environment។
             </div>
         <?php endif; ?>
     </div>

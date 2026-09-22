@@ -226,10 +226,18 @@ $command = escapeshellcmd($pythonBin) . ' '
     . escapeshellarg($docxFilePath) . ' '
     . escapeshellarg($khmerFont) . ' 2>&1';
 
-$outputLines = [];
-$returnCode = 0;
-exec($command, $outputLines, $returnCode);
-$fullOutput = implode("\n", $outputLines);
+// 6. Execute Python Converter (Support both shell_exec and exec)
+$fullOutput = '';
+if (function_exists('shell_exec')) {
+    $fullOutput = (string)@shell_exec($command);
+} elseif (function_exists('exec')) {
+    $tempLines = [];
+    $ret = 0;
+    @exec($command, $tempLines, $ret);
+    $fullOutput = implode("\n", $tempLines);
+}
+
+$outputLines = explode("\n", str_replace("\r", "", $fullOutput));
 
 // Clean up input PDF to save disk space
 @unlink($pdfFilePath);
