@@ -742,6 +742,25 @@ export const TokensPage: React.FC = () => {
   const handleTestSingleKey = async (id: number) => {
     setTestingKeyId(id);
     try {
+      if (currentServiceName === 'ilovepdf') {
+        const kObj = apiKeys.find((k) => k.id === id);
+        const kStr = kObj?.api_key || '';
+        showBanner('info', `កំពុងតេស្ត iLovePDF Key "${kObj?.key_label || ''}" ផ្ទាល់...`);
+        const testRes = await testIlovePdfKeyRealtime(kStr);
+        try {
+          await adminApi.testApiKey(id);
+        } catch (_) {}
+
+        if (testRes.success) {
+          showBanner('success', `✅ Key "${kObj?.key_label || 'iLovePDF'}" ${testRes.message}`);
+        } else {
+          showBanner('error', `❌ Key "${kObj?.key_label || 'iLovePDF'}" ${testRes.message}`);
+        }
+        await loadApiKeys(currentServiceName, true);
+        setTestingKeyId(null);
+        return;
+      }
+
       if (currentServiceName === 'gemini') {
         const kObj = apiKeys.find((k) => k.id === id);
         const kStr = kObj?.api_key || DEFAULT_EXISTING_GEMINI_KEY;
@@ -836,6 +855,38 @@ export const TokensPage: React.FC = () => {
   const handleSyncAllKeys = async () => {
     setSyncingAllKeys(true);
     try {
+      if (currentServiceName === 'ilovepdf') {
+        let activeCount = 0;
+        let invalidCount = 0;
+
+        const updated = await Promise.all(
+          apiKeys.map(async (k) => {
+            const res = await testIlovePdfKeyRealtime(k.api_key);
+            if (res.success) activeCount++;
+            else invalidCount++;
+
+            return {
+              ...k,
+              is_active: res.success,
+              last_status: res.status,
+              free_calls: res.remainingFiles !== undefined ? res.remainingFiles : k.free_calls,
+              last_checked_at: `${new Date().toISOString().replace('T', ' ').substring(0, 16)} (${res.latencyMs}ms)`,
+            };
+          })
+        );
+
+        setApiKeys(updated);
+
+        try {
+          await adminApi.syncAllApiKeys(currentServiceName);
+        } catch (_) {}
+
+        await loadApiKeys(currentServiceName, true);
+        showBanner('success', `បានធ្វើសមកាលកម្ម iLovePDF Keys ទាំងអស់៖ ✅ ${activeCount} សកម្ម, ❌ ${invalidCount} មិនដំណើរការ`);
+        setSyncingAllKeys(false);
+        return;
+      }
+
       if (currentServiceName === 'gemini') {
         let activeCount = 0;
         let deniedCount = 0;
@@ -2024,22 +2075,79 @@ export const TokensPage: React.FC = () => {
                               </div>
                             </td>
                             <td>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-alt)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                <code style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                  {k.masked_key}
-                                </code>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(k.api_key);
-                                    showBanner('success', `បានចម្លង ${k.key_label}`);
-                                  }}
-                                  title="Copy Key"
-                                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
-                                >
-                                  <Copy size={13} />
-                                </button>
-                              </div>
+                              {activeTab === 'ilovepdf_keys' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {/* Public Key */}
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-alt)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                    <span style={{ fontSize: '10.5px', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase' }}>Pub:</span>
+                                    <code style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                      {k.masked_key}
+                                    </code>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(k.api_key);
+                                        showBanner('success', `បានចម្លង Public Key របស់ ${k.key_label}`);
+                                      }}
+                                      title="Copy Public Key"
+                                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                    >
+                                      <Copy size={12} />
+                                    </button>
+                                  </div>
+                                  {/* Secret Key */}
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-alt)', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                    <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#E11D48', textTransform: 'uppercase' }}>Sec:</span>
+                                    {k.secret_key ? (
+                                      <>
+                                        <code style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                          {revealedSecretKeyIds[k.id]
+                                            ? k.secret_key
+                                            : (k.masked_secret_key || (k.secret_key.length > 8 ? k.secret_key.substring(0, 4) + '...' + k.secret_key.substring(k.secret_key.length - 4) : '••••••••'))}
+                                        </code>
+                                        <button
+                                          type="button"
+                                          onClick={() => setRevealedSecretKeyIds((prev) => ({ ...prev, [k.id]: !prev[k.id] }))}
+                                          title={revealedSecretKeyIds[k.id] ? 'លាក់ Secret Key' : 'បង្ហាញ Secret Key'}
+                                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                        >
+                                          {revealedSecretKeyIds[k.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(k.secret_key);
+                                            showBanner('success', `បានចម្លង Secret Key របស់ ${k.key_label}`);
+                                          }}
+                                          title="Copy Secret Key"
+                                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                        >
+                                          <Copy size={12} />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', fontStyle: 'italic', color: 'var(--text-muted)' }}>(មិនទាន់កំណត់)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-alt)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                  <code style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    {k.masked_key}
+                                  </code>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(k.api_key);
+                                      showBanner('success', `បានចម្លង ${k.key_label}`);
+                                    }}
+                                    title="Copy Key"
+                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--text-muted)' }}
+                                  >
+                                    <Copy size={13} />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               <span
@@ -2049,11 +2157,17 @@ export const TokensPage: React.FC = () => {
                                   borderRadius: '20px',
                                   fontSize: '12px',
                                   fontWeight: 700,
-                                  background: k.free_calls > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                                  color: k.free_calls > 0 ? '#10B981' : '#EF4444',
+                                  background: activeTab === 'ilovepdf_keys'
+                                    ? 'rgba(225, 29, 72, 0.12)'
+                                    : k.free_calls > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                                  color: activeTab === 'ilovepdf_keys'
+                                    ? '#E11D48'
+                                    : k.free_calls > 0 ? '#10B981' : '#EF4444',
                                 }}
                               >
-                                {k.free_calls} {activeTab === 'gemini_keys' ? 'RPM' : activeTab === 'cutout_pro_keys' ? 'Credits' : '/ 50'}
+                                {activeTab === 'ilovepdf_keys'
+                                  ? `${k.free_calls ?? 250} Files`
+                                  : `${k.free_calls} ${activeTab === 'gemini_keys' ? 'RPM' : activeTab === 'cutout_pro_keys' ? 'Credits' : '/ 50'}`}
                               </span>
                             </td>
                             <td style={{ textAlign: 'center' }}>
@@ -2080,6 +2194,21 @@ export const TokensPage: React.FC = () => {
                                     ប្រើថ្ងៃនេះ៖ <strong style={{ color: (k.daily_requests_used || 0) > 0 ? 'var(--primary)' : 'var(--text-muted)' }}>{k.daily_requests_used || 0}</strong> លើក
                                   </div>
                                 </div>
+                              ) : activeTab === 'ilovepdf_keys' ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    padding: '4px 10px',
+                                    borderRadius: '16px',
+                                    background: 'rgba(225, 29, 72, 0.1)',
+                                    color: '#E11D48',
+                                    border: '1px solid rgba(225, 29, 72, 0.25)',
+                                  }}
+                                >
+                                  📄 PDF ទៅ Word (.docx)
+                                </span>
                               ) : (
                                 <span style={{ fontWeight: 700, fontSize: '13px', color: k.credits > 0 ? '#F59E0B' : 'var(--text-muted)' }}>
                                   {k.credits}
@@ -2263,6 +2392,8 @@ export const TokensPage: React.FC = () => {
                           ? 'linear-gradient(135deg, #2563EB, #7C3AED)'
                           : activeTab === 'cutout_pro_keys'
                           ? 'linear-gradient(135deg, #EC4899, #A855F7)'
+                          : activeTab === 'ilovepdf_keys'
+                          ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                           : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                         color: '#fff',
                         width: '34px',
@@ -2276,7 +2407,7 @@ export const TokensPage: React.FC = () => {
                       <Plus size={18} />
                     </span>
                     <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      បន្ថែម {activeTab === 'gemini_keys' ? 'Google Gemini' : activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : 'Remove.bg'} API Key ថ្មី
+                      បន្ថែម {activeTab === 'gemini_keys' ? 'Google Gemini' : activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : activeTab === 'ilovepdf_keys' ? 'iLovePDF (Cloud API)' : 'Remove.bg'} API Key ថ្មី
                     </h3>
                   </div>
                   <button
@@ -2294,31 +2425,66 @@ export const TokensPage: React.FC = () => {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder={`ឧ. ${activeTab === 'gemini_keys' ? 'Gemini Primary Key' : activeTab === 'cutout_pro_keys' ? 'Cutout Key 01' : 'Remove.bg Key 07'}`}
+                      placeholder={`ឧ. ${activeTab === 'gemini_keys' ? 'Gemini Primary Key' : activeTab === 'cutout_pro_keys' ? 'Cutout Key 01' : activeTab === 'ilovepdf_keys' ? 'iLovePDF Main Account' : 'Remove.bg Key 07'}`}
                       value={newKeyLabel}
                       onChange={(e) => setNewKeyLabel(e.target.value)}
                     />
                   </div>
 
-                  <div className="form-group" style={{ marginBottom: '20px' }}>
-                    <label className="form-label">API Key String *</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder={activeTab === 'gemini_keys' ? 'ឧ. AIzaSyD...' : 'ឧ. LM9UPg8HqRKeZ89FeM2hhaCR'}
-                      value={newKeyString}
-                      onChange={(e) => setNewKeyString(e.target.value)}
-                      required
-                      style={{ fontFamily: 'monospace' }}
-                    />
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      {activeTab === 'gemini_keys'
-                        ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ផ្ទាល់ជាមួយ Google Gemini API ភ្លាមៗមុនពេល Save។'
-                        : activeTab === 'cutout_pro_keys'
-                        ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Cutout.pro Server ដោយស្វ័យប្រវត្តមុនពេល Save។'
-                        : 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Server របស់ Remove.bg ដោយស្វ័យប្រវត្តមុនពេល Save។'}
-                    </span>
-                  </div>
+                  {activeTab === 'ilovepdf_keys' ? (
+                    <>
+                      <div className="form-group" style={{ marginBottom: '14px' }}>
+                        <label className="form-label">iLovePDF Public Key *</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="ឧ. project_public_xxxxxxxxxxxxxxxxxxxx..."
+                          value={newKeyString}
+                          onChange={(e) => setNewKeyString(e.target.value)}
+                          required
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                        <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                          Public Key ប្រើសម្រាប់ Authenticate ជាមួយ iLovePDF Server (ប្រព័ន្ធនឹងតេស្តភ្លាមៗមុនពេល Save)។
+                        </span>
+                      </div>
+
+                      <div className="form-group" style={{ marginBottom: '20px' }}>
+                        <label className="form-label">iLovePDF Secret Key (ស្រេចចិត្ត / សម្ងាត់)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="ឧ. secret_key_xxxxxxxxxxxxxxxxxxxxxxxx..."
+                          value={newSecretKeyString}
+                          onChange={(e) => setNewSecretKeyString(e.target.value)}
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                        <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                          Secret Key រក្សាទុកក្នុង Database ដោយសុវត្ថិភាព សម្រាប់ប្រតិបត្តិការ Task បម្លែង PDF កម្រិតខ្ពស់។
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="form-group" style={{ marginBottom: '20px' }}>
+                      <label className="form-label">API Key String *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder={activeTab === 'gemini_keys' ? 'ឧ. AIzaSyD...' : 'ឧ. LM9UPg8HqRKeZ89FeM2hhaCR'}
+                        value={newKeyString}
+                        onChange={(e) => setNewKeyString(e.target.value)}
+                        required
+                        style={{ fontFamily: 'monospace' }}
+                      />
+                      <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                        {activeTab === 'gemini_keys'
+                          ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ផ្ទាល់ជាមួយ Google Gemini API ភ្លាមៗមុនពេល Save។'
+                          : activeTab === 'cutout_pro_keys'
+                          ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Cutout.pro Server ដោយស្វ័យប្រវត្តមុនពេល Save។'
+                          : 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Server របស់ Remove.bg ដោយស្វ័យប្រវត្តមុនពេល Save។'}
+                      </span>
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
                     <button type="button" onClick={() => setIsKeyModalOpen(false)} className="btn btn-secondary">
@@ -2333,6 +2499,8 @@ export const TokensPage: React.FC = () => {
                           ? 'linear-gradient(135deg, #2563EB, #7C3AED)'
                           : activeTab === 'cutout_pro_keys'
                           ? 'linear-gradient(135deg, #EC4899, #A855F7)'
+                          : activeTab === 'ilovepdf_keys'
+                          ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                           : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                         display: 'inline-flex',
                         alignItems: 'center',

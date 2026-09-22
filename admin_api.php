@@ -906,7 +906,7 @@ function verify_ilovepdf_key(string $publicKey, ?string $secretKey = null): arra
         CURLOPT_SSL_VERIFYPEER => false,
     ]);
     $resp = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTPCODE);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErr = curl_error($ch);
     curl_close($ch);
 
@@ -942,7 +942,7 @@ function verify_ilovepdf_key(string $publicKey, ?string $secretKey = null): arra
         CURLOPT_SSL_VERIFYPEER => false,
     ]);
     $resp2 = curl_exec($ch2);
-    $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTPCODE);
+    $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
     curl_close($ch2);
 
     if ($httpCode2 === 200) {

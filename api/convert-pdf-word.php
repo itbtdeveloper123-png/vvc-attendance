@@ -99,6 +99,204 @@ function find_python_executable(string $rootDir): string {
 }
 
 // -----------------------------------------------------------------------------
+// Database Helper: Locate Active iLovePDF Credentials
+// -----------------------------------------------------------------------------
+function get_active_ilovepdf_credentials(): ?array {
+    $rootDir = dirname(__DIR__);
+    if (file_exists($rootDir . '/config.php')) {
+        @include_once $rootDir . '/config.php';
+    }
+
+    $dbServer = defined('DB_SERVER') ? DB_SERVER : 'localhost';
+    $dbUser = defined('DB_USERNAME') ? DB_USERNAME : 'root';
+    $dbPass = defined('DB_PASSWORD') ? DB_PASSWORD : '';
+    $dbName = defined('DB_NAME') ? DB_NAME : 'samann1_attendance_db';
+
+    try {
+        if (class_exists('mysqli')) {
+            $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
+            if ($conn && !$conn->connect_error) {
+                $conn->set_charset('utf8mb4');
+                // 1. Check admin_api_keys table for service_name = 'ilovepdf'
+                $res = @$conn->query("SELECT api_key, secret_key FROM admin_api_keys WHERE service_name = 'ilovepdf' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+                if ($res && ($row = $res->fetch_assoc()) && !empty($row['api_key'])) {
+                    $conn->close();
+                    return [
+                        'public_key' => trim($row['api_key']),
+                        'secret_key' => !empty($row['secret_key']) ? trim($row['secret_key']) : null,
+                    ];
+                }
+                // 2. Check app_settings fallback
+                $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'ilovepdf_public_key' LIMIT 1");
+                if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
+                    $pub = trim($row['setting_value']);
+                    $sec = null;
+                    $res2 = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'ilovepdf_secret_key' LIMIT 1");
+                    if ($res2 && ($row2 = $res2->fetch_assoc())) {
+                        $sec = trim($row2['setting_value']);
+                    }
+                    $conn->close();
+                    return [
+                        'public_key' => $pub,
+                        'secret_key' => $sec,
+                    ];
+                }
+                $conn->close();
+            }
+        }
+    } catch (\Throwable $e) {
+        // Fallback silently
+    }
+
+    // 3. Check environment variable override
+    $envPub = getenv('ILOVEPDF_PUBLIC_KEY');
+    if (!empty($envPub)) {
+        return [
+            'public_key' => trim($envPub),
+            'secret_key' => getenv('ILOVEPDF_SECRET_KEY') ?: null,
+        ];
+    }
+
+    return null;
+}
+
+// -----------------------------------------------------------------------------
+// Official iLovePDF Cloud API Engine: PDF to Word (.docx)
+// -----------------------------------------------------------------------------
+function convert_with_ilovepdf(string $pdfPath, string $docxPath, string $publicKey, ?string $secretKey): array {
+    if (!function_exists('curl_init')) {
+        return ['success' => false, 'error' => 'cURL PHP extension is not installed'];
+    }
+
+    // 1. Auth: POST https://api.ilovepdf.com/v1/auth
+    $ch = curl_init('https://api.ilovepdf.com/v1/auth');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Accept: application/json',
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['public_key' => $publicKey]));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    $authResp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200 || !$authResp) {
+        return ['success' => false, 'error' => 'iLovePDF Auth failed (HTTP ' . $httpCode . ')'];
+    }
+
+    $authData = json_decode((string)$authResp, true);
+    $token = $authData['token'] ?? null;
+    if (!$token) {
+        return ['success' => false, 'error' => 'Token not returned by iLovePDF'];
+    }
+
+    // 2. Start Task: GET https://api.ilovepdf.com/v1/start/pdfword
+    $ch = curl_init('https://api.ilovepdf.com/v1/start/pdfword');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json',
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+    $startResp = curl_exec($ch);
+    $startHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($startHttpCode !== 200 || !$startResp) {
+        return ['success' => false, 'error' => 'Failed to start iLovePDF task (HTTP ' . $startHttpCode . ')'];
+    }
+
+    $startData = json_decode((string)$startResp, true);
+    $server = $startData['server'] ?? null;
+    $taskId = $startData['task'] ?? null;
+
+    if (!$server || !$taskId) {
+        return ['success' => false, 'error' => 'Invalid server or task ID returned by iLovePDF'];
+    }
+
+    // 3. Upload File: POST https://{server}/v1/upload
+    $cfile = curl_file_create($pdfPath, 'application/pdf', basename($pdfPath));
+    $ch = curl_init('https://' . $server . '/v1/upload');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $token,
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, [
+        'task' => $taskId,
+        'file' => $cfile,
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    $uploadResp = curl_exec($ch);
+    $uploadHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($uploadHttpCode !== 200 || !$uploadResp) {
+        return ['success' => false, 'error' => 'Failed to upload PDF to iLovePDF (HTTP ' . $uploadHttpCode . ')'];
+    }
+
+    $uploadData = json_decode((string)$uploadResp, true);
+    $serverFilename = $uploadData['server_filename'] ?? null;
+    if (!$serverFilename) {
+        return ['success' => false, 'error' => 'iLovePDF did not return server filename'];
+    }
+
+    // 4. Process Task: POST https://{server}/v1/process
+    $processPayload = [
+        'task' => $taskId,
+        'tool' => 'pdfword',
+        'files' => [
+            [
+                'server_filename' => $serverFilename,
+                'filename' => basename($pdfPath),
+            ],
+        ],
+    ];
+    $ch = curl_init('https://' . $server . '/v1/process');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $token,
+        'Content-Type: application/json',
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($processPayload));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+    $processResp = curl_exec($ch);
+    $processHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($processHttpCode !== 200 || !$processResp) {
+        return ['success' => false, 'error' => 'Failed to process PDF in iLovePDF (HTTP ' . $processHttpCode . ')'];
+    }
+
+    // 5. Download Converted Word (.docx): GET https://{server}/v1/download/{task}
+    $ch = curl_init('https://' . $server . '/v1/download/' . $taskId);
+    $fp = fopen($docxPath, 'w+');
+    curl_setopt($ch, CURLOPT_FILE, $fp);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $token,
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+    curl_exec($ch);
+    $dlHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    fclose($fp);
+    curl_close($ch);
+
+    if ($dlHttpCode === 200 && file_exists($docxPath) && filesize($docxPath) > 0) {
+        return [
+            'success' => true,
+            'engine' => 'iLovePDF Cloud API (Official)',
+            'file_size' => filesize($docxPath),
+        ];
+    }
+
+    @unlink($docxPath);
+    return ['success' => false, 'error' => 'Download from iLovePDF failed (HTTP ' . $dlHttpCode . ')'];
+}
+
+// -----------------------------------------------------------------------------
 // Handle GET Requests (Health Check or Direct File Download)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -125,11 +323,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Health check
     $pythonBin = find_python_executable($rootDir);
     $scriptExists = file_exists($scriptPath);
+    $iloveCreds = get_active_ilovepdf_credentials();
     echo json_encode([
         'status' => 'online',
         'service' => 'PDF to Word Microservice (Layout & Images Engine)',
         'python_executable' => $pythonBin,
         'converter_script_available' => $scriptExists,
+        'ilovepdf_cloud_api_configured' => ($iloveCreds !== null),
         'timestamp' => time(),
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
@@ -217,49 +417,76 @@ $khmerFont = isset($_POST['khmer_font']) && trim((string)$_POST['khmer_font']) !
     ? trim((string)$_POST['khmer_font'])
     : 'Khmer OS Battambang';
 
-$pythonBin = find_python_executable($rootDir);
+$startTime = microtime(true);
+$parsedResult = null;
+$conversionEngine = 'Python pdf2docx (Local Vector Engine)';
+$fullOutput = '';
 
-// 6. Execute Python Converter
-$envPrefix = '';
-if (DIRECTORY_SEPARATOR !== '\\') {
-    $homeDir = getenv('HOME') ?: (isset($_SERVER['DOCUMENT_ROOT']) ? dirname($_SERVER['DOCUMENT_ROOT']) : '/home/samann1');
-    $envPrefix = 'export HOME=' . escapeshellarg($homeDir) . '; ';
-    $envPrefix .= 'export OPENBLAS_NUM_THREADS=1; export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; export NUMEXPR_NUM_THREADS=1; ';
-    $sitePaths = @glob($homeDir . '/.local/lib/python*/site-packages');
-    if (!empty($sitePaths)) {
-        $envPrefix .= 'export PYTHONPATH=' . escapeshellarg(implode(':', $sitePaths)) . ':$PYTHONPATH; ';
+// -----------------------------------------------------------------------------
+// Engine Priority 1: Official iLovePDF Cloud API
+// -----------------------------------------------------------------------------
+$iloveCreds = get_active_ilovepdf_credentials();
+if (!empty($iloveCreds['public_key'])) {
+    $iloveRes = convert_with_ilovepdf($pdfFilePath, $docxFilePath, $iloveCreds['public_key'], $iloveCreds['secret_key'] ?? null);
+    if (!empty($iloveRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
+        $parsedResult = [
+            'success' => true,
+            'engine' => 'iLovePDF Cloud API (Official)',
+            'file_size' => filesize($docxFilePath),
+            'pages' => 1,
+            'elapsed_seconds' => round(microtime(true) - $startTime, 2),
+            'font_applied' => $khmerFont,
+        ];
+        $conversionEngine = 'iLovePDF Cloud API (Official)';
+        @unlink($pdfFilePath);
     }
 }
 
-$command = $envPrefix . escapeshellcmd($pythonBin) . ' '
-    . escapeshellarg($scriptPath) . ' '
-    . escapeshellarg($pdfFilePath) . ' '
-    . escapeshellarg($docxFilePath) . ' '
-    . escapeshellarg($khmerFont) . ' 2>&1';
+// -----------------------------------------------------------------------------
+// Engine Priority 2: High-Fidelity Python Vector Engine (Fallback)
+// -----------------------------------------------------------------------------
+if (!$parsedResult) {
+    $pythonBin = find_python_executable($rootDir);
 
-// Support both shell_exec and exec
-$fullOutput = '';
-if (function_exists('shell_exec')) {
-    $fullOutput = (string)@shell_exec($command);
-} elseif (function_exists('exec')) {
-    $tempLines = [];
-    $ret = 0;
-    @exec($command, $tempLines, $ret);
-    $fullOutput = implode("\n", $tempLines);
-}
+    $envPrefix = '';
+    if (DIRECTORY_SEPARATOR !== '\\') {
+        $homeDir = getenv('HOME') ?: (isset($_SERVER['DOCUMENT_ROOT']) ? dirname($_SERVER['DOCUMENT_ROOT']) : '/home/samann1');
+        $envPrefix = 'export HOME=' . escapeshellarg($homeDir) . '; ';
+        $envPrefix .= 'export OPENBLAS_NUM_THREADS=1; export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; export NUMEXPR_NUM_THREADS=1; ';
+        $sitePaths = @glob($homeDir . '/.local/lib/python*/site-packages');
+        if (!empty($sitePaths)) {
+            $envPrefix .= 'export PYTHONPATH=' . escapeshellarg(implode(':', $sitePaths)) . ':$PYTHONPATH; ';
+        }
+    }
 
-$outputLines = explode("\n", str_replace("\r", "", $fullOutput));
+    $command = $envPrefix . escapeshellcmd($pythonBin) . ' '
+        . escapeshellarg($scriptPath) . ' '
+        . escapeshellarg($pdfFilePath) . ' '
+        . escapeshellarg($docxFilePath) . ' '
+        . escapeshellarg($khmerFont) . ' 2>&1';
 
-// Clean up input PDF to save disk space
-@unlink($pdfFilePath);
+    // Support both shell_exec and exec
+    if (function_exists('shell_exec')) {
+        $fullOutput = (string)@shell_exec($command);
+    } elseif (function_exists('exec')) {
+        $tempLines = [];
+        $ret = 0;
+        @exec($command, $tempLines, $ret);
+        $fullOutput = implode("\n", $tempLines);
+    }
 
-// 7. Parse Result JSON
-$parsedResult = null;
-foreach ($outputLines as $line) {
-    if (strpos($line, '__RESULT_JSON__:') === 0) {
-        $jsonStr = substr($line, strlen('__RESULT_JSON__:'));
-        $parsedResult = json_decode($jsonStr, true);
-        break;
+    $outputLines = explode("\n", str_replace("\r", "", $fullOutput));
+
+    // Clean up input PDF to save disk space
+    @unlink($pdfFilePath);
+
+    // Parse Result JSON
+    foreach ($outputLines as $line) {
+        if (strpos($line, '__RESULT_JSON__:') === 0) {
+            $jsonStr = substr($line, strlen('__RESULT_JSON__:'));
+            $parsedResult = json_decode($jsonStr, true);
+            break;
+        }
     }
 }
 
@@ -292,6 +519,7 @@ echo json_encode([
     'original_name' => $originalName,
     'file_size' => $parsedResult['file_size'] ?? filesize($docxFilePath),
     'pages' => $parsedResult['pages'] ?? 1,
-    'elapsed_seconds' => $parsedResult['elapsed_seconds'] ?? 0.0,
+    'elapsed_seconds' => $parsedResult['elapsed_seconds'] ?? round(microtime(true) - $startTime, 2),
     'font_applied' => $parsedResult['font_applied'] ?? $khmerFont,
+    'engine' => $parsedResult['engine'] ?? $conversionEngine,
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
