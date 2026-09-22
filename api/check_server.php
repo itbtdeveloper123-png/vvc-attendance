@@ -40,7 +40,9 @@ if ($shellExecEnabled) {
     }
 
     if (!empty($pythonCmd)) {
-        $testOut = @shell_exec("$pythonCmd -c \"import pdf2docx; print('INSTALLED')\" 2>&1");
+        // Test importing pdf2docx with auto-detection of user site-packages (~/.local/lib/python*/site-packages)
+        $testScript = 'import sys, os, glob; [sys.path.insert(0, p) for p in glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")]; import pdf2docx; print("INSTALLED")';
+        $testOut = @shell_exec($pythonCmd . ' -c ' . escapeshellarg($testScript) . ' 2>&1');
         if ($testOut && strpos($testOut, 'INSTALLED') !== false) {
             $pdf2docxInstalled = true;
         }

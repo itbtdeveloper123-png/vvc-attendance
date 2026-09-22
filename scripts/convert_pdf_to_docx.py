@@ -9,6 +9,20 @@ High-Fidelity PDF to Word (.docx) Converter Microservice Engine
 
 import sys
 import os
+import glob
+
+# Ensure user site-packages are in sys.path (Vital for cPanel / Shared Hosting)
+try:
+    possible_sites = (
+        glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) +
+        glob.glob("/home/*/.local/lib/python*/site-packages")
+    )
+    for p in possible_sites:
+        if os.path.isdir(p) and p not in sys.path:
+            sys.path.insert(0, p)
+except Exception:
+    pass
+
 import json
 import time
 import re

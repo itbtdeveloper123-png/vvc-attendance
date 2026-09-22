@@ -220,13 +220,23 @@ $khmerFont = isset($_POST['khmer_font']) && trim((string)$_POST['khmer_font']) !
 $pythonBin = find_python_executable($rootDir);
 
 // 6. Execute Python Converter
-$command = escapeshellcmd($pythonBin) . ' '
+$envPrefix = '';
+if (DIRECTORY_SEPARATOR !== '\\') {
+    $homeDir = getenv('HOME') ?: (isset($_SERVER['DOCUMENT_ROOT']) ? dirname($_SERVER['DOCUMENT_ROOT']) : '/home/samann1');
+    $envPrefix = 'export HOME=' . escapeshellarg($homeDir) . '; ';
+    $sitePaths = @glob($homeDir . '/.local/lib/python*/site-packages');
+    if (!empty($sitePaths)) {
+        $envPrefix .= 'export PYTHONPATH=' . escapeshellarg(implode(':', $sitePaths)) . ':$PYTHONPATH; ';
+    }
+}
+
+$command = $envPrefix . escapeshellcmd($pythonBin) . ' '
     . escapeshellarg($scriptPath) . ' '
     . escapeshellarg($pdfFilePath) . ' '
     . escapeshellarg($docxFilePath) . ' '
     . escapeshellarg($khmerFont) . ' 2>&1';
 
-// 6. Execute Python Converter (Support both shell_exec and exec)
+// Support both shell_exec and exec
 $fullOutput = '';
 if (function_exists('shell_exec')) {
     $fullOutput = (string)@shell_exec($command);
