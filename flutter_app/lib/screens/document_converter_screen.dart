@@ -332,6 +332,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             detectedFormat: detectedFormat,
             multiImagePaths: previewImages,
             sourcePdfPath: pdfPath,
+            initialPhotoFile: result.photoFile,
           );
         }
         return;
@@ -788,6 +789,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     List<String>? multiImagePaths,
     DetectedPageFormat? detectedFormat,
     String? sourcePdfPath,
+    File? initialPhotoFile,
   }) {
     showModalBottomSheet(
       context: context,
@@ -800,9 +802,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             File(multiImagePaths.first).existsSync();
 
         int activeTab = 0; // 0: Preview, 1: Original Scan (if available) or Raw Text, 2: Raw Text
-        String currentText = extractedText ?? '';
+        String currentText = PdfToWordMicroservice.normalizeExtractedCvText(extractedText ?? '');
         String? currentFilePath = filePath;
-        File? cvPhotoFile;
+        File? cvPhotoFile = initialPhotoFile;
         bool isFitScreen = true; // Proportional fit-to-mobile width by default
 
         DocxPaperSize currentPaperSize = detectedFormat?.paperSize ?? DocxPaperSize.a4;
@@ -1832,8 +1834,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     File? photoFile,
     VoidCallback? onPickPhoto,
   }) {
-    final lines = text.split('\n');
+    final normalizedText = PdfToWordMicroservice.normalizeExtractedCvText(text);
+    final lines = normalizedText.split('\n');
     final isLandscape = orientation == DocxPageOrientation.landscape;
+    final isCv = normalizedText.contains('ប្រវត្តិរូបសង្ខេប') ||
+        normalizedText.toUpperCase().contains('CURRICULUM VITAE') ||
+        normalizedText.toUpperCase().contains('RESUME');
 
     return Container(
       padding: EdgeInsets.fromLTRB(isLandscape ? 32 : 28, 26, isLandscape ? 32 : 28, 30),
@@ -1906,6 +1912,17 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             ],
           ),
           const Divider(height: 20),
+          if (isCv) ...[
+            Container(
+              height: 3.5,
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E3B66),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
 
           // Document Body Elements (Matches 1-page Word sheet)
           ..._buildPreviewElements(lines, isDark, photoFile: photoFile, onPickPhoto: onPickPhoto),
@@ -2318,24 +2335,23 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         .replaceAll('[BANNER]', '')
         .trim();
     final lower = clean.toLowerCase();
-    return lower == 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ' ||
-        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន និងទីកន្លែងរស់នៅ' ||
-        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន និងជីវប្រវត្តិ' ||
-        lower == 'ព័ត៌មានផ្ទាល់ខ្លួន' ||
-        lower.startsWith('ប្រវត្តិសិក្សា') ||
-        lower.startsWith('ប្រវត្តិការងារ') ||
-        lower.startsWith('បទពិសោធន៍ការងារ') ||
-        lower.startsWith('ជំនាញផ្ទាល់ខ្លួន') ||
-        lower.startsWith('ចំណេះដឹងទូទៅ') ||
-        lower.startsWith('ចំណេះដឹង') ||
-        lower == 'ភាសាបរទេស' ||
-        lower == 'សេចក្តីបញ្ជាក់' ||
-        lower == 'personal information' ||
-        lower == 'education' ||
-        lower == 'work experience' ||
-        lower == 'skills' ||
-        lower == 'languages' ||
-        lower == 'references';
+    return lower.contains('ព័ត៌មានផ្ទាល់ខ្លួន') ||
+        lower.contains('ជីវប្រវត្តិ') ||
+        lower.contains('ប្រវត្តិសិក្សា') ||
+        lower.contains('កម្រិតសិក្សា') ||
+        lower.contains('ប្រវត្តិការងារ') ||
+        lower.contains('ប្រវត្តការងារ') ||
+        lower.contains('បទពិសោធន៍') ||
+        lower.contains('ជំនាញ') ||
+        lower.contains('ចំណេះដឹង') ||
+        lower.contains('ភាសាបរទេស') ||
+        lower.contains('សេចក្តីបញ្ជាក់') ||
+        lower.contains('personal info') ||
+        lower.contains('education') ||
+        lower.contains('experience') ||
+        lower.contains('skills') ||
+        lower.contains('languages') ||
+        lower.contains('references');
   }
 
   /// Builds a solid Navy Blue Section Banner with bold white text
@@ -2692,7 +2708,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFF0F172A),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.border),
       ),
@@ -2708,8 +2724,19 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.all(12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white, // Real white paper canvas so PDF text and colors display 100% accurately
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
                     child: Image.file(
                       File(imagePath),
                       fit: BoxFit.contain,

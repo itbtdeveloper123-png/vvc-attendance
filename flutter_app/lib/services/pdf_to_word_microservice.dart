@@ -10,6 +10,7 @@ class PdfToWordConversionResult {
   final bool success;
   final String? errorMessage;
   final File? docxFile;
+  final File? photoFile;
   final String? docxUrl;
   final String? fileName;
   final int fileSize;
@@ -22,6 +23,7 @@ class PdfToWordConversionResult {
     required this.success,
     this.errorMessage,
     this.docxFile,
+    this.photoFile,
     this.docxUrl,
     this.fileName,
     this.fileSize = 0,
@@ -145,12 +147,15 @@ class PdfToWordMicroservice {
         );
       }
 
-      onProgress?.call(0.95, 'កំពុងស្រង់អត្ថបទសម្រាប់បង្ហាញ Preview...');
+      onProgress?.call(0.95, 'កំពុងស្រង់អត្ថបទ និងរូបថតសម្រាប់បង្ហាញ Preview...');
 
-      // Extract plain text for the A4 Preview Sheet
+      // Extract plain text and photo for the A4 Preview Sheet
       String extractedText = '';
+      File? extractedPhoto;
       if (await localDocxFile.exists()) {
-        extractedText = await _extractTextFromDocx(localDocxFile);
+        final extraction = await _extractDocxData(localDocxFile, tempDir);
+        extractedText = extraction.text;
+        extractedPhoto = extraction.photoFile;
       }
 
       onProgress?.call(1.0, 'រួចរាល់ ១០០%!');
@@ -158,6 +163,7 @@ class PdfToWordMicroservice {
       return PdfToWordConversionResult(
         success: true,
         docxFile: localDocxFile,
+        photoFile: extractedPhoto,
         docxUrl: docxUrl,
         fileName: serverFileName,
         fileSize: fileSize,
@@ -189,21 +195,38 @@ class PdfToWordMicroservice {
     }
   }
 
-  /// Extracts readable text from a .docx file by unzipping and parsing word/document.xml
-  static Future<String> _extractTextFromDocx(File docxFile) async {
+  /// Extracts readable text and embedded photo from a .docx file by unzipping
+  static Future<({String text, File? photoFile})> _extractDocxData(File docxFile, Directory tempDir) async {
     try {
       final bytes = await docxFile.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
+
+      // 1. Extract embedded 3x4 photo from word/media/
+      File? photoFile;
+      for (final file in archive.files) {
+        if (file.name.startsWith('word/media/image') || file.name.startsWith('word/media/')) {
+          final ext = file.name.split('.').last.toLowerCase();
+          if (['jpg', 'jpeg', 'png', 'webp'].contains(ext)) {
+            final photoPath = '${tempDir.path}/cv_photo_${DateTime.now().millisecondsSinceEpoch}.$ext';
+            final pFile = File(photoPath);
+            await pFile.writeAsBytes(file.content as List<int>);
+            photoFile = pFile;
+            break;
+          }
+        }
+      }
+
+      // 2. Extract and parse word/document.xml
       final docFile = archive.findFile('word/document.xml');
-      if (docFile == null) return '';
+      if (docFile == null) return (text: '', photoFile: photoFile);
 
       final xmlStr = utf8.decode(docFile.content as List<int>, allowMalformed: true);
-      
-      // Clean tags while preserving paragraph spacing
+
+      // Clean tags while preserving table structure
       final cleaned = xmlStr
-          .replaceAll(RegExp(r'</w:p>'), '\n\n')
-          .replaceAll(RegExp(r'</w:tr>'), '\n')
           .replaceAll(RegExp(r'</w:tc>'), '\t')
+          .replaceAll(RegExp(r'</w:tr>'), '\n')
+          .replaceAll(RegExp(r'</w:p>'), '\n')
           .replaceAll(RegExp(r'<[^>]*>'), ' ')
           .replaceAll(RegExp(r'&amp;'), '&')
           .replaceAll(RegExp(r'&lt;'), '<')
@@ -213,9 +236,67 @@ class PdfToWordMicroservice {
           .replaceAll(RegExp(r' +'), ' ')
           .trim();
 
-      return cleaned;
+      final normalized = normalizeExtractedCvText(cleaned);
+      return (text: normalized, photoFile: photoFile);
     } catch (_) {
-      return '';
+      return (text: '', photoFile: null);
     }
+  }
+
+  /// Normalizes CV lines that were split into separate lines by colons or tables
+  static String normalizeExtractedCvText(String text) {
+    final lines = text.split('\n').map((l) => l.trim()).toList();
+    final result = <String>[];
+    int i = 0;
+    while (i < lines.length) {
+      final line = lines[i];
+      if (line.isEmpty) {
+        if (result.isNotEmpty && result.last.isNotEmpty) {
+          result.add('');
+        }
+        i++;
+        continue;
+      }
+
+      // If current line contains tabs from table columns
+      if (line.contains('\t')) {
+        final cols = line.split('\t').map((c) => c.trim()).where((c) => c.isNotEmpty).toList();
+        if (cols.length >= 3 && cols[1] == ':') {
+          result.add('${cols[0]} : ${cols.sublist(2).join(' ')}');
+          i++;
+          continue;
+        } else if (cols.length == 2) {
+          result.add('${cols[0]} : ${cols[1]}');
+          i++;
+          continue;
+        } else if (cols.isNotEmpty) {
+          result.add(cols.join(' '));
+          i++;
+          continue;
+        }
+      }
+
+      // If current line is ":" and previous line exists and next line exists
+      if ((line == ':' || line == '៖' || line == ':-') && result.isNotEmpty && i + 1 < lines.length) {
+        final prev = result.removeLast();
+        final next = lines[i + 1];
+        result.add('$prev : $next');
+        i += 2;
+        continue;
+      }
+
+      // If current line starts with ": " or " : "
+      if ((line.startsWith(': ') || line.startsWith(' : ') || line.startsWith('៖ ')) && result.isNotEmpty) {
+        final prev = result.removeLast();
+        final val = line.replaceFirst(RegExp(r'^\s*[:៖]\s*'), '');
+        result.add('$prev : $val');
+        i++;
+        continue;
+      }
+
+      result.add(line);
+      i++;
+    }
+    return result.join('\n');
   }
 }
