@@ -11,6 +11,7 @@ import '../widgets/app_widgets.dart';
 import '../services/gemini_ocr_service.dart';
 import '../services/document_conversion_service.dart';
 import '../services/docx_generator_service.dart';
+import '../services/pdf_to_word_microservice.dart';
 import 'document_scanner_screen.dart';
 
 /// Supported conversion tools
@@ -167,6 +168,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             extractedText: result.fullText,
             isDocx: true,
             detectedFormat: initialFormat,
+            multiImagePaths: imagePaths,
           );
         }
       } else {
@@ -226,6 +228,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           title: 'បម្លែងជា PDF ជោគជ័យ!',
           subtitle: 'ឯកសារ PDF បង្ហាញពេញក្រដាស ១០០% គ្មានគែមស',
           filePath: pdfFile.path,
+          multiImagePaths: imagePaths,
         );
       }
     } catch (e) {
@@ -236,7 +239,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     }
   }
 
-  // 3. PDF to Word (.docx) (Multi-page)
+  // 3. PDF to Word (.docx) (Dual Engine: High-Fidelity Microservice & AI Gemini OCR)
   Future<void> _startPdfToWord() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -246,6 +249,397 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     if (result == null || result.files.isEmpty || result.files.first.path == null) return;
     final pdfPath = result.files.first.path!;
 
+    if (!mounted) return;
+    _showPdfEngineSelectorDialog(pdfPath);
+  }
+
+  /// Dialog to choose between High-Fidelity Layout Engine (Microservice) and AI Gemini OCR
+  void _showPdfEngineSelectorDialog(String pdfPath) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final fileName = pdfPath.split(Platform.pathSeparator).last;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 24,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : AppTheme.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFF2563EB), size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ជ្រើសរើសរបៀបបម្លែង PDF ទៅជា Word',
+                            style: GoogleFonts.kantumruyPro(
+                              color: isDark ? Colors.white : AppTheme.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            fileName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.kantumruyPro(
+                              color: AppTheme.textMuted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+
+                // Option 1: High-Fidelity Microservice Engine (Recommended)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _convertPdfWithMicroservice(pdfPath);
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF16A34A).withValues(alpha: 0.35),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF16A34A), Color(0xFF059669)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        'រក្សាទម្រង់ដើម & រូបភាព ១០០%',
+                                        style: GoogleFonts.kantumruyPro(
+                                          color: isDark ? Colors.white : const Color(0xFF14532D),
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF16A34A),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'Free / លឿន',
+                                        style: GoogleFonts.kantumruyPro(
+                                          color: Colors.white,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'រក្សាតារាង រូបថត ក្បាលលិខិត ជួរឈរ និង Layout ដើមបេះបិទ (Python + PHP)',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF166534),
+                                    fontSize: 11,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF16A34A), size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Option 2: AI Gemini OCR Engine
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _convertPdfWithGeminiOcr(pdfPath);
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'ស្កេនអានអត្ថបទខ្មែរ (AI Gemini OCR)',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: isDark ? Colors.white : AppTheme.textPrimary,
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'សមស្របសម្រាប់ឯកសារ PDF ដែលជាសន្លឹកថតចម្លង (Scan) ឬរូបថតទូរស័ព្ទ',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: AppTheme.textMuted,
+                                    fontSize: 11,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF94A3B8), size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Convert PDF using High-Fidelity Microservice (Layout + Images Engine)
+  Future<void> _convertPdfWithMicroservice(String pdfPath) async {
+    setState(() {
+      _isProcessing = true;
+      _progressMessage = 'កំពុងភ្ជាប់ទៅកាន់ PDF Microservice...';
+      _progressValue = 0.1;
+    });
+
+    try {
+      final detectedFormat = await DocumentConversionService.detectPdfPageFormat(pdfPath);
+
+      final result = await PdfToWordMicroservice.convertPdfToDocx(
+        pdfPath: pdfPath,
+        onProgress: (pct, msg) {
+          if (mounted) {
+            setState(() {
+              _progressValue = pct;
+              _progressMessage = msg;
+            });
+          }
+        },
+      );
+
+      if (!result.success || result.docxFile == null) {
+        throw Exception(result.errorMessage ?? 'ការបម្លែងឯកសារមិនជោគជ័យឡើយ');
+      }
+
+      // Also generate original page preview images if possible
+      List<String>? previewImages;
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final previewDir = Directory('${tempDir.path}/preview_pdf_${DateTime.now().millisecondsSinceEpoch}');
+        await previewDir.create(recursive: true);
+        previewImages = await DocumentConversionService.convertPdfToImages(
+          pdfPath: pdfPath,
+          outputDir: previewDir.path,
+        );
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        _showResultSheet(
+          title: 'បម្លែងជា Word (.docx) រក្សាទម្រង់ដើមជោគជ័យ!',
+          subtitle: 'ប្លង់ Layout, រូបថត និងតារាងត្រូវបានរក្សា ១០០% (ទំព័រ: ${result.pages}) ជាមួយពុម្ពអក្សរ ${result.fontApplied}',
+          filePath: result.docxFile!.path,
+          extractedText: result.extractedText,
+          isDocx: true,
+          detectedFormat: detectedFormat,
+          multiImagePaths: previewImages,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        // Offer seamless fallback to Gemini OCR
+        _showFallbackDialog(
+          error: e.toString(),
+          onUseGemini: () => _convertPdfWithGeminiOcr(pdfPath),
+        );
+      }
+    }
+  }
+
+  /// Fallback dialog when Microservice is unreachable or encounters an error
+  void _showFallbackDialog({required String error, required VoidCallback onUseGemini}) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark || AppTheme.isDarkMode;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          title: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: Color(0xFFEAB308), size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'មិនអាចភ្ជាប់ Microservice',
+                style: GoogleFonts.kantumruyPro(
+                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ការបម្លែងតាមរយៈ Microservice ជួបបញ្ហា:\n$error',
+                style: GoogleFonts.kantumruyPro(
+                  color: isDark ? Colors.white70 : AppTheme.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'តើលោកអ្នកចង់សាកល្បងបម្លែងដោយប្រើ AI Gemini OCR ជំនួសវិញដែរឬទេ?',
+                style: GoogleFonts.kantumruyPro(
+                  color: isDark ? Colors.white : AppTheme.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'បោះបង់',
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                onUseGemini();
+              },
+              icon: const Icon(Icons.psychology_rounded, size: 18),
+              label: Text(
+                'បម្លែងតាម AI Gemini',
+                style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Convert PDF using AI Gemini OCR (for scanned images / copy papers)
+  Future<void> _convertPdfWithGeminiOcr(String pdfPath) async {
     setState(() {
       _isProcessing = true;
       _progressMessage = 'កំពុងបម្លែងទំព័រ PDF ទៅជារូបភាពដើម្បីដំណើរការ AI...';
@@ -253,7 +647,6 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     });
 
     try {
-      // 1. Auto-detect source PDF page size & orientation
       final detectedFormat = await DocumentConversionService.detectPdfPageFormat(pdfPath);
 
       final tempDir = await getTemporaryDirectory();
@@ -287,7 +680,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       );
 
       if (!ocrResult.success || ocrResult.fullText.trim().isEmpty) {
-        throw Exception(ocrResult.errorMessage ?? 'មិនអាចស្រង់អត្ថបទពីឯកសារ PDF បានឡើយ។ សូមពិនិត្យមើលគុណភាពឯកសារ ឬការតភ្ជាប់អ៊ីនធឺណិត។');
+        throw Exception(ocrResult.errorMessage ?? 'មិនអាចស្រង់អត្ថបទពីឯកសារ PDF បានឡើយ។');
       }
 
       final timeStamp = DateTime.now().millisecondsSinceEpoch;
@@ -308,6 +701,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           extractedText: ocrResult.fullText,
           isDocx: true,
           detectedFormat: detectedFormat,
+          multiImagePaths: imagePaths,
         );
       }
     } catch (e) {
@@ -678,9 +1072,15 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark || AppTheme.isDarkMode;
-        int activeTab = 0; // 0: Preview, 1: Raw Text
+        final hasOriginalScan = multiImagePaths != null &&
+            multiImagePaths.isNotEmpty &&
+            File(multiImagePaths.first).existsSync();
+
+        int activeTab = 0; // 0: Preview, 1: Original Scan (if available) or Raw Text, 2: Raw Text
         String currentText = extractedText ?? '';
         String? currentFilePath = filePath;
+        File? cvPhotoFile;
+        bool isFitScreen = true; // Proportional fit-to-mobile width by default
 
         DocxPaperSize currentPaperSize = detectedFormat?.paperSize ?? DocxPaperSize.a4;
         DocxPageOrientation currentOrientation = detectedFormat?.orientation ?? DocxPageOrientation.portrait;
@@ -690,6 +1090,60 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
             final hasText = currentText.trim().isNotEmpty;
+
+            // Pick 3x4 Photo for CV
+            Future<void> pickCvPhoto() async {
+              final picker = ImagePicker();
+              final source = await showModalBottomSheet<ImageSource>(
+                context: ctx,
+                backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+                builder: (bCtx) => SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'ជ្រើសរើសរូបថត 3x4 សម្រាប់ CV',
+                          style: GoogleFonts.kantumruyPro(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 14),
+                        ListTile(
+                          leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF2563EB)),
+                          title: Text('ជ្រើសពីវិចិត្រសាល (Gallery)', style: GoogleFonts.kantumruyPro(fontSize: 13)),
+                          onTap: () => Navigator.pop(bCtx, ImageSource.gallery),
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF10B981)),
+                          title: Text('ថតរូបថ្មី (Camera)', style: GoogleFonts.kantumruyPro(fontSize: 13)),
+                          onTap: () => Navigator.pop(bCtx, ImageSource.camera),
+                        ),
+                        if (cvPhotoFile != null)
+                          ListTile(
+                            leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
+                            title: Text('លុបរូបថតចេញ', style: GoogleFonts.kantumruyPro(fontSize: 13, color: const Color(0xFFE11D48))),
+                            onTap: () {
+                              Navigator.pop(bCtx);
+                              setModalState(() => cvPhotoFile = null);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+
+              if (source != null) {
+                final picked = await picker.pickImage(source: source, imageQuality: 90);
+                if (picked != null) {
+                  setModalState(() {
+                    cvPhotoFile = File(picked.path);
+                  });
+                  _showToast('បានជ្រើសរើសរូបថត 3x4 រួចរាល់!');
+                }
+              }
+            }
 
             // Re-generate DOCX when format, orientation, or text changes
             Future<void> reGenerateDocx({
@@ -734,8 +1188,36 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               }
             }
 
+            // Launch Fullscreen A4 Document View
+            void openFullScreen() {
+              Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (fsCtx) => A4DocumentFullscreenViewer(
+                    initialText: currentText,
+                    paperSize: currentPaperSize,
+                    orientation: currentOrientation,
+                    photoFile: cvPhotoFile,
+                    filePath: currentFilePath,
+                    onPickPhoto: pickCvPhoto,
+                    paperBuilder: (text, size, orient, photo, onPick) => _buildA4PaperContent(
+                      text,
+                      isDark,
+                      paperSize: size,
+                      orientation: orient,
+                      photoFile: photo,
+                      onPickPhoto: onPick,
+                    ),
+                    onSaveText: (newText) async {
+                      await reGenerateDocx(newContent: newText);
+                    },
+                  ),
+                ),
+              );
+            }
+
             return Container(
-              height: MediaQuery.of(ctx).size.height * 0.90,
+              height: MediaQuery.of(ctx).size.height * 0.92,
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -800,7 +1282,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                     ),
                   ),
 
-                  // Segmented Tabs (If text exists)
+                  // Segmented Tabs (Preview Word | Original Scan | Raw Text)
                   if (hasText) ...[
                     const SizedBox(height: 6),
                     Padding(
@@ -815,6 +1297,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                         ),
                         child: Row(
                           children: [
+                            // Tab 0: Word Preview
                             Expanded(
                               child: GestureDetector(
                                 onTap: () => setModalState(() => activeTab = 0),
@@ -833,17 +1316,17 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(
-                                        Icons.visibility_rounded,
-                                        size: 15,
+                                        Icons.description_rounded,
+                                        size: 14,
                                         color: activeTab == 0
                                             ? (isDark ? Colors.white : const Color(0xFF2563EB))
                                             : AppTheme.textMuted,
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 5),
                                       Text(
-                                        'ទិដ្ឋភាពឯកសារ (Preview)',
+                                        'ទិដ្ឋភាព Word',
                                         style: GoogleFonts.kantumruyPro(
-                                          fontSize: 12,
+                                          fontSize: 11.5,
                                           fontWeight: activeTab == 0 ? FontWeight.bold : FontWeight.w500,
                                           color: activeTab == 0
                                               ? (isDark ? Colors.white : const Color(0xFF2563EB))
@@ -855,16 +1338,62 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                 ),
                               ),
                             ),
+
+                            // Tab 1: Original Scan Image (Only if original scan exists)
+                            if (hasOriginalScan) ...[
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setModalState(() => activeTab = 1),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: activeTab == 1
+                                          ? (isDark ? const Color(0xFF2563EB) : Colors.white)
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: activeTab == 1 && !isDark
+                                          ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
+                                          : null,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.image_search_rounded,
+                                          size: 14,
+                                          color: activeTab == 1
+                                              ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                              : AppTheme.textMuted,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          'ឯកសារដើម',
+                                          style: GoogleFonts.kantumruyPro(
+                                            fontSize: 11.5,
+                                            fontWeight: activeTab == 1 ? FontWeight.bold : FontWeight.w500,
+                                            color: activeTab == 1
+                                                ? (isDark ? Colors.white : const Color(0xFF2563EB))
+                                                : AppTheme.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            // Tab Raw Text
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setModalState(() => activeTab = 1),
+                                onTap: () => setModalState(() => activeTab = hasOriginalScan ? 2 : 1),
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: activeTab == 1
+                                    color: activeTab == (hasOriginalScan ? 2 : 1)
                                         ? (isDark ? const Color(0xFF2563EB) : Colors.white)
                                         : Colors.transparent,
                                     borderRadius: BorderRadius.circular(8),
-                                    boxShadow: activeTab == 1 && !isDark
+                                    boxShadow: activeTab == (hasOriginalScan ? 2 : 1) && !isDark
                                         ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
                                         : null,
                                   ),
@@ -874,18 +1403,18 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                     children: [
                                       Icon(
                                         Icons.text_fields_rounded,
-                                        size: 15,
-                                        color: activeTab == 1
+                                        size: 14,
+                                        color: activeTab == (hasOriginalScan ? 2 : 1)
                                             ? (isDark ? Colors.white : const Color(0xFF2563EB))
                                             : AppTheme.textMuted,
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 5),
                                       Text(
-                                        'អត្ថបទសុទ្ធ (Raw Text)',
+                                        'អត្ថបទសុទ្ធ',
                                         style: GoogleFonts.kantumruyPro(
-                                          fontSize: 12,
-                                          fontWeight: activeTab == 1 ? FontWeight.bold : FontWeight.w500,
-                                          color: activeTab == 1
+                                          fontSize: 11.5,
+                                          fontWeight: activeTab == (hasOriginalScan ? 2 : 1) ? FontWeight.bold : FontWeight.w500,
+                                          color: activeTab == (hasOriginalScan ? 2 : 1)
                                               ? (isDark ? Colors.white : const Color(0xFF2563EB))
                                               : AppTheme.textMuted,
                                         ),
@@ -1081,26 +1610,33 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                   isDark,
                                   paperSize: currentPaperSize,
                                   orientation: currentOrientation,
+                                  isFitScreen: isFitScreen,
+                                  photoFile: cvPhotoFile,
+                                  onPickPhoto: pickCvPhoto,
+                                  onToggleFitScreen: () => setModalState(() => isFitScreen = !isFitScreen),
+                                  onOpenFullScreen: openFullScreen,
                                 )
-                              : Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: AppTheme.border),
-                                  ),
-                                  child: SingleChildScrollView(
-                                    child: SelectableText(
-                                      currentText,
-                                      style: GoogleFonts.kantumruyPro(
-                                        color: isDark ? Colors.white : AppTheme.textPrimary,
-                                        fontSize: 12.5,
-                                        height: 1.6,
+                              : (hasOriginalScan && activeTab == 1
+                                  ? _buildOriginalScanView(multiImagePaths.first, isDark)
+                                  : Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: AppTheme.border),
                                       ),
-                                    ),
-                                  ),
-                                ))
+                                      child: SingleChildScrollView(
+                                        child: SelectableText(
+                                          currentText,
+                                          style: GoogleFonts.kantumruyPro(
+                                            color: isDark ? Colors.white : AppTheme.textPrimary,
+                                            fontSize: 12.5,
+                                            height: 1.6,
+                                          ),
+                                        ),
+                                      ),
+                                    )))
                           : Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1271,9 +1807,17 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     bool isDark, {
     DocxPaperSize paperSize = DocxPaperSize.a4,
     DocxPageOrientation orientation = DocxPageOrientation.portrait,
+    bool isFitScreen = true,
+    File? photoFile,
+    VoidCallback? onPickPhoto,
+    VoidCallback? onToggleFitScreen,
+    VoidCallback? onOpenFullScreen,
   }) {
-    final lines = text.split('\n');
     final isLandscape = orientation == DocxPageOrientation.landscape;
+    final paperWidth = isLandscape ? 877.0 : 620.0;
+    final isCv = text.contains('ប្រវត្តិរូបសង្ខេប') ||
+        text.toUpperCase().contains('CURRICULUM VITAE') ||
+        text.toUpperCase().contains('RESUME');
 
     return Container(
       width: double.infinity,
@@ -1282,91 +1826,312 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.border),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Container(
-          width: double.infinity,
-          padding: EdgeInsets.fromLTRB(isLandscape ? 22 : 16, 20, isLandscape ? 22 : 16, 24),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-            border: Border.all(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-              width: 1.2,
+      child: Column(
+        children: [
+          // Top Control Toolbar for Document Preview
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              border: Border(bottom: BorderSide(color: AppTheme.border.withValues(alpha: 0.6))),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Dynamic Paper watermark / header banner
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            child: Row(
+              children: [
+                // Mode 1: Fit Screen
+                InkWell(
+                  onTap: () {
+                    if (!isFitScreen && onToggleFitScreen != null) onToggleFitScreen();
+                  },
+                  borderRadius: BorderRadius.circular(7),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
+                      color: isFitScreen
+                          ? const Color(0xFF2563EB)
+                          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(
+                        color: isFitScreen ? const Color(0xFF2563EB) : AppTheme.border,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.description_rounded, size: 12, color: Color(0xFF2563EB)),
+                        Icon(
+                          Icons.fit_screen_rounded,
+                          size: 13,
+                          color: isFitScreen ? Colors.white : AppTheme.textMuted,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          '${paperSize.name} • ${isLandscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"}',
+                          'សមស្របអេក្រង់',
                           style: GoogleFonts.kantumruyPro(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF2563EB),
+                            fontSize: 10.5,
+                            fontWeight: isFitScreen ? FontWeight.bold : FontWeight.w500,
+                            color: isFitScreen ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                ),
+                const SizedBox(width: 6),
+
+                // Mode 2: True A4 (Pinch-to-zoom)
+                InkWell(
+                  onTap: () {
+                    if (isFitScreen && onToggleFitScreen != null) onToggleFitScreen();
+                  },
+                  borderRadius: BorderRadius.circular(7),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+                      color: !isFitScreen
+                          ? const Color(0xFF2563EB)
+                          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(
+                        color: !isFitScreen ? const Color(0xFF2563EB) : AppTheme.border,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF10B981)),
+                        Icon(
+                          Icons.zoom_in_rounded,
+                          size: 13,
+                          color: !isFitScreen ? Colors.white : AppTheme.textMuted,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          'ទម្រង់ក្រដាសពិត ១០០%',
+                          'ក្រដាស A4 ពិត (Zoom)',
                           style: GoogleFonts.kantumruyPro(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF10B981),
+                            fontSize: 10.5,
+                            fontWeight: !isFitScreen ? FontWeight.bold : FontWeight.w500,
+                            color: !isFitScreen ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
                           ),
                         ),
                       ],
                     ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Add Photo Button (for CV)
+                if (isCv && onPickPhoto != null) ...[
+                  IconButton(
+                    tooltip: 'ជ្រើសរើសរូបថត 3x4',
+                    icon: Icon(
+                      photoFile != null ? Icons.photo_camera_rounded : Icons.add_a_photo_rounded,
+                      size: 16,
+                      color: photoFile != null ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onPickPhoto,
                   ),
                 ],
-              ),
-              const Divider(height: 20),
 
-              // Document Body Elements (Matches 1-page Word sheet)
-              ..._buildPreviewElements(lines, isDark),
-            ],
+                // Fullscreen Button
+                if (onOpenFullScreen != null) ...[
+                  IconButton(
+                    tooltip: 'មើលពេញអេក្រង់ (Full Screen)',
+                    icon: const Icon(
+                      Icons.open_in_full_rounded,
+                      size: 15,
+                      color: Color(0xFF2563EB),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onOpenFullScreen,
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
+
+          // Main Viewport (Fit Screen with FittedBox vs Full 1:1 with InteractiveViewer)
+          Expanded(
+            child: isFitScreen
+                ? LayoutBuilder(
+                    builder: (layoutCtx, constraints) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        physics: const BouncingScrollPhysics(),
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            alignment: Alignment.topCenter,
+                            child: SizedBox(
+                              width: paperWidth,
+                              child: _buildA4PaperContent(
+                                text,
+                                isDark,
+                                paperSize: paperSize,
+                                orientation: orientation,
+                                photoFile: photoFile,
+                                onPickPhoto: onPickPhoto,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : Stack(
+                    children: [
+                      InteractiveViewer(
+                        minScale: 0.35,
+                        maxScale: 3.5,
+                        boundaryMargin: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
+                        constrained: false,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: paperWidth,
+                              child: _buildA4PaperContent(
+                                text,
+                                isDark,
+                                paperSize: paperSize,
+                                orientation: orientation,
+                                photoFile: photoFile,
+                                onPickPhoto: onPickPhoto,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 10,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.75),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.pinch_rounded, size: 12, color: Colors.white70),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Pinch ដើម្បីពង្រីក/បង្រួម',
+                                style: GoogleFonts.kantumruyPro(fontSize: 10, color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
       ),
     );
   }
 
-  List<Widget> _buildPreviewElements(List<String> lines, bool isDark) {
+  /// Builds the full-dimensioned authentic A4 paper sheet
+  Widget _buildA4PaperContent(
+    String text,
+    bool isDark, {
+    DocxPaperSize paperSize = DocxPaperSize.a4,
+    DocxPageOrientation orientation = DocxPageOrientation.portrait,
+    File? photoFile,
+    VoidCallback? onPickPhoto,
+  }) {
+    final lines = text.split('\n');
+    final isLandscape = orientation == DocxPageOrientation.landscape;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(isLandscape ? 32 : 28, 26, isLandscape ? 32 : 28, 30),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Dynamic Paper watermark / header banner
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.description_rounded, size: 12, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${paperSize.name} • ${isLandscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"}',
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF2563EB),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF10B981)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'ទម្រង់ក្រដាសពិត ១០០%',
+                      style: GoogleFonts.kantumruyPro(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 20),
+
+          // Document Body Elements (Matches 1-page Word sheet)
+          ..._buildPreviewElements(lines, isDark, photoFile: photoFile, onPickPhoto: onPickPhoto),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildPreviewElements(
+    List<String> lines,
+    bool isDark, {
+    File? photoFile,
+    VoidCallback? onPickPhoto,
+  }) {
     final bodyWidgets = <Widget>[];
     int idx = 0;
     bool hasEmittedFooterLine = false;
@@ -1425,7 +2190,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               cleanTitle,
               textAlign: TextAlign.center,
               style: GoogleFonts.kantumruyPro(
-                fontSize: 15.5,
+                fontSize: 16.5,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.8,
                 color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -1480,7 +2245,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         }
 
         if (headerContact.isNotEmpty) {
-          bodyWidgets.add(_buildCvHeaderWidget(headerContact, isDark));
+          bodyWidgets.add(_buildCvHeaderWidget(
+            headerContact,
+            isDark,
+            photoFile: photoFile,
+            onPickPhoto: onPickPhoto,
+          ));
           bodyWidgets.add(_buildNavyDividerLine());
         }
 
@@ -1815,13 +2585,18 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
   }
 
   /// Builds a 2-column CV Header (Left: Contact Info, Right: 3x4 Passport Photo Frame)
-  Widget _buildCvHeaderWidget(List<String> contactLines, bool isDark) {
+  Widget _buildCvHeaderWidget(
+    List<String> contactLines,
+    bool isDark, {
+    File? photoFile,
+    VoidCallback? onPickPhoto,
+  }) {
     final displayLines = contactLines
         .where((l) => !l.toUpperCase().contains('[PHOTO]'))
         .toList();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 2, bottom: 4),
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1841,16 +2616,16 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                   final isTelegram = val.contains('@') || val.toLowerCase().contains('telegram');
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.5),
+                    padding: const EdgeInsets.symmetric(vertical: 3),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          width: 108,
+                          width: 110,
                           child: Text(
                             key,
                             style: GoogleFonts.kantumruyPro(
-                              fontSize: 11,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.bold,
                               color: isDark ? Colors.white : const Color(0xFF0F172A),
                             ),
@@ -1859,7 +2634,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                         Text(
                           ':   ',
                           style: GoogleFonts.kantumruyPro(
-                            fontSize: 11,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                             color: isDark ? Colors.white70 : const Color(0xFF334155),
                           ),
@@ -1871,7 +2646,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                 child: Text(
                                   val,
                                   style: GoogleFonts.kantumruyPro(
-                                    fontSize: 11,
+                                    fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
                                     color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E40AF),
                                     height: 1.35,
@@ -1879,8 +2654,30 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                 ),
                               ),
                               if (isTelegram) ...[
-                                const SizedBox(width: 4),
-                                const Icon(Icons.send_rounded, size: 12, color: Color(0xFF0284C7)),
+                                const SizedBox(width: 5),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.send_rounded, size: 10, color: Color(0xFF0284C7)),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Telegram',
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF0284C7),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -1891,11 +2688,11 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                 }
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  padding: const EdgeInsets.symmetric(vertical: 2.5),
                   child: Text(
                     trimmed,
                     style: GoogleFonts.kantumruyPro(
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w500,
                       color: isDark ? Colors.white70 : AppTheme.textPrimary,
                     ),
@@ -1905,57 +2702,107 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             ),
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(width: 14),
 
           // Right Column: 3x4 Passport Photo Frame (Matches Image 1)
-          Container(
-            width: 76,
-            height: 98,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF1E3A8A),
-                  Color(0xFF184E77),
-                  Color(0xFF0F172A),
+          GestureDetector(
+            onTap: onPickPhoto,
+            child: Container(
+              width: 88,
+              height: 118,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: const Color(0xFF184E77), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: const Color(0xFF184E77), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.person_rounded,
-                  size: 38,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 3),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    'រូបថត 3x4',
-                    style: GoogleFonts.kantumruyPro(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: photoFile != null
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(photoFile, fit: BoxFit.cover),
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              color: Colors.black.withValues(alpha: 0.6),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.photo_camera_rounded, size: 10, color: Colors.white),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'ប្តូររូប',
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFF1E3A8A),
+                              Color(0xFF184E77),
+                              Color(0xFF0F172A),
+                            ],
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.person_rounded,
+                              size: 40,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(height: 3),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                'រូបថត 3x4',
+                                style: GoogleFonts.kantumruyPro(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '+ បញ្ចូលរូប',
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 7.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF93C5FD),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
             ),
           ),
         ],
@@ -1963,7 +2810,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     );
   }
 
-  /// Builds a cleanly aligned bullet item (• Key : Value)
+  /// Builds a cleanly aligned bullet item (• Key : Value) with generous A4 width
   Widget _buildBulletItemWidget(String text, bool isDark) {
     final clean = text.replaceFirst(RegExp(r'^[-*•]\s*'), '').trim();
 
@@ -1974,25 +2821,25 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       final val = parts.sublist(1).join(delim).trim();
 
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2.2, horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 2.8, horizontal: 2),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              margin: const EdgeInsets.only(top: 6, right: 8),
-              width: 4.5,
-              height: 4.5,
+              margin: const EdgeInsets.only(top: 6.5, right: 8),
+              width: 5,
+              height: 5,
               decoration: const BoxDecoration(
                 color: Color(0xFF184E77),
                 shape: BoxShape.circle,
               ),
             ),
             SizedBox(
-              width: 120,
+              width: 125,
               child: Text(
                 key,
                 style: GoogleFonts.kantumruyPro(
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.bold,
                   color: isDark ? Colors.white : const Color(0xFF0F172A),
                 ),
@@ -2001,7 +2848,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             Text(
               ':   ',
               style: GoogleFonts.kantumruyPro(
-                fontSize: 11,
+                fontSize: 11.5,
                 fontWeight: FontWeight.bold,
                 color: isDark ? Colors.white70 : const Color(0xFF334155),
               ),
@@ -2010,7 +2857,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               child: Text(
                 val,
                 style: GoogleFonts.kantumruyPro(
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w500,
                   color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1E293B),
                   height: 1.35,
@@ -2023,14 +2870,14 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.2, horizontal: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2.8, horizontal: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            margin: const EdgeInsets.only(top: 6, right: 8),
-            width: 4.5,
-            height: 4.5,
+            margin: const EdgeInsets.only(top: 6.5, right: 8),
+            width: 5,
+            height: 5,
             decoration: const BoxDecoration(
               color: Color(0xFF184E77),
               shape: BoxShape.circle,
@@ -2040,7 +2887,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             child: Text(
               clean,
               style: GoogleFonts.kantumruyPro(
-                fontSize: 11,
+                fontSize: 11.5,
                 fontWeight: FontWeight.w500,
                 color: isDark ? Colors.white70 : AppTheme.textPrimary,
                 height: 1.35,
@@ -2048,6 +2895,65 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Displays the original scanned PDF image with interactive pinch-to-zoom
+  Widget _buildOriginalScanView(String imagePath, bool isDark) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              boundaryMargin: const EdgeInsets.all(40),
+              child: Center(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(imagePath),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.pinch_rounded, size: 13, color: Colors.white70),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pinch-to-zoom ដើម្បីពង្រីកមើល',
+                      style: GoogleFonts.kantumruyPro(fontSize: 10, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2736,6 +3642,284 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Dedicated full-screen viewer for A4 Document with zoom, pan, rotation, and photo insertion
+class A4DocumentFullscreenViewer extends StatefulWidget {
+  final String initialText;
+  final DocxPaperSize paperSize;
+  final DocxPageOrientation orientation;
+  final File? photoFile;
+  final String? filePath;
+  final VoidCallback? onPickPhoto;
+  final Future<void> Function(String newText)? onSaveText;
+  final Widget Function(
+    String text,
+    DocxPaperSize paperSize,
+    DocxPageOrientation orientation,
+    File? photoFile,
+    VoidCallback? onPickPhoto,
+  ) paperBuilder;
+
+  const A4DocumentFullscreenViewer({
+    super.key,
+    required this.initialText,
+    required this.paperSize,
+    required this.orientation,
+    required this.paperBuilder,
+    this.photoFile,
+    this.filePath,
+    this.onPickPhoto,
+    this.onSaveText,
+  });
+
+  @override
+  State<A4DocumentFullscreenViewer> createState() => _A4DocumentFullscreenViewerState();
+}
+
+class _A4DocumentFullscreenViewerState extends State<A4DocumentFullscreenViewer> {
+  late TransformationController _transformController;
+  late DocxPageOrientation _orientation;
+  late String _currentText;
+  double _currentScale = 1.0;
+  bool _isDarkDesk = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformController = TransformationController();
+    _orientation = widget.orientation;
+    _currentText = widget.initialText;
+    _transformController.addListener(_onTransformationChanged);
+  }
+
+  void _onTransformationChanged() {
+    final scale = _transformController.value.getMaxScaleOnAxis();
+    if ((scale - _currentScale).abs() > 0.05) {
+      setState(() {
+        _currentScale = scale;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _transformController.removeListener(_onTransformationChanged);
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  void _zoomIn() {
+    final newScale = (_currentScale * 1.25).clamp(0.4, 3.5);
+    _transformController.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
+  }
+
+  void _zoomOut() {
+    final newScale = (_currentScale / 1.25).clamp(0.4, 3.5);
+    _transformController.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
+  }
+
+  void _resetZoom() {
+    _transformController.value = Matrix4.identity();
+  }
+
+  void _toggleOrientation() {
+    setState(() {
+      _orientation = _orientation == DocxPageOrientation.portrait
+          ? DocxPageOrientation.landscape
+          : DocxPageOrientation.portrait;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLandscape = _orientation == DocxPageOrientation.landscape;
+    final paperWidth = isLandscape ? 877.0 : 620.0;
+
+    return Scaffold(
+      backgroundColor: _isDarkDesk ? const Color(0xFF0B1120) : const Color(0xFFE2E8F0),
+      appBar: AppBar(
+        backgroundColor: _isDarkDesk ? const Color(0xFF0F172A) : Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 18,
+            color: _isDarkDesk ? Colors.white : AppTheme.textPrimary,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ទិដ្ឋភាពក្រដាស A4 ពេញលេញ',
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: _isDarkDesk ? Colors.white : AppTheme.textPrimary,
+              ),
+            ),
+            Text(
+              '${widget.paperSize.name} • ${_orientation.label} • (${(_currentScale * 100).toInt()}%)',
+              style: GoogleFonts.kantumruyPro(
+                fontSize: 10.5,
+                color: AppTheme.textMuted,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          // Dark/Light Desk Toggle
+          IconButton(
+            tooltip: _isDarkDesk ? 'ផ្ទៃតុពណ៌ភ្លឺ' : 'ផ្ទៃតុពណ៌ងងឹត',
+            icon: Icon(
+              _isDarkDesk ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              size: 19,
+              color: _isDarkDesk ? Colors.white70 : AppTheme.textPrimary,
+            ),
+            onPressed: () => setState(() => _isDarkDesk = !_isDarkDesk),
+          ),
+          // Rotate Orientation
+          IconButton(
+            tooltip: 'បង្វិលទិសដៅក្រដាស',
+            icon: Icon(
+              isLandscape ? Icons.stay_current_portrait_rounded : Icons.stay_current_landscape_rounded,
+              size: 19,
+              color: _isDarkDesk ? Colors.white70 : AppTheme.textPrimary,
+            ),
+            onPressed: _toggleOrientation,
+          ),
+          // Share Button
+          if (widget.filePath != null)
+            IconButton(
+              tooltip: 'ចែករំលែក / បើកក្នុង Word',
+              icon: const Icon(Icons.share_rounded, size: 19, color: Color(0xFF2563EB)),
+              onPressed: () async {
+                await Share.shareXFiles([XFile(widget.filePath!)], text: 'ឯកសារបម្លែងពី VVC Attendance');
+              },
+            ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          // Interactive A4 Viewer
+          InteractiveViewer(
+            transformationController: _transformController,
+            minScale: 0.35,
+            maxScale: 3.5,
+            boundaryMargin: const EdgeInsets.symmetric(horizontal: 60, vertical: 100),
+            constrained: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: SizedBox(
+                  width: paperWidth,
+                  child: widget.paperBuilder(
+                    _currentText,
+                    widget.paperSize,
+                    _orientation,
+                    widget.photoFile,
+                    widget.onPickPhoto,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Floating Bottom Control Dock
+          Positioned(
+            bottom: 24,
+            left: 20,
+            right: 20,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: (_isDarkDesk ? const Color(0xFF1E293B) : Colors.white).withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: _isDarkDesk ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Zoom Out
+                    IconButton(
+                      tooltip: 'បង្រួម (-)',
+                      icon: const Icon(Icons.remove_circle_outline_rounded, size: 20),
+                      color: _isDarkDesk ? Colors.white70 : AppTheme.textPrimary,
+                      onPressed: _zoomOut,
+                      visualDensity: VisualDensity.compact,
+                    ),
+
+                    // Reset 100%
+                    InkWell(
+                      onTap: _resetZoom,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${(_currentScale * 100).toInt()}%',
+                          style: GoogleFonts.kantumruyPro(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Zoom In
+                    IconButton(
+                      tooltip: 'ពង្រីក (+)',
+                      icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+                      color: _isDarkDesk ? Colors.white70 : AppTheme.textPrimary,
+                      onPressed: _zoomIn,
+                      visualDensity: VisualDensity.compact,
+                    ),
+
+                    Container(width: 1, height: 20, color: AppTheme.border, margin: const EdgeInsets.symmetric(horizontal: 4)),
+
+                    // Change Photo Button
+                    if (widget.onPickPhoto != null)
+                      IconButton(
+                        tooltip: 'ប្តូររូបថត 3x4',
+                        icon: const Icon(Icons.photo_camera_rounded, size: 19),
+                        color: const Color(0xFF10B981),
+                        onPressed: widget.onPickPhoto,
+                        visualDensity: VisualDensity.compact,
+                      ),
+
+                    // Fit Width
+                    IconButton(
+                      tooltip: 'សមស្របនឹងអេក្រង់',
+                      icon: const Icon(Icons.fit_screen_rounded, size: 19),
+                      color: const Color(0xFF0284C7),
+                      onPressed: _resetZoom,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
