@@ -224,6 +224,7 @@ $envPrefix = '';
 if (DIRECTORY_SEPARATOR !== '\\') {
     $homeDir = getenv('HOME') ?: (isset($_SERVER['DOCUMENT_ROOT']) ? dirname($_SERVER['DOCUMENT_ROOT']) : '/home/samann1');
     $envPrefix = 'export HOME=' . escapeshellarg($homeDir) . '; ';
+    $envPrefix .= 'export OPENBLAS_NUM_THREADS=1; export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; export NUMEXPR_NUM_THREADS=1; ';
     $sitePaths = @glob($homeDir . '/.local/lib/python*/site-packages');
     if (!empty($sitePaths)) {
         $envPrefix .= 'export PYTHONPATH=' . escapeshellarg(implode(':', $sitePaths)) . ':$PYTHONPATH; ';

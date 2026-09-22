@@ -40,9 +40,10 @@ if ($shellExecEnabled) {
     }
 
     if (!empty($pythonCmd)) {
-        // Test importing pdf2docx with auto-detection of user site-packages
-        $testScript = 'import sys, os, glob; sys.path.insert(0, "/home/samann1/.local/lib/python3.9/site-packages"); [sys.path.insert(0, p) for p in glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")]; import pdf2docx; print("INSTALLED")';
-        $testOut = @shell_exec($pythonCmd . ' -c ' . escapeshellarg($testScript) . ' 2>&1');
+        // Fix cPanel RLIMIT_NPROC (Process Limit): Prevent OpenBLAS/NumPy from trying to spawn 64 threads!
+        $envPrefix = 'export OPENBLAS_NUM_THREADS=1; export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; export NUMEXPR_NUM_THREADS=1; ';
+        $testScript = 'import os; os.environ["OPENBLAS_NUM_THREADS"]="1"; os.environ["OMP_NUM_THREADS"]="1"; os.environ["MKL_NUM_THREADS"]="1"; import sys, glob; sys.path.insert(0, "/home/samann1/.local/lib/python3.9/site-packages"); [sys.path.insert(0, p) for p in glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")]; import pdf2docx; print("INSTALLED")';
+        $testOut = @shell_exec($envPrefix . $pythonCmd . ' -c ' . escapeshellarg($testScript) . ' 2>&1');
         $debugTestOut = trim((string)$testOut);
         if ($testOut && strpos($testOut, 'INSTALLED') !== false) {
             $pdf2docxInstalled = true;

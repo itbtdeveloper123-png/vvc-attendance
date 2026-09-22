@@ -11,6 +11,13 @@ import sys
 import os
 import glob
 
+# Prevent OpenBLAS/NumPy from spawning 64 threads on cPanel shared hosting (Fixes RLIMIT_NPROC pthread_create error)
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+
 # Ensure user site-packages are in sys.path (Vital for cPanel / Shared Hosting)
 try:
     possible_sites = [
