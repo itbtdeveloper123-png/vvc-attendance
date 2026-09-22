@@ -35,8 +35,23 @@ import time
 import re
 import warnings
 
-# Suppress pymupdf deprecation warnings from cluttering stdout
-warnings.filterwarnings("ignore")
+# Fix PyMuPDF 1.26.5 regression where Rect.get_area was accidentally removed
+try:
+    import fitz
+    import pymupdf
+    def _rect_get_area(self) -> float:
+        w = max(0.0, self.x1 - self.x0)
+        h = max(0.0, self.y1 - self.y0)
+        return w * h
+
+    for mod in [fitz, pymupdf]:
+        for cls_name in ["Rect", "IRect"]:
+            if hasattr(mod, cls_name):
+                cls = getattr(mod, cls_name)
+                if not hasattr(cls, "get_area"):
+                    cls.get_area = _rect_get_area
+except Exception:
+    pass
 
 try:
     from pdf2docx import Converter

@@ -239,7 +239,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     }
   }
 
-  // 3. PDF to Word (.docx) (Dual Engine: High-Fidelity Microservice & AI Gemini OCR)
+  // 3. PDF to Word (.docx) (Smart Automatic Engine - One-Tap Conversion)
   Future<void> _startPdfToWord() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -250,261 +250,17 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     final pdfPath = result.files.first.path!;
 
     if (!mounted) return;
-    _showPdfEngineSelectorDialog(pdfPath);
+    await _convertPdfAuto(pdfPath);
   }
 
-  /// Dialog to choose between High-Fidelity Layout Engine (Microservice) and AI Gemini OCR
-  void _showPdfEngineSelectorDialog(String pdfPath) {
-    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
-    final fileName = pdfPath.split(Platform.pathSeparator).last;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 24,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white24 : AppTheme.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFF2563EB), size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ជ្រើសរើសរបៀបបម្លែង PDF ទៅជា Word',
-                            style: GoogleFonts.kantumruyPro(
-                              color: isDark ? Colors.white : AppTheme.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            fileName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.kantumruyPro(
-                              color: AppTheme.textMuted,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-
-                // Option 1: High-Fidelity Microservice Engine (Recommended)
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _convertPdfWithMicroservice(pdfPath);
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF0FDF4),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFF16A34A).withValues(alpha: 0.35),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF16A34A), Color(0xFF059669)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF16A34A).withValues(alpha: 0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        'រក្សាទម្រង់ដើម & រូបភាព ១០០%',
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: isDark ? Colors.white : const Color(0xFF14532D),
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF16A34A),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'Free / លឿន',
-                                        style: GoogleFonts.kantumruyPro(
-                                          color: Colors.white,
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  'រក្សាតារាង រូបថត ក្បាលលិខិត ជួរឈរ និង Layout ដើមបេះបិទ (Python + PHP)',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF166534),
-                                    fontSize: 11,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF16A34A), size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Option 2: AI Gemini OCR Engine
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _convertPdfWithGeminiOcr(pdfPath);
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF2563EB), Color(0xFF7C3AED)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'ស្កេនអានអត្ថបទខ្មែរ (AI Gemini OCR)',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: isDark ? Colors.white : AppTheme.textPrimary,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  'សមស្របសម្រាប់ឯកសារ PDF ដែលជាសន្លឹកថតចម្លង (Scan) ឬរូបថតទូរស័ព្ទ',
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: AppTheme.textMuted,
-                                    fontSize: 11,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF94A3B8), size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// Convert PDF using High-Fidelity Microservice (Layout + Images Engine)
-  Future<void> _convertPdfWithMicroservice(String pdfPath) async {
+  /// Smart Automatic Pipeline:
+  /// 1. Tries High-Fidelity Microservice (100% Layout, Tables, Photos & Khmer Font Post-Processing)
+  /// 2. If the PDF has no digital text (scanned photo) or microservice fails, auto-falls back to AI Gemini OCR
+  Future<void> _convertPdfAuto(String pdfPath) async {
     setState(() {
       _isProcessing = true;
-      _progressMessage = 'កំពុងភ្ជាប់ទៅកាន់ PDF Microservice...';
-      _progressValue = 0.1;
+      _progressMessage = 'កំពុងវិភាគទម្រង់ និងបម្លែង PDF ទៅជា Word...';
+      _progressValue = 0.15;
     });
 
     try {
@@ -522,120 +278,52 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         },
       );
 
-      if (!result.success || result.docxFile == null) {
-        throw Exception(result.errorMessage ?? 'ការបម្លែងឯកសារមិនជោគជ័យឡើយ');
+      // If microservice succeeded and extracted readable text
+      if (result.success && result.docxFile != null && result.extractedText.trim().length > 20) {
+        List<String>? previewImages;
+        try {
+          final tempDir = await getTemporaryDirectory();
+          final previewDir = Directory('${tempDir.path}/preview_pdf_${DateTime.now().millisecondsSinceEpoch}');
+          await previewDir.create(recursive: true);
+          previewImages = await DocumentConversionService.convertPdfToImages(
+            pdfPath: pdfPath,
+            outputDir: previewDir.path,
+          );
+        } catch (_) {}
+
+        if (mounted) {
+          setState(() => _isProcessing = false);
+          _showResultSheet(
+            title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
+            subtitle: 'ប្លង់ Layout, រូបថត, តារាង និងអក្សរខ្មែរ/EN ត្រូវបានរក្សា ១០០% (ទំព័រ: ${result.pages})',
+            filePath: result.docxFile!.path,
+            extractedText: result.extractedText,
+            isDocx: true,
+            detectedFormat: detectedFormat,
+            multiImagePaths: previewImages,
+          );
+        }
+        return;
       }
 
-      // Also generate original page preview images if possible
-      List<String>? previewImages;
-      try {
-        final tempDir = await getTemporaryDirectory();
-        final previewDir = Directory('${tempDir.path}/preview_pdf_${DateTime.now().millisecondsSinceEpoch}');
-        await previewDir.create(recursive: true);
-        previewImages = await DocumentConversionService.convertPdfToImages(
-          pdfPath: pdfPath,
-          outputDir: previewDir.path,
-        );
-      } catch (_) {}
-
+      // If document is purely a scanned image with no embedded text, auto-process with AI Gemini OCR
       if (mounted) {
-        setState(() => _isProcessing = false);
-        _showResultSheet(
-          title: 'បម្លែងជា Word (.docx) រក្សាទម្រង់ដើមជោគជ័យ!',
-          subtitle: 'ប្លង់ Layout, រូបថត និងតារាងត្រូវបានរក្សា ១០០% (ទំព័រ: ${result.pages}) ជាមួយពុម្ពអក្សរ ${result.fontApplied}',
-          filePath: result.docxFile!.path,
-          extractedText: result.extractedText,
-          isDocx: true,
-          detectedFormat: detectedFormat,
-          multiImagePaths: previewImages,
-        );
+        setState(() {
+          _progressMessage = 'រកឃើញឯកសារស្កេនរូបភាព កំពុងដំណើរការ AI Gemini អានអក្សរខ្មែរ...';
+          _progressValue = 0.35;
+        });
       }
-    } catch (e) {
+      await _convertPdfWithGeminiOcr(pdfPath);
+    } catch (_) {
+      // Automatic silent fallback to Gemini OCR
       if (mounted) {
-        setState(() => _isProcessing = false);
-        // Offer seamless fallback to Gemini OCR
-        _showFallbackDialog(
-          error: e.toString(),
-          onUseGemini: () => _convertPdfWithGeminiOcr(pdfPath),
-        );
+        setState(() {
+          _progressMessage = 'កំពុងបម្លែងដោយប្រើ AI Gemini OCR...';
+          _progressValue = 0.35;
+        });
       }
+      await _convertPdfWithGeminiOcr(pdfPath);
     }
-  }
-
-  /// Fallback dialog when Microservice is unreachable or encounters an error
-  void _showFallbackDialog({required String error, required VoidCallback onUseGemini}) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark || AppTheme.isDarkMode;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-          title: Row(
-            children: [
-              const Icon(Icons.info_outline_rounded, color: Color(0xFFEAB308), size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'មិនអាចភ្ជាប់ Microservice',
-                style: GoogleFonts.kantumruyPro(
-                  color: isDark ? Colors.white : AppTheme.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ការបម្លែងតាមរយៈ Microservice ជួបបញ្ហា:\n$error',
-                style: GoogleFonts.kantumruyPro(
-                  color: isDark ? Colors.white70 : AppTheme.textSecondary,
-                  fontSize: 12.5,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'តើលោកអ្នកចង់សាកល្បងបម្លែងដោយប្រើ AI Gemini OCR ជំនួសវិញដែរឬទេ?',
-                style: GoogleFonts.kantumruyPro(
-                  color: isDark ? Colors.white : AppTheme.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                'បោះបង់',
-                style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                onUseGemini();
-              },
-              icon: const Icon(Icons.psychology_rounded, size: 18),
-              label: Text(
-                'បម្លែងតាម AI Gemini',
-                style: GoogleFonts.kantumruyPro(fontWeight: FontWeight.bold),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   /// Convert PDF using AI Gemini OCR (for scanned images / copy papers)

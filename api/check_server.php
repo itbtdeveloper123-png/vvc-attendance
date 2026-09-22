@@ -42,7 +42,7 @@ if ($shellExecEnabled) {
     if (!empty($pythonCmd)) {
         // Fix cPanel RLIMIT_NPROC (Process Limit): Prevent OpenBLAS/NumPy from trying to spawn 64 threads!
         $envPrefix = 'export OPENBLAS_NUM_THREADS=1; export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; export NUMEXPR_NUM_THREADS=1; ';
-        $testScript = 'import os; os.environ["OPENBLAS_NUM_THREADS"]="1"; os.environ["OMP_NUM_THREADS"]="1"; os.environ["MKL_NUM_THREADS"]="1"; import sys, glob; sys.path.insert(0, "/home/samann1/.local/lib/python3.9/site-packages"); [sys.path.insert(0, p) for p in glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")]; import pdf2docx; print("INSTALLED")';
+        $testScript = 'import os; os.environ["OPENBLAS_NUM_THREADS"]="1"; os.environ["OMP_NUM_THREADS"]="1"; os.environ["MKL_NUM_THREADS"]="1"; import sys, glob; sys.path.insert(0, "/home/samann1/.local/lib/python3.9/site-packages"); [sys.path.insert(0, p) for p in glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")]; import fitz, pymupdf; [setattr(getattr(m, c), "get_area", lambda s: max(0.0, s.x1-s.x0)*max(0.0, s.y1-s.y0)) for m in [fitz, pymupdf] for c in ["Rect", "IRect"] if hasattr(m, c)]; import pdf2docx; print("INSTALLED")';
         $testOut = @shell_exec($envPrefix . $pythonCmd . ' -c ' . escapeshellarg($testScript) . ' 2>&1');
         $debugTestOut = trim((string)$testOut);
         if ($testOut && strpos($testOut, 'INSTALLED') !== false) {
