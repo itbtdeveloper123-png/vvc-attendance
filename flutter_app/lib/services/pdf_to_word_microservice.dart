@@ -201,19 +201,25 @@ class PdfToWordMicroservice {
       final bytes = await docxFile.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
 
-      // 1. Extract embedded 3x4 photo from word/media/
+      // 1. Extract embedded 3x4 photo from word/media/ (pick largest image file to avoid small icons/spacers)
       File? photoFile;
-      for (final file in archive.files) {
-        if (file.name.startsWith('word/media/image') || file.name.startsWith('word/media/')) {
-          final ext = file.name.split('.').last.toLowerCase();
-          if (['jpg', 'jpeg', 'png', 'webp'].contains(ext)) {
-            final photoPath = '${tempDir.path}/cv_photo_${DateTime.now().millisecondsSinceEpoch}.$ext';
-            final pFile = File(photoPath);
-            await pFile.writeAsBytes(file.content as List<int>);
-            photoFile = pFile;
-            break;
-          }
-        }
+      final imageFiles = archive.files.where((file) {
+        final lower = file.name.toLowerCase();
+        final ext = lower.split('.').last;
+        return (lower.startsWith('word/media/') || lower.contains('/media/')) &&
+            ['jpg', 'jpeg', 'png', 'webp'].contains(ext) &&
+            (file.content as List<int>).length > 200; // Skip tiny 0-byte or 1x1 spacer dots
+      }).toList();
+
+      if (imageFiles.isNotEmpty) {
+        // Sort descending by size to ensure candidate's portrait photo is selected
+        imageFiles.sort((a, b) => (b.content as List<int>).length.compareTo((a.content as List<int>).length));
+        final bestImage = imageFiles.first;
+        final ext = bestImage.name.split('.').last.toLowerCase();
+        final photoPath = '${tempDir.path}/cv_photo_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final pFile = File(photoPath);
+        await pFile.writeAsBytes(bestImage.content as List<int>);
+        photoFile = pFile;
       }
 
       // 2. Extract and parse word/document.xml

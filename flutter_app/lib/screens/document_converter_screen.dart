@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:image/image.dart' as img;
 import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 import '../services/gemini_ocr_service.dart';
@@ -253,41 +254,37 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     await _convertPdfAuto(pdfPath);
   }
 
-  /// Checks if extracted text is corrupted by non-Unicode / legacy font mapping (e.g. Å[]Å[]...)
-  bool _isExtractedTextGarbled(String text) {
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return true;
+  /// Extracts or crops a 3x4 photo from a document page (top-right area for CVs) as fallback
+  Future<File?> _tryExtractPhotoFromPage(String pageImagePath) async {
+    try {
+      final bytes = await File(pageImagePath).readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return null;
 
-    // Count Khmer Unicode characters (U+1780 to U+17FF)
-    final khmerCount = RegExp(r'[\u1780-\u17FF]').allMatches(trimmed).length;
+      final cropX = (decoded.width * 0.64).toInt();
+      final cropY = (decoded.height * 0.08).toInt();
+      final cropW = (decoded.width * 0.28).toInt();
+      final cropH = (decoded.height * 0.24).toInt();
 
-    // Count control characters (C0 and C1 controls, e.g. 0x80-0x9F which render as tofu boxes [])
-    final controlCharsCount = RegExp(r'[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F\uFFFD]').allMatches(trimmed).length;
-
-    // Count suspicious Latin-1 accented characters (often result of 8-bit font glyph mapping or UTF-8 decode issues)
-    final latinAccentsCount = RegExp(r'[Åå\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]').allMatches(trimmed).length;
-
-    // If there are control characters or Latin accents while Khmer is missing or minimal
-    if (controlCharsCount >= 2 || latinAccentsCount >= 3) {
-      if (khmerCount < 10) return true; // Corrupted font encoding
-    }
-
-    // High ratio of control/accent characters
-    if ((controlCharsCount + latinAccentsCount) > 8) return true;
-
-    // Check for repetitive empty brackets or glyph missing patterns
-    if (RegExp(r'(\[\]|\s*\[\s*\]){3,}').hasMatch(trimmed)) return true;
-
-    return false;
+      if (cropX + cropW <= decoded.width && cropY + cropH <= decoded.height) {
+        final cropped = img.copyCrop(decoded, x: cropX, y: cropY, width: cropW, height: cropH);
+        final tempDir = await getTemporaryDirectory();
+        final photoFile = File('${tempDir.path}/cropped_cv_photo_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        await photoFile.writeAsBytes(img.encodeJpg(cropped, quality: 92));
+        return photoFile;
+      }
+    } catch (_) {}
+    return null;
   }
 
-  /// Smart Automatic Pipeline:
-  /// 1. Pure English Documents: Uses High-Fidelity Microservice (100% Vector Layout & Tables, fast)
-  /// 2. Khmer & Mixed Documents / Font issues / Scans: Automatically processes with AI Gemini OCR for 100% Khmer accuracy
+  /// High-Fidelity Automatic Pipeline:
+  /// Prioritizes iLovePDF Cloud API & Microservice vector engine to preserve 100% genuine
+  /// formatting, tables, borders, colors, fonts, and real candidate photos for both Khmer and English.
+  /// Automatically falls back to Gemini OCR only if vector conversion fails (e.g. pure image scans).
   Future<void> _convertPdfAuto(String pdfPath) async {
     setState(() {
       _isProcessing = true;
-      _progressMessage = 'កំពុងវិភាគទម្រង់ និងភាសាក្នុងឯកសារ PDF...';
+      _progressMessage = 'កំពុងវិភាគទម្រង់ និងបម្លែងតាម iLovePDF / Microservice...';
       _progressValue = 0.15;
     });
 
@@ -299,19 +296,15 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         onProgress: (pct, msg) {
           if (mounted) {
             setState(() {
-              _progressValue = pct * 0.35;
+              _progressValue = pct;
               _progressMessage = msg;
             });
           }
         },
       );
 
-      final isGarbled = _isExtractedTextGarbled(result.extractedText);
-      final hasKhmer = RegExp(r'[\u1780-\u17FF]').hasMatch(result.extractedText);
-
-      // Case 1: Pure English Document (No Khmer, clean text, no font corruption)
-      // English does not suffer from Khmer font/subscript breaking, so microservice vector layout is optimal!
-      if (result.success && result.docxFile != null && result.extractedText.trim().length > 20 && !isGarbled && !hasKhmer) {
+      // Primary High-Fidelity Success: Word document generated with 100% genuine vector layout!
+      if (result.success && result.docxFile != null && result.docxFile!.existsSync()) {
         List<String>? previewImages;
         try {
           final tempDir = await getTemporaryDirectory();
@@ -323,37 +316,47 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           );
         } catch (_) {}
 
+        File? photo = result.photoFile;
+        // Fallback photo extraction from page render if CV and no photo found in docx media
+        if (photo == null && previewImages != null && previewImages.isNotEmpty) {
+          final isCv = result.extractedText.contains('ប្រវត្តិរូប') ||
+              result.extractedText.toUpperCase().contains('CURRICULUM VITAE') ||
+              result.extractedText.toUpperCase().contains('RESUME');
+          if (isCv) {
+            photo = await _tryExtractPhotoFromPage(previewImages.first);
+          }
+        }
+
         if (mounted) {
           setState(() => _isProcessing = false);
           _showResultSheet(
             title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
-            subtitle: 'ឯកសារភាសាអង់គ្លេស រក្សា Layout និងរូបភាព ១០០% (ទំព័រ: ${result.pages})',
+            subtitle: 'រក្សាទម្រង់ដើម ពណ៌ តារាង និងរូបថត ១០០% (ទំព័រ: ${result.pages})',
             filePath: result.docxFile!.path,
             extractedText: result.extractedText,
             isDocx: true,
             detectedFormat: detectedFormat,
             multiImagePaths: previewImages,
             sourcePdfPath: pdfPath,
-            initialPhotoFile: result.photoFile,
+            initialPhotoFile: photo,
           );
         }
         return;
       }
 
-      // Case 2: Document contains Khmer (or mixed Khmer/English), or is scanned, or has font encoding issues
-      // Automatically route to AI Gemini OCR so Khmer text is 100% accurate without broken subscripts/legs!
+      // Secondary Fallback: Only for pure scanned image PDFs where vector extraction fails
       if (mounted) {
         setState(() {
-          _progressMessage = 'ដំណើរការ AI Gemini អានអក្សរខ្មែរស្វ័យប្រវត្តិ (១០០% មិនខុសដៃជើង)...';
+          _progressMessage = 'ឯកសារស្កេនរូបភាព៖ កំពុងដំណើរការ AI Gemini OCR អានអក្សរ...';
           _progressValue = 0.4;
         });
       }
       await _convertPdfWithGeminiOcr(pdfPath);
     } catch (_) {
-      // Automatic silent fallback to Gemini OCR
+      // Graceful fallback to Gemini OCR if service is unavailable
       if (mounted) {
         setState(() {
-          _progressMessage = 'ដំណើរការ AI Gemini អានអក្សរខ្មែរស្វ័យប្រវត្តិ...';
+          _progressMessage = 'កំពុងដំណើរការ AI Gemini OCR អានអក្សរ...';
           _progressValue = 0.4;
         });
       }
@@ -807,6 +810,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         String? currentFilePath = filePath;
         File? cvPhotoFile = initialPhotoFile;
         bool isFitScreen = true; // Proportional fit-to-mobile width by default
+        bool showOriginalLayout = hasOriginalScan; // Default to authentic 100% original layout when available
 
         DocxPaperSize currentPaperSize = detectedFormat?.paperSize ?? DocxPaperSize.a4;
         DocxPageOrientation currentOrientation = detectedFormat?.orientation ?? DocxPageOrientation.portrait;
@@ -1340,6 +1344,11 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                   orientation: currentOrientation,
                                   isFitScreen: isFitScreen,
                                   photoFile: cvPhotoFile,
+                                  originalScanImagePath: hasOriginalScan ? multiImagePaths.first : null,
+                                  showOriginalLayout: showOriginalLayout,
+                                  onToggleLayoutMode: hasOriginalScan
+                                      ? () => setModalState(() => showOriginalLayout = !showOriginalLayout)
+                                      : null,
                                   onPickPhoto: pickCvPhoto,
                                   onToggleFitScreen: () => setModalState(() => isFitScreen = !isFitScreen),
                                   onOpenFullScreen: openFullScreen,
@@ -1538,6 +1547,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     DocxPageOrientation orientation = DocxPageOrientation.portrait,
     bool isFitScreen = true,
     File? photoFile,
+    String? originalScanImagePath,
+    bool showOriginalLayout = true,
+    VoidCallback? onToggleLayoutMode,
     VoidCallback? onPickPhoto,
     VoidCallback? onToggleFitScreen,
     VoidCallback? onOpenFullScreen,
@@ -1547,6 +1559,42 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     final isCv = text.contains('ប្រវត្តិរូបសង្ខេប') ||
         text.toUpperCase().contains('CURRICULUM VITAE') ||
         text.toUpperCase().contains('RESUME');
+
+    final isShowingAuthentic = showOriginalLayout &&
+        originalScanImagePath != null &&
+        File(originalScanImagePath).existsSync();
+
+    final paperContent = isShowingAuthentic
+        ? Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.15),
+                  blurRadius: 16,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                width: 1.2,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Image.file(
+              File(originalScanImagePath),
+              fit: BoxFit.contain,
+            ),
+          )
+        : _buildA4PaperContent(
+            text,
+            isDark,
+            paperSize: paperSize,
+            orientation: orientation,
+            photoFile: photoFile,
+            onPickPhoto: onPickPhoto,
+          );
 
     return Container(
       width: double.infinity,
@@ -1646,6 +1694,48 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                   ),
                 ),
 
+                // Mode 3: Genuine Layout vs Editable Text (Only if original scan is available)
+                if (originalScanImagePath != null && onToggleLayoutMode != null) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: onToggleLayoutMode,
+                    borderRadius: BorderRadius.circular(7),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: showOriginalLayout
+                            ? const Color(0xFF10B981)
+                            : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(
+                          color: showOriginalLayout ? const Color(0xFF10B981) : AppTheme.border,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            showOriginalLayout ? Icons.auto_awesome_rounded : Icons.edit_note_rounded,
+                            size: 13,
+                            color: showOriginalLayout ? Colors.white : AppTheme.textMuted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            showOriginalLayout ? 'ប្លង់ដើម ១០០%' : 'ទម្រង់អត្ថបទ',
+                            style: GoogleFonts.kantumruyPro(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: showOriginalLayout
+                                  ? Colors.white
+                                  : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+
                 const Spacer(),
 
                 // Add Photo Button (for CV)
@@ -1693,14 +1783,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                             alignment: Alignment.topCenter,
                             child: SizedBox(
                               width: paperWidth,
-                              child: _buildA4PaperContent(
-                                text,
-                                isDark,
-                                paperSize: paperSize,
-                                orientation: orientation,
-                                photoFile: photoFile,
-                                onPickPhoto: onPickPhoto,
-                              ),
+                              child: paperContent,
                             ),
                           ),
                         ),
@@ -1719,14 +1802,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                             padding: const EdgeInsets.all(12),
                             child: SizedBox(
                               width: paperWidth,
-                              child: _buildA4PaperContent(
-                                text,
-                                isDark,
-                                paperSize: paperSize,
-                                orientation: orientation,
-                                photoFile: photoFile,
-                                onPickPhoto: onPickPhoto,
-                              ),
+                              child: paperContent,
                             ),
                           ),
                         ),
