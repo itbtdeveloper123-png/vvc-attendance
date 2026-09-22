@@ -13,10 +13,10 @@ import glob
 
 # Ensure user site-packages are in sys.path (Vital for cPanel / Shared Hosting)
 try:
-    possible_sites = (
-        glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) +
-        glob.glob("/home/*/.local/lib/python*/site-packages")
-    )
+    possible_sites = [
+        "/home/samann1/.local/lib/python3.9/site-packages",
+        "/home/samann1/.local/lib/python3.10/site-packages",
+    ] + glob.glob(os.path.expanduser("~/.local/lib/python*/site-packages")) + glob.glob("/home/*/.local/lib/python*/site-packages")
     for p in possible_sites:
         if os.path.isdir(p) and p not in sys.path:
             sys.path.insert(0, p)
