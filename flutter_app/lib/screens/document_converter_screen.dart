@@ -253,9 +253,37 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     await _convertPdfAuto(pdfPath);
   }
 
+  /// Checks if extracted text is corrupted by non-Unicode / legacy font mapping (e.g. Å[]Å[]...)
+  bool _isExtractedTextGarbled(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return true;
+
+    // Count Khmer Unicode characters (U+1780 to U+17FF)
+    final khmerCount = RegExp(r'[\u1780-\u17FF]').allMatches(trimmed).length;
+
+    // Count control characters (C0 and C1 controls, e.g. 0x80-0x9F which render as tofu boxes [])
+    final controlCharsCount = RegExp(r'[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F\uFFFD]').allMatches(trimmed).length;
+
+    // Count suspicious Latin-1 accented characters (often result of 8-bit font glyph mapping or UTF-8 decode issues)
+    final latinAccentsCount = RegExp(r'[Åå\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]').allMatches(trimmed).length;
+
+    // If there are control characters or Latin accents while Khmer is missing or minimal
+    if (controlCharsCount >= 2 || latinAccentsCount >= 3) {
+      if (khmerCount < 10) return true; // Corrupted font encoding
+    }
+
+    // High ratio of control/accent characters
+    if ((controlCharsCount + latinAccentsCount) > 8) return true;
+
+    // Check for repetitive empty brackets or glyph missing patterns
+    if (RegExp(r'(\[\]|\s*\[\s*\]){3,}').hasMatch(trimmed)) return true;
+
+    return false;
+  }
+
   /// Smart Automatic Pipeline:
   /// 1. Tries High-Fidelity Microservice (100% Layout, Tables, Photos & Khmer Font Post-Processing)
-  /// 2. If the PDF has no digital text (scanned photo) or microservice fails, auto-falls back to AI Gemini OCR
+  /// 2. If the PDF has garbled text (non-Unicode font) or is a scanned photo, auto-routes to AI Gemini OCR
   Future<void> _convertPdfAuto(String pdfPath) async {
     setState(() {
       _isProcessing = true;
@@ -278,8 +306,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         },
       );
 
-      // If microservice succeeded and extracted readable text
-      if (result.success && result.docxFile != null && result.extractedText.trim().length > 20) {
+      final isGarbled = _isExtractedTextGarbled(result.extractedText);
+
+      // If microservice succeeded and extracted genuine readable text (no font corruption)
+      if (result.success && result.docxFile != null && result.extractedText.trim().length > 20 && !isGarbled) {
         List<String>? previewImages;
         try {
           final tempDir = await getTemporaryDirectory();
@@ -301,15 +331,18 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             isDocx: true,
             detectedFormat: detectedFormat,
             multiImagePaths: previewImages,
+            sourcePdfPath: pdfPath,
           );
         }
         return;
       }
 
-      // If document is purely a scanned image with no embedded text, auto-process with AI Gemini OCR
+      // If document has garbled font encoding or is a scanned image, auto-process with AI Gemini OCR
       if (mounted) {
         setState(() {
-          _progressMessage = 'រកឃើញឯកសារស្កេនរូបភាព កំពុងដំណើរការ AI Gemini អានអក្សរខ្មែរ...';
+          _progressMessage = isGarbled
+              ? 'រកឃើញពុម្ពអក្សរខូចកូដ ដំណើរការ AI Gemini អានអក្សរខ្មែរឱ្យត្រឹមត្រូវ...'
+              : 'រកឃើញឯកសារស្កេនរូបភាព កំពុងដំណើរការ AI Gemini អានអក្សរខ្មែរ...';
           _progressValue = 0.35;
         });
       }
@@ -390,6 +423,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           isDocx: true,
           detectedFormat: detectedFormat,
           multiImagePaths: imagePaths,
+          sourcePdfPath: pdfPath,
         );
       }
     } catch (e) {
@@ -753,6 +787,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     bool isDocx = false,
     List<String>? multiImagePaths,
     DetectedPageFormat? detectedFormat,
+    String? sourcePdfPath,
   }) {
     showModalBottomSheet(
       context: context,
@@ -969,6 +1004,54 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                       ],
                     ),
                   ),
+
+                  // Warning banner if font encoding is broken / garbled
+                  if (sourcePdfPath != null && _isExtractedTextGarbled(currentText)) ...[
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.3) : const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFF59E0B)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'ពុម្ពអក្សរក្នុងឯកសារដើមមិនមែនជា Unicode។ ដំណើរការ AI ដើម្បីអានអក្សរខ្មែរត្រឹមត្រូវ ១០០%?',
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 11,
+                                color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _convertPdfWithGeminiOcr(sourcePdfPath);
+                            },
+                            icon: const Icon(Icons.auto_awesome_rounded, size: 13, color: Colors.white),
+                            label: Text(
+                              'ប្តូរទៅ AI',
+                              style: GoogleFonts.kantumruyPro(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD97706),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   // Segmented Tabs (Preview Word | Original Scan | Raw Text)
                   if (hasText) ...[
@@ -1361,6 +1444,23 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                       child: Row(
                         children: [
+                          if (sourcePdfPath != null) ...[
+                            // AI Re-read button
+                            IconButton.filledTonal(
+                              tooltip: 'អានឡើងវិញដោយ AI Gemini',
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _convertPdfWithGeminiOcr(sourcePdfPath);
+                              },
+                              icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFFD97706)),
+                              style: IconButton.styleFrom(
+                                backgroundColor: isDark ? const Color(0xFF78350F).withValues(alpha: 0.3) : const Color(0xFFFEF3C7),
+                                padding: const EdgeInsets.all(12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           if (hasText) ...[
                             // Copy Text Button
                             IconButton.filledTonal(

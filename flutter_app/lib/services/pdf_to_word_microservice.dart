@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive.dart';
@@ -196,7 +197,7 @@ class PdfToWordMicroservice {
       final docFile = archive.findFile('word/document.xml');
       if (docFile == null) return '';
 
-      final xmlStr = String.fromCharCodes(docFile.content as List<int>);
+      final xmlStr = utf8.decode(docFile.content as List<int>, allowMalformed: true);
       
       // Clean tags while preserving paragraph spacing
       final cleaned = xmlStr
