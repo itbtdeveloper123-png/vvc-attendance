@@ -245,7 +245,9 @@ class PdfToWordMicroservice {
 
   /// Normalizes CV lines that were split into separate lines by colons or tables
   static String normalizeExtractedCvText(String text) {
-    final lines = text.split('\n').map((l) => l.trim()).toList();
+    // Strip invisible zero-width spaces that break Khmer string comparisons
+    final cleanText = text.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
+    final lines = cleanText.split('\n').map((l) => l.trim()).toList();
     final result = <String>[];
     int i = 0;
     while (i < lines.length) {
@@ -258,9 +260,28 @@ class PdfToWordMicroservice {
         continue;
       }
 
-      // If current line contains tabs from table columns
+      // If current line contains tabs from table columns (e.g. multi-column CV rows)
       if (line.contains('\t')) {
         final cols = line.split('\t').map((c) => c.trim()).where((c) => c.isNotEmpty).toList();
+        
+        // Check if row has multiple [Label, :, Value] pairs (e.g. 2-column CV layout)
+        int cIdx = 0;
+        bool handled = false;
+        while (cIdx + 2 < cols.length && cols[cIdx + 1] == ':') {
+          result.add('${cols[cIdx]} : ${cols[cIdx + 2]}');
+          cIdx += 3;
+          handled = true;
+        }
+
+        if (handled) {
+          while (cIdx < cols.length) {
+            result.add(cols[cIdx]);
+            cIdx++;
+          }
+          i++;
+          continue;
+        }
+
         if (cols.length >= 3 && cols[1] == ':') {
           result.add('${cols[0]} : ${cols.sublist(2).join(' ')}');
           i++;

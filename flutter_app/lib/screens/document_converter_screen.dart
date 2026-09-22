@@ -282,12 +282,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
   }
 
   /// Smart Automatic Pipeline:
-  /// 1. Tries High-Fidelity Microservice (100% Layout, Tables, Photos & Khmer Font Post-Processing)
-  /// 2. If the PDF has garbled text (non-Unicode font) or is a scanned photo, auto-routes to AI Gemini OCR
+  /// 1. Pure English Documents: Uses High-Fidelity Microservice (100% Vector Layout & Tables, fast)
+  /// 2. Khmer & Mixed Documents / Font issues / Scans: Automatically processes with AI Gemini OCR for 100% Khmer accuracy
   Future<void> _convertPdfAuto(String pdfPath) async {
     setState(() {
       _isProcessing = true;
-      _progressMessage = 'កំពុងវិភាគទម្រង់ និងបម្លែង PDF ទៅជា Word...';
+      _progressMessage = 'កំពុងវិភាគទម្រង់ និងភាសាក្នុងឯកសារ PDF...';
       _progressValue = 0.15;
     });
 
@@ -299,7 +299,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         onProgress: (pct, msg) {
           if (mounted) {
             setState(() {
-              _progressValue = pct;
+              _progressValue = pct * 0.35;
               _progressMessage = msg;
             });
           }
@@ -307,9 +307,11 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       );
 
       final isGarbled = _isExtractedTextGarbled(result.extractedText);
+      final hasKhmer = RegExp(r'[\u1780-\u17FF]').hasMatch(result.extractedText);
 
-      // If microservice succeeded and extracted genuine readable text (no font corruption)
-      if (result.success && result.docxFile != null && result.extractedText.trim().length > 20 && !isGarbled) {
+      // Case 1: Pure English Document (No Khmer, clean text, no font corruption)
+      // English does not suffer from Khmer font/subscript breaking, so microservice vector layout is optimal!
+      if (result.success && result.docxFile != null && result.extractedText.trim().length > 20 && !isGarbled && !hasKhmer) {
         List<String>? previewImages;
         try {
           final tempDir = await getTemporaryDirectory();
@@ -325,7 +327,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           setState(() => _isProcessing = false);
           _showResultSheet(
             title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
-            subtitle: 'ប្លង់ Layout, រូបថត, តារាង និងអក្សរខ្មែរ/EN ត្រូវបានរក្សា ១០០% (ទំព័រ: ${result.pages})',
+            subtitle: 'ឯកសារភាសាអង់គ្លេស រក្សា Layout និងរូបភាព ១០០% (ទំព័រ: ${result.pages})',
             filePath: result.docxFile!.path,
             extractedText: result.extractedText,
             isDocx: true,
@@ -338,13 +340,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         return;
       }
 
-      // If document has garbled font encoding or is a scanned image, auto-process with AI Gemini OCR
+      // Case 2: Document contains Khmer (or mixed Khmer/English), or is scanned, or has font encoding issues
+      // Automatically route to AI Gemini OCR so Khmer text is 100% accurate without broken subscripts/legs!
       if (mounted) {
         setState(() {
-          _progressMessage = isGarbled
-              ? 'រកឃើញពុម្ពអក្សរខូចកូដ ដំណើរការ AI Gemini អានអក្សរខ្មែរឱ្យត្រឹមត្រូវ...'
-              : 'រកឃើញឯកសារស្កេនរូបភាព កំពុងដំណើរការ AI Gemini អានអក្សរខ្មែរ...';
-          _progressValue = 0.35;
+          _progressMessage = 'ដំណើរការ AI Gemini អានអក្សរខ្មែរស្វ័យប្រវត្តិ (១០០% មិនខុសដៃជើង)...';
+          _progressValue = 0.4;
         });
       }
       await _convertPdfWithGeminiOcr(pdfPath);
@@ -352,8 +353,8 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       // Automatic silent fallback to Gemini OCR
       if (mounted) {
         setState(() {
-          _progressMessage = 'កំពុងបម្លែងដោយប្រើ AI Gemini OCR...';
-          _progressValue = 0.35;
+          _progressMessage = 'ដំណើរការ AI Gemini អានអក្សរខ្មែរស្វ័យប្រវត្តិ...';
+          _progressValue = 0.4;
         });
       }
       await _convertPdfWithGeminiOcr(pdfPath);
@@ -1007,53 +1008,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                     ),
                   ),
 
-                  // Warning banner if font encoding is broken / garbled
-                  if (sourcePdfPath != null && _isExtractedTextGarbled(currentText)) ...[
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.3) : const Color(0xFFFFFBEB),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFF59E0B)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'ពុម្ពអក្សរក្នុងឯកសារដើមមិនមែនជា Unicode។ ដំណើរការ AI ដើម្បីអានអក្សរខ្មែរត្រឹមត្រូវ ១០០%?',
-                              style: GoogleFonts.kantumruyPro(
-                                fontSize: 11,
-                                color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _convertPdfWithGeminiOcr(sourcePdfPath);
-                            },
-                            icon: const Icon(Icons.auto_awesome_rounded, size: 13, color: Colors.white),
-                            label: Text(
-                              'ប្តូរទៅ AI',
-                              style: GoogleFonts.kantumruyPro(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFD97706),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              elevation: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+
 
                   // Segmented Tabs (Preview Word | Original Scan | Raw Text)
                   if (hasText) ...[
@@ -1446,23 +1401,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                       child: Row(
                         children: [
-                          if (sourcePdfPath != null) ...[
-                            // AI Re-read button
-                            IconButton.filledTonal(
-                              tooltip: 'អានឡើងវិញដោយ AI Gemini',
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                _convertPdfWithGeminiOcr(sourcePdfPath);
-                              },
-                              icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFFD97706)),
-                              style: IconButton.styleFrom(
-                                backgroundColor: isDark ? const Color(0xFF78350F).withValues(alpha: 0.3) : const Color(0xFFFEF3C7),
-                                padding: const EdgeInsets.all(12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
+
                           if (hasText) ...[
                             // Copy Text Button
                             IconButton.filledTonal(
@@ -1984,9 +1923,11 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       }
 
       // 4. CV / Resume Main Title & Header Profile with Photo Frame
-      if (trimmed.contains('ប្រវត្តិរូបសង្ខេប') ||
-          trimmed.toUpperCase().contains('CURRICULUM VITAE') ||
-          trimmed.toUpperCase() == 'RESUME') {
+      final cleanTitleCheck = trimmed.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
+      if (cleanTitleCheck.contains('ប្រវត្តិរូបសង្ខេប') ||
+          cleanTitleCheck.contains('ប្រវត្តិរូប') ||
+          cleanTitleCheck.toUpperCase().contains('CURRICULUM VITAE') ||
+          cleanTitleCheck.toUpperCase().contains('RESUME')) {
         final cleanTitle = trimmed.replaceAll(RegExp(r'^#+\s*'), '').trim();
         bodyWidgets.add(
           Padding(
@@ -2331,11 +2272,14 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
   bool _isSectionBanner(String trimmed) {
     if (trimmed.contains('[BANNER]')) return true;
     final clean = trimmed
+        .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '')
         .replaceAll(RegExp(r'^#+\s*'), '')
-        .replaceAll('[BANNER]', '')
+        .replaceAll(RegExp(r'\[BANNER\]', caseSensitive: false), '')
         .trim();
+    if (clean.isEmpty) return false;
     final lower = clean.toLowerCase();
-    return lower.contains('ព័ត៌មានផ្ទាល់ខ្លួន') ||
+    return lower.contains('ព័ត៌មាន') ||
+        lower.contains('ផ្ទាល់ខ្លួន') ||
         lower.contains('ជីវប្រវត្តិ') ||
         lower.contains('ប្រវត្តិសិក្សា') ||
         lower.contains('កម្រិតសិក្សា') ||
@@ -2346,7 +2290,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         lower.contains('ចំណេះដឹង') ||
         lower.contains('ភាសាបរទេស') ||
         lower.contains('សេចក្តីបញ្ជាក់') ||
-        lower.contains('personal info') ||
+        lower.contains('personal') ||
         lower.contains('education') ||
         lower.contains('experience') ||
         lower.contains('skills') ||

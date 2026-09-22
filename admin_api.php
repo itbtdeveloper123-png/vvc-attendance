@@ -394,6 +394,10 @@ function ensure_api_keys_table(): void {
     if (empty($colsReset)) {
         @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN last_reset_date VARCHAR(20) NULL");
     }
+    $colsSecret = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'secret_key'");
+    if (empty($colsSecret)) {
+        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN secret_key VARCHAR(255) NULL");
+    }
 
     // Pre-seed default Remove.bg keys if table is empty
     $count = dbQuery("SELECT COUNT(*) as c FROM admin_api_keys WHERE service_name = 'remove_bg'");
@@ -886,7 +890,84 @@ function verify_gemini_key(string $apiKey): array {
     ];
 }
 
-function verify_api_key_universal(string $service, string $apiKey): array {
+function verify_ilovepdf_key(string $publicKey, ?string $secretKey = null): array {
+    $publicKey = trim($publicKey);
+    if (empty($publicKey)) {
+        return ['success' => false, 'message' => 'Public Key មិនអាចទទេបានឡើយ', 'free_calls' => 0, 'credits' => 0, 'status' => 'invalid'];
+    }
+
+    $ch = curl_init('https://api.ilovepdf.com/v1/auth');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
+        CURLOPT_POSTFIELDS => json_encode(['public_key' => $publicKey]),
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTPCODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['success' => false, 'message' => 'Curl Error: ' . $curlErr, 'http_code' => $httpCode, 'free_calls' => 0, 'credits' => 0, 'status' => 'error'];
+    }
+
+    $data = json_decode((string)$resp, true);
+    if ($httpCode !== 200 || empty($data['token'])) {
+        $msg = $data['message'] ?? $data['error'] ?? "iLovePDF Auth Error (HTTP {$httpCode})";
+        return [
+            'success' => false,
+            'message' => 'Public Key មិនត្រឹមត្រូវ៖ ' . $msg,
+            'http_code' => $httpCode,
+            'status' => 'invalid',
+            'free_calls' => 0,
+            'credits' => 0,
+        ];
+    }
+
+    $token = $data['token'];
+
+    // Start task to check remaining credits / files
+    $remainingFiles = 250;
+    $ch2 = curl_init('https://api.ilovepdf.com/v1/start/pdfword');
+    curl_setopt_array($ch2, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer {$token}",
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $resp2 = curl_exec($ch2);
+    $httpCode2 = curl_getinfo($ch2, CURLINFO_HTTPCODE);
+    curl_close($ch2);
+
+    if ($httpCode2 === 200) {
+        $startData = json_decode((string)$resp2, true);
+        if (isset($startData['remaining_files'])) {
+            $remainingFiles = (int)$startData['remaining_files'];
+        }
+    }
+
+    return [
+        'success' => true,
+        'message' => "iLovePDF Key ត្រឹមត្រូវ និងដំណើរការល្អ! (Remaining Files: {$remainingFiles})",
+        'http_code' => 200,
+        'status' => 'active',
+        'free_calls' => $remainingFiles,
+        'credits' => $remainingFiles,
+        'remaining_files' => $remainingFiles,
+        'token' => $token,
+    ];
+}
+
+function verify_api_key_universal(string $service, string $apiKey, ?string $secretKey = null): array {
+    if ($service === 'ilovepdf') {
+        return verify_ilovepdf_key($apiKey, $secretKey);
+    }
     if ($service === 'cutout_pro') {
         return verify_cutout_pro_key($apiKey);
     }
@@ -1604,7 +1685,7 @@ try {
                 @dbQuery("UPDATE admin_api_keys SET daily_requests_used = 0, last_reset_date = ? WHERE service_name = 'gemini' AND last_reset_date != ?", [$geminiCycle, $geminiCycle]);
             }
 
-            $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
+            $rows = dbQuery("SELECT id, service_name, key_label, api_key, secret_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
 
             // Auto-seed Gemini Key if currently empty
             if ($service === 'gemini' && empty($rows)) {
@@ -1612,7 +1693,7 @@ try {
                 dbQuery("INSERT IGNORE INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, priority, is_active, last_status, last_checked_at) VALUES ('gemini', 'Key 01 (Primary Gemini Key)', ?, 15, 1500, 1, 1, 'active', NOW())", [
                     $defaultGeminiKey
                 ]);
-                $rows = dbQuery("SELECT id, service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
+                $rows = dbQuery("SELECT id, service_name, key_label, api_key, secret_key, free_calls, credits, is_active, priority, last_status, last_checked_at, created_at, daily_requests_used, daily_limit, last_used_at, last_reset_date FROM admin_api_keys WHERE service_name = ? ORDER BY priority ASC, id ASC", [$service]);
             }
 
             $totalActive = 0;
@@ -1648,6 +1729,8 @@ try {
 
                 $k = (string)$r['api_key'];
                 $masked = (strlen($k) > 10) ? substr($k, 0, 6) . '...' . substr($k, -4) : '***';
+                $secretK = (string)($r['secret_key'] ?? '');
+                $maskedSecret = (strlen($secretK) > 10) ? substr($secretK, 0, 6) . '...' . substr($secretK, -4) : ($secretK ? '***' : '');
                 $remainingRpd = max(0, $keyLimit - $keyUsed);
                 
                 $items[] = [
@@ -1656,6 +1739,8 @@ try {
                     'key_label' => $r['key_label'],
                     'api_key' => $k,
                     'masked_key' => $masked,
+                    'secret_key' => $secretK,
+                    'masked_secret_key' => $maskedSecret,
                     'free_calls' => (int)$r['free_calls'],
                     'credits' => (int)$r['credits'],
                     'daily_requests_used' => $keyUsed,
@@ -1696,11 +1781,12 @@ try {
         case 'add_api_key':
             ensure_api_keys_table();
             $apiKey = trim($_POST['api_key'] ?? '');
+            $secretKey = trim($_POST['secret_key'] ?? '');
             $label = trim($_POST['key_label'] ?? '');
             $service = trim($_POST['service_name'] ?? 'remove_bg');
 
             if (empty($apiKey)) {
-                sendJson(['success' => false, 'message' => 'សូមបញ្ចូល API Key!'], 400);
+                sendJson(['success' => false, 'message' => 'សូមបញ្ចូល API Key (ឬ Public Key)!'], 400);
             }
 
             if (empty($label)) {
@@ -1716,24 +1802,30 @@ try {
             }
 
             // Verify with service server (Universal)
-            $verify = verify_api_key_universal($service, $apiKey);
+            $verify = verify_api_key_universal($service, $apiKey, $secretKey);
             if (!$verify['success'] && ($verify['http_code'] ?? 0) !== 402 && ($verify['http_code'] ?? 0) !== 429) {
                 sendJson(['success' => false, 'message' => 'API Key មិនត្រឹមត្រូវឡើយ៖ ' . ($verify['message'] ?? 'Invalid Key')], 400);
             }
 
-            $freeCalls = $verify['free_calls'] ?? ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 15 : 50));
-            $credits = $verify['credits'] ?? ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1));
+            $freeCalls = $verify['free_calls'] ?? ($service === 'ilovepdf' ? 250 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 15 : 50)));
+            $credits = $verify['credits'] ?? ($service === 'ilovepdf' ? 250 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1)));
             $status = $verify['status'] ?? 'active';
 
             $priorityCount = dbQuery("SELECT MAX(priority) as max_p FROM admin_api_keys WHERE service_name = ?", [$service]);
             $priority = (int)($priorityCount[0]['max_p'] ?? 0) + 1;
 
-            dbQuery("INSERT INTO admin_api_keys (service_name, key_label, api_key, free_calls, credits, is_active, priority, last_status, last_checked_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NOW())", [
-                $service, $label, $apiKey, $freeCalls, $credits, $priority, $status
+            dbQuery("INSERT INTO admin_api_keys (service_name, key_label, api_key, secret_key, free_calls, credits, is_active, priority, last_status, last_checked_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, NOW())", [
+                $service, $label, $apiKey, (!empty($secretKey) ? $secretKey : null), $freeCalls, $credits, $priority, $status
             ]);
 
             if ($service === 'gemini') {
                 dbQuery("INSERT INTO system_settings (setting_key, setting_value) VALUES ('gemini_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = ?", [$apiKey, $apiKey]);
+            } elseif ($service === 'ilovepdf') {
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'ilovepdf_public_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$apiKey]);
+                if (!empty($secretKey)) {
+                    dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'ilovepdf_secret_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$secretKey]);
+                }
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'ilovepdf_enabled', '1') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
             }
 
             sendJson([
@@ -1758,7 +1850,7 @@ try {
 
             $keyRow = $rows[0];
             $service = $keyRow['service_name'] ?? 'remove_bg';
-            $verify = verify_api_key_universal($service, $keyRow['api_key']);
+            $verify = verify_api_key_universal($service, $keyRow['api_key'], $keyRow['secret_key'] ?? null);
 
             $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
             $freeCalls = $verify['free_calls'] ?? 0;
@@ -1813,11 +1905,11 @@ try {
         case 'sync_all_api_keys':
             ensure_api_keys_table();
             $service = trim($_POST['service_name'] ?? 'remove_bg');
-            $rows = dbQuery("SELECT id, api_key, key_label FROM admin_api_keys WHERE service_name = ?", [$service]);
+            $rows = dbQuery("SELECT id, api_key, secret_key, key_label FROM admin_api_keys WHERE service_name = ?", [$service]);
             $updated = 0;
 
             foreach ($rows as $r) {
-                $verify = verify_api_key_universal($service, $r['api_key']);
+                $verify = verify_api_key_universal($service, $r['api_key'], $r['secret_key'] ?? null);
                 $status = $verify['status'] ?? ($verify['success'] ? 'active' : 'invalid');
                 $freeCalls = $verify['free_calls'] ?? 0;
                 $credits = $verify['credits'] ?? 0;
@@ -6936,6 +7028,17 @@ try {
                 try {
                     dbQuery("INSERT INTO app_scan_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$k, (string)$v]);
                 } catch (Throwable $ignore) {}
+            }
+            if (!empty($_POST['ilovepdf_public_key'])) {
+                $pKey = trim($_POST['ilovepdf_public_key']);
+                $sKey = trim($_POST['ilovepdf_secret_key'] ?? '');
+                ensure_api_keys_table();
+                $exist = dbQuery("SELECT id FROM admin_api_keys WHERE service_name = 'ilovepdf' LIMIT 1");
+                if (!empty($exist)) {
+                    dbQuery("UPDATE admin_api_keys SET api_key = ?, secret_key = ?, is_active = 1, last_checked_at = NOW() WHERE id = ?", [$pKey, (!empty($sKey) ? $sKey : null), $exist[0]['id']]);
+                } else {
+                    dbQuery("INSERT INTO admin_api_keys (service_name, key_label, api_key, secret_key, free_calls, credits, is_active, priority, last_status, last_checked_at) VALUES ('ilovepdf', 'iLovePDF Primary Project', ?, ?, 250, 250, 1, 1, 'active', NOW())", [$pKey, (!empty($sKey) ? $sKey : null)]);
+                }
             }
             sendJson(['success' => true, 'message' => 'បានរក្សាទុកការកំណត់ App Scan ជោគជ័យ!']);
             break;

@@ -34,6 +34,7 @@ import {
   Globe,
   Send,
   X,
+  FileText,
 } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { ViewModeToggle, ViewMode } from '../components/common/ViewModeToggle';
@@ -221,8 +222,84 @@ const testGeminiKeyRealtime = async (apiKey: string): Promise<GeminiTestResult> 
   };
 };
 
+export const testIlovePdfKeyRealtime = async (publicKey: string): Promise<{
+  success: boolean;
+  httpCode: number;
+  status: 'active' | 'invalid' | 'error';
+  latencyMs: number;
+  message: string;
+  remainingFiles?: number;
+  detail?: string;
+}> => {
+  const trimmed = publicKey.trim();
+  if (!trimmed) {
+    return {
+      success: false,
+      httpCode: 400,
+      status: 'invalid',
+      latencyMs: 0,
+      message: 'Public Key មិនអាចទទេបានឡើយ',
+    };
+  }
+
+  const start = performance.now();
+  try {
+    const authRes = await fetch('https://api.ilovepdf.com/v1/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ public_key: trimmed }),
+    });
+    const latency = Math.round(performance.now() - start);
+    const authData = await authRes.json().catch(() => ({}));
+
+    if (!authRes.ok || !authData?.token) {
+      return {
+        success: false,
+        httpCode: authRes.status,
+        status: 'invalid',
+        latencyMs: latency,
+        message: authData?.message || `iLovePDF Auth Error (${authRes.status})`,
+        detail: authData?.error || 'Wrong public key',
+      };
+    }
+
+    const token = authData.token;
+    let remainingFiles = 250;
+    try {
+      const startRes = await fetch('https://api.ilovepdf.com/v1/start/pdfword', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+      });
+      if (startRes.ok) {
+        const startData = await startRes.json().catch(() => ({}));
+        if (typeof startData?.remaining_files === 'number') {
+          remainingFiles = startData.remaining_files;
+        }
+      }
+    } catch (_) {}
+
+    return {
+      success: true,
+      httpCode: 200,
+      status: 'active',
+      latencyMs: latency,
+      message: `Key ត្រឹមត្រូវ និងដំណើរការល្អ! (Remaining Files: ${remainingFiles})`,
+      remainingFiles,
+      detail: `Token: ${token.substring(0, 15)}...`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      httpCode: 0,
+      status: 'error',
+      latencyMs: Math.round(performance.now() - start),
+      message: `មិនអាចភ្ជាប់ទៅ iLovePDF API បានឡើយ: ${err?.message || err}`,
+    };
+  }
+};
+
 export const TokensPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys' | 'cutout_pro_keys' | 'gemini_keys'>('active_sessions');
+  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys' | 'cutout_pro_keys' | 'gemini_keys' | 'ilovepdf_keys'>('active_sessions');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [groups, setGroups] = useState<SessionGroup[]>([]);
@@ -234,12 +311,14 @@ export const TokensPage: React.FC = () => {
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  // AI API Keys Management State (Remove.bg, Cutout.pro & Google Gemini)
-  const currentServiceName = activeTab === 'cutout_pro_keys' ? 'cutout_pro' : activeTab === 'gemini_keys' ? 'gemini' : 'remove_bg';
+  // AI API Keys Management State (Remove.bg, Cutout.pro, Google Gemini & iLovePDF)
+  const currentServiceName = activeTab === 'cutout_pro_keys' ? 'cutout_pro' : activeTab === 'gemini_keys' ? 'gemini' : activeTab === 'ilovepdf_keys' ? 'ilovepdf' : 'remove_bg';
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [removeBgCount, setRemoveBgCount] = useState<number>(0);
   const [cutoutProCount, setCutoutProCount] = useState<number>(0);
   const [geminiCount, setGeminiCount] = useState<number>(0);
+  const [ilovePdfCount, setIlovePdfCount] = useState<number>(0);
+  const [revealedSecretKeyIds, setRevealedSecretKeyIds] = useState<Record<number, boolean>>({});
   const [apiKeyStats, setApiKeyStats] = useState<any>({
     total_keys: 0,
     active_keys: 0,
@@ -297,6 +376,7 @@ export const TokensPage: React.FC = () => {
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [newKeyString, setNewKeyString] = useState('');
+  const [newSecretKeyString, setNewSecretKeyString] = useState('');
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [syncingAllKeys, setSyncingAllKeys] = useState(false);
@@ -432,10 +512,11 @@ export const TokensPage: React.FC = () => {
 
   const loadCounts = async () => {
     try {
-      const [rmbg, cutout, gemini] = await Promise.all([
+      const [rmbg, cutout, gemini, ilovepdf] = await Promise.all([
         adminApi.getApiKeys('remove_bg'),
         adminApi.getApiKeys('cutout_pro'),
         adminApi.getApiKeys('gemini'),
+        adminApi.getApiKeys('ilovepdf'),
       ]);
       if (rmbg && rmbg.success) setRemoveBgCount(rmbg.keys?.length || 0);
       if (cutout && cutout.success) setCutoutProCount(cutout.keys?.length || 0);
@@ -444,6 +525,7 @@ export const TokensPage: React.FC = () => {
       } else {
         setGeminiCount(1);
       }
+      if (ilovepdf && ilovepdf.success) setIlovePdfCount(ilovepdf.keys?.length || 0);
     } catch (e) {
       console.error(e);
       setGeminiCount(1);
@@ -465,6 +547,8 @@ export const TokensPage: React.FC = () => {
           setCutoutProCount(res.keys.length);
         } else if (service === 'gemini') {
           setGeminiCount(res.keys.length);
+        } else if (service === 'ilovepdf') {
+          setIlovePdfCount(res.keys.length);
         }
       } else if (service === 'gemini') {
         // Automatically ensure existing Gemini Key is seeded and displayed
@@ -579,12 +663,24 @@ export const TokensPage: React.FC = () => {
       }
     }
 
+    // Deep Real-time Test for iLovePDF before adding
+    if (currentServiceName === 'ilovepdf') {
+      showBanner('info', 'កំពុងតេស្តបញ្ជាក់សុពលភាពផ្ទាល់ជាមួយ iLovePDF Cloud Server...');
+      const testRes = await testIlovePdfKeyRealtime(newKeyString.trim());
+      if (!testRes.success) {
+        showBanner('error', `❌ មិនអាចរក្សាទុកបានទេ៖ ${testRes.message}`);
+        setIsAddingKey(false);
+        return;
+      }
+    }
+
     try {
-      const res = await adminApi.addApiKey(newKeyString.trim(), newKeyLabel.trim(), currentServiceName);
+      const res = await adminApi.addApiKey(newKeyString.trim(), newKeyLabel.trim(), currentServiceName, newSecretKeyString.trim());
       if (res && res.success) {
         showBanner('success', res.message || 'បានបន្ថែម API Key ជោគជ័យ!');
         setIsKeyModalOpen(false);
         setNewKeyString('');
+        setNewSecretKeyString('');
         setNewKeyLabel('');
         loadApiKeys(currentServiceName);
       } else if (currentServiceName === 'gemini') {
@@ -1115,6 +1211,31 @@ export const TokensPage: React.FC = () => {
             <Bot size={15} />
             <span>Google Gemini AI Keys Pool ({geminiCount || (activeTab === 'gemini_keys' ? apiKeys.length : 0)})</span>
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('ilovepdf_keys');
+              loadApiKeys('ilovepdf');
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: activeTab === 'ilovepdf_keys' ? '#fff' : 'transparent',
+              color: activeTab === 'ilovepdf_keys' ? '#E11D48' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'ilovepdf_keys' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <FileText size={15} />
+            <span>iLovePDF API ({ilovePdfCount || (activeTab === 'ilovepdf_keys' ? apiKeys.length : 0)})</span>
+          </button>
         </div>
       </div>
 
@@ -1565,9 +1686,9 @@ export const TokensPage: React.FC = () => {
 
       {/* ========================================================================= */}
       {/* ========================================================================= */}
-      {/* 3. AI API KEYS POOL MANAGEMENT TAB (Remove.bg, Cutout.pro & Google Gemini) */}
+      {/* 3. AI API KEYS POOL MANAGEMENT TAB (Remove.bg, Cutout.pro, Google Gemini & iLovePDF) */}
       {/* ========================================================================= */}
-      {(activeTab === 'remove_bg_keys' || activeTab === 'cutout_pro_keys' || activeTab === 'gemini_keys') && (
+      {(activeTab === 'remove_bg_keys' || activeTab === 'cutout_pro_keys' || activeTab === 'gemini_keys' || activeTab === 'ilovepdf_keys') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* SERVICE BADGE & DESCRIPTION */}
           <div
@@ -1579,11 +1700,15 @@ export const TokensPage: React.FC = () => {
                 ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(124, 58, 237, 0.08))'
                 : activeTab === 'cutout_pro_keys'
                 ? 'linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(168, 85, 247, 0.08))'
+                : activeTab === 'ilovepdf_keys'
+                ? 'linear-gradient(135deg, rgba(225, 29, 72, 0.08), rgba(244, 63, 94, 0.08))'
                 : 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08))',
               border: activeTab === 'gemini_keys'
                 ? '1px solid rgba(37, 99, 235, 0.25)'
                 : activeTab === 'cutout_pro_keys'
                 ? '1px solid rgba(236, 72, 153, 0.25)'
+                : activeTab === 'ilovepdf_keys'
+                ? '1px solid rgba(225, 29, 72, 0.25)'
                 : '1px solid rgba(99, 102, 241, 0.25)',
               display: 'flex',
               alignItems: 'center',
@@ -1602,6 +1727,8 @@ export const TokensPage: React.FC = () => {
                     ? 'linear-gradient(135deg, #2563EB, #7C3AED)'
                     : activeTab === 'cutout_pro_keys'
                     ? 'linear-gradient(135deg, #EC4899, #A855F7)'
+                    : activeTab === 'ilovepdf_keys'
+                    ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                     : 'linear-gradient(135deg, #6366F1, #3B82F6)',
                   color: '#fff',
                   display: 'inline-flex',
@@ -1610,7 +1737,7 @@ export const TokensPage: React.FC = () => {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                 }}
               >
-                {activeTab === 'gemini_keys' ? <Bot size={22} /> : activeTab === 'cutout_pro_keys' ? <Wand2 size={22} /> : <Sparkles size={22} />}
+                {activeTab === 'gemini_keys' ? <Bot size={22} /> : activeTab === 'cutout_pro_keys' ? <Wand2 size={22} /> : activeTab === 'ilovepdf_keys' ? <FileText size={22} /> : <Sparkles size={22} />}
               </span>
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -1618,6 +1745,8 @@ export const TokensPage: React.FC = () => {
                     ? 'Google Gemini AI Keys Pool (Gemini 2.5 Flash, 1.5 Flash & Vision)'
                     : activeTab === 'cutout_pro_keys'
                     ? 'Cutout.pro AI Keys Pool (Passport Studio, AI Suits & Photo Enhancer HD)'
+                    : activeTab === 'ilovepdf_keys'
+                    ? 'iLovePDF Cloud API Keys Pool (PDF to Word .docx Converter)'
                     : 'Remove.bg API Keys Pool (Background Cutout & Signatures)'}
                 </h3>
                 <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -1625,6 +1754,8 @@ export const TokensPage: React.FC = () => {
                     ? 'Google Gemini ដំណើរការ AI Chatbot, Khmer OCR, Audio Transcription និងសង្ខេបកិច្ចប្រជុំ (Meeting AI) ដោយមាន Auto Failover និង Load Balancing ឆ្លាតវៃ។'
                     : activeTab === 'cutout_pro_keys'
                     ? 'គណនី Cutout.pro នីមួយៗផ្តល់ជូន 5 Credits ពេញលេញឥតគិតថ្លៃសម្រាប់បំពាក់អាវធំ, ធ្វើរូប Passport និងទាញយករូបថតឱ្យច្បាស់ HD។'
+                    : activeTab === 'ilovepdf_keys'
+                    ? 'iLovePDF API ដំណើរការបម្លែងឯកសារ PDF ទៅជា Microsoft Word (.docx) ដោយរក្សា Layout, រូបថត 3x4, តារាង និងបន្ទាត់ពណ៌បានស្អាតឥតខ្ចោះ ១០០%។'
                     : 'គណនី Remove.bg នីមួយៗផ្តល់ជូន 50 Free Previews / ខែ ដោយប្រព័ន្ធនឹង Auto Failover ទៅ Key បន្ទាប់ពេលអស់ Credit។'}
                 </p>
               </div>
@@ -1636,6 +1767,8 @@ export const TokensPage: React.FC = () => {
                   ? 'https://aistudio.google.com/app/apikey'
                   : activeTab === 'cutout_pro_keys'
                   ? 'https://www.cutout.pro/user/api-key'
+                  : activeTab === 'ilovepdf_keys'
+                  ? 'https://www.iloveapi.com/user/projects'
                   : 'https://www.remove.bg/dashboard#api-key'
               }
               target="_blank"
@@ -1648,6 +1781,8 @@ export const TokensPage: React.FC = () => {
                   ? 'យក API Key ពី Google AI Studio'
                   : activeTab === 'cutout_pro_keys'
                   ? 'យក API Key ពី Cutout.pro'
+                  : activeTab === 'ilovepdf_keys'
+                  ? 'យក API Key ពី iloveapi.com'
                   : 'យក API Key ពី Remove.bg'}
               </span>
               <ExternalLink size={13} />
@@ -1773,11 +1908,13 @@ export const TokensPage: React.FC = () => {
                     ? 'linear-gradient(135deg, #2563EB, #7C3AED)'
                     : activeTab === 'cutout_pro_keys'
                     ? 'linear-gradient(135deg, #EC4899, #A855F7)'
+                    : activeTab === 'ilovepdf_keys'
+                    ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                     : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                 }}
               >
                 <Plus size={16} />
-                <span>+ បន្ថែម {activeTab === 'gemini_keys' ? 'Google Gemini' : activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : 'Remove.bg'} Key ថ្មី</span>
+                <span>+ បន្ថែម {activeTab === 'gemini_keys' ? 'Google Gemini' : activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : activeTab === 'ilovepdf_keys' ? 'iLovePDF' : 'Remove.bg'} Key ថ្មី</span>
               </button>
             </div>
           </div>
@@ -1790,12 +1927,12 @@ export const TokensPage: React.FC = () => {
                   <tr>
                     <th style={{ width: '60px', textAlign: 'center' }}>ល.រ</th>
                     <th>ឈ្មោះសម្គាល់ (Label)</th>
-                    <th>API Key (Secret)</th>
+                    <th>{activeTab === 'ilovepdf_keys' ? 'Public Key & Secret Key' : 'API Key (Secret)'}</th>
                     <th style={{ textAlign: 'center' }}>
-                      {activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits' : 'Free Calls / ខែ'}
+                      {activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits' : activeTab === 'ilovepdf_keys' ? 'Remaining Files' : 'Free Calls / ខែ'}
                     </th>
                     <th style={{ textAlign: 'center' }}>
-                      {activeTab === 'gemini_keys' ? 'Daily Limit (RPD)' : activeTab === 'cutout_pro_keys' ? 'Paid / Total Credits' : 'Full-Res Credits'}
+                      {activeTab === 'gemini_keys' ? 'Daily Limit (RPD)' : activeTab === 'cutout_pro_keys' ? 'Paid / Total Credits' : activeTab === 'ilovepdf_keys' ? 'Conversion Type' : 'Full-Res Credits'}
                     </th>
                     <th style={{ textAlign: 'center' }}>ស្ថានភាព (Status)</th>
                     <th style={{ width: '180px', textAlign: 'center' }}>សកម្មភាព (Actions)</th>

@@ -495,12 +495,13 @@ export const adminApi = {
     return res.data;
   },
 
-  addApiKey: async (apiKey: string, keyLabel?: string, serviceName: string = 'remove_bg') => {
+  addApiKey: async (apiKey: string, keyLabel?: string, serviceName: string = 'remove_bg', secretKey?: string) => {
     const params = new URLSearchParams();
     params.append('action', 'add_api_key');
     params.append('api_key', apiKey);
     if (keyLabel) params.append('key_label', keyLabel);
     params.append('service_name', serviceName);
+    if (secretKey) params.append('secret_key', secretKey);
     const res = await apiClient.post('', params);
     return res.data;
   },
