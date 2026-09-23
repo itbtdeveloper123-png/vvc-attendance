@@ -284,7 +284,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
   Future<void> _convertPdfAuto(String pdfPath) async {
     setState(() {
       _isProcessing = true;
-      _progressMessage = 'កំពុងវិភាគទម្រង់ និងបម្លែងតាម iLovePDF / Microservice...';
+      _progressMessage = PdfToWordMicroservice.isServerEnabled
+          ? 'កំពុងវិភាគទម្រង់ និងបម្លែងតាម iLovePDF / Microservice...'
+          : 'កំពុងដំណើរការ AI Gemini OCR អានអក្សរ...';
       _progressValue = 0.15;
     });
 

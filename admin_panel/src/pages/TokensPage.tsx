@@ -301,6 +301,57 @@ export const testIlovePdfKeyRealtime = async (publicKey: string): Promise<{
   }
 };
 
+function calculateSecondsUntil1400Cambodia(): number {
+  const now = new Date();
+  // Cambodia is UTC+7
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const cambodiaNow = new Date(utc + (7 * 3600000));
+  
+  const resetTarget = new Date(cambodiaNow);
+  resetTarget.setHours(14, 0, 0, 0);
+  
+  if (cambodiaNow.getTime() >= resetTarget.getTime()) {
+    resetTarget.setDate(resetTarget.getDate() + 1);
+  }
+  
+  return Math.max(0, Math.floor((resetTarget.getTime() - cambodiaNow.getTime()) / 1000));
+}
+
+function formatCountdown(secs: number): string {
+  if (secs <= 0) return '00h 00m 00s';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+interface GeminiCountdownTimerProps {
+  initialSeconds?: number;
+}
+
+const GeminiCountdownTimer: React.FC<GeminiCountdownTimerProps> = React.memo(({ initialSeconds }) => {
+  const [secs, setSecs] = useState<number>(() => {
+    return (initialSeconds && Number(initialSeconds) > 0)
+      ? Number(initialSeconds)
+      : calculateSecondsUntil1400Cambodia();
+  });
+
+  useEffect(() => {
+    if (initialSeconds && Number(initialSeconds) > 0) {
+      setSecs(Number(initialSeconds));
+    }
+  }, [initialSeconds]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecs((prev) => (prev > 0 ? prev - 1 : calculateSecondsUntil1400Cambodia()));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return <span>⏳ Reset ក្នុង៖ {formatCountdown(secs)}</span>;
+});
+
 export const TokensPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys' | 'cutout_pro_keys' | 'gemini_keys' | 'ilovepdf_keys'>('active_sessions');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -336,46 +387,6 @@ export const TokensPage: React.FC = () => {
     reset_countdown_seconds: 0,
     pool_status: 'Active & Ready',
   });
-  const [countdownSec, setCountdownSec] = useState<number>(0);
-
-  const calculateSecondsUntil1400Cambodia = () => {
-    const now = new Date();
-    // Cambodia is UTC+7
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const cambodiaNow = new Date(utc + (7 * 3600000));
-    
-    const resetTarget = new Date(cambodiaNow);
-    resetTarget.setHours(14, 0, 0, 0);
-    
-    if (cambodiaNow.getTime() >= resetTarget.getTime()) {
-      resetTarget.setDate(resetTarget.getDate() + 1);
-    }
-    
-    return Math.max(0, Math.floor((resetTarget.getTime() - cambodiaNow.getTime()) / 1000));
-  };
-
-  useEffect(() => {
-    const secs = (apiKeyStats.reset_countdown_seconds && Number(apiKeyStats.reset_countdown_seconds) > 0)
-      ? Number(apiKeyStats.reset_countdown_seconds)
-      : calculateSecondsUntil1400Cambodia();
-    setCountdownSec(secs);
-  }, [apiKeyStats.reset_countdown_seconds]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdownSec((prev) => (prev > 0 ? prev - 1 : calculateSecondsUntil1400Cambodia()));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatCountdown = (secs: number) => {
-    if (secs <= 0) return '00h 00m 00s';
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
-  };
-
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [newKeyString, setNewKeyString] = useState('');
@@ -627,15 +638,15 @@ export const TokensPage: React.FC = () => {
     if (!silent) setLoadingKeys(false);
   };
 
-  // Real-time synchronization hook (polls quietly every 5s, revalidates on focus, listens to BroadcastChannel)
+  // Real-time synchronization hook (polls quietly every 30s, revalidates on focus, listens to BroadcastChannel)
   const { lastSyncTime, isSyncing, refreshNow } = useRealtimeSync({
-    intervalMs: 5000,
+    intervalMs: 30000,
     onSync: async (isSilent) => {
-      await Promise.all([
-        loadSessions(isSilent),
-        loadCounts(),
-        loadApiKeys(currentServiceName, isSilent),
-      ]);
+      if (activeTab === 'active_sessions') {
+        await loadSessions(isSilent);
+      } else if (['remove_bg_keys', 'cutout_pro_keys', 'gemini_keys', 'ilovepdf_keys'].includes(activeTab)) {
+        await loadApiKeys(currentServiceName, isSilent);
+      }
     },
     enabled: true,
   });
@@ -685,7 +696,8 @@ export const TokensPage: React.FC = () => {
         setNewKeyString('');
         setNewSecretKeyString('');
         setNewKeyLabel('');
-        loadApiKeys(currentServiceName);
+        loadApiKeys(currentServiceName, true);
+        loadCounts();
       } else if (currentServiceName === 'gemini') {
         // Fallback local addition if server endpoint was unreachable
         const newKeyItem = {
@@ -834,6 +846,7 @@ export const TokensPage: React.FC = () => {
       if (res && res.success) {
         showBanner('success', res.message);
         loadApiKeys(currentServiceName, true);
+        loadCounts();
         broadcastRealtimeUpdate({ target: 'tokens', action: 'delete_key' });
       } else if (currentServiceName === 'gemini') {
         setApiKeys((prev: any[]) => prev.filter((k: any) => k.id !== id));
@@ -943,10 +956,21 @@ export const TokensPage: React.FC = () => {
 
   useEffect(() => {
     loadGlobalSettings();
+    loadCounts();
+    loadSessions(false);
   }, []);
 
+  const isInitialTabMount = React.useRef(true);
   useEffect(() => {
-    loadApiKeys(currentServiceName, false);
+    if (isInitialTabMount.current) {
+      isInitialTabMount.current = false;
+      return;
+    }
+    if (activeTab === 'active_sessions') {
+      loadSessions(sessions.length > 0);
+    } else if (['remove_bg_keys', 'cutout_pro_keys', 'gemini_keys', 'ilovepdf_keys'].includes(activeTab)) {
+      loadApiKeys(currentServiceName, false);
+    }
   }, [activeTab]);
 
   const handleToggleSelectAll = () => {
@@ -1192,10 +1216,7 @@ export const TokensPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('remove_bg_keys');
-              loadApiKeys('remove_bg');
-            }}
+            onClick={() => setActiveTab('remove_bg_keys')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1213,14 +1234,11 @@ export const TokensPage: React.FC = () => {
             }}
           >
             <Sparkles size={15} />
-            <span>Remove.bg Keys Pool ({removeBgCount || (activeTab === 'remove_bg_keys' ? apiKeys.length : 0)})</span>
+            <span>Remove.bg Keys Pool ({removeBgCount})</span>
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('cutout_pro_keys');
-              loadApiKeys('cutout_pro');
-            }}
+            onClick={() => setActiveTab('cutout_pro_keys')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1238,14 +1256,11 @@ export const TokensPage: React.FC = () => {
             }}
           >
             <Wand2 size={15} />
-            <span>Cutout.pro Keys Pool ({cutoutProCount || (activeTab === 'cutout_pro_keys' ? apiKeys.length : 0)})</span>
+            <span>Cutout.pro Keys Pool ({cutoutProCount})</span>
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('gemini_keys');
-              loadApiKeys('gemini');
-            }}
+            onClick={() => setActiveTab('gemini_keys')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1263,14 +1278,11 @@ export const TokensPage: React.FC = () => {
             }}
           >
             <Bot size={15} />
-            <span>Google Gemini AI Keys Pool ({geminiCount || (activeTab === 'gemini_keys' ? apiKeys.length : 0)})</span>
+            <span>Google Gemini AI Keys Pool ({geminiCount})</span>
           </button>
 
           <button
-            onClick={() => {
-              setActiveTab('ilovepdf_keys');
-              loadApiKeys('ilovepdf');
-            }}
+            onClick={() => setActiveTab('ilovepdf_keys')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1288,7 +1300,7 @@ export const TokensPage: React.FC = () => {
             }}
           >
             <FileText size={15} />
-            <span>iLovePDF API ({ilovePdfCount || (activeTab === 'ilovepdf_keys' ? apiKeys.length : 0)})</span>
+            <span>iLovePDF API ({ilovePdfCount})</span>
           </button>
         </div>
       </div>
@@ -1882,7 +1894,7 @@ export const TokensPage: React.FC = () => {
             <StatCard
               title={activeTab === 'gemini_keys' ? 'ម៉ោង Reset Daily Limit' : 'ស្ថានភាពប្រព័ន្ធ Failover'}
               value={activeTab === 'gemini_keys' ? '14:00 (02:00 PM)' : apiKeyStats.pool_status}
-              subtitle={activeTab === 'gemini_keys' ? `⏳ Reset ក្នុង៖ ${formatCountdown(countdownSec)}` : 'Auto Rotate ពេលជួបបញ្ហា'}
+              subtitle={activeTab === 'gemini_keys' ? <GeminiCountdownTimer initialSeconds={apiKeyStats.reset_countdown_seconds} /> : 'Auto Rotate ពេលជួបបញ្ហា'}
               icon={activeTab === 'gemini_keys' ? <Clock size={22} color="#0284C7" /> : <Shield size={22} color="#0284C7" />}
             />
           </div>
@@ -1981,8 +1993,8 @@ export const TokensPage: React.FC = () => {
           </div>
 
           {/* KEYS TABLE */}
-          <div className="card" style={{ padding: '0', borderRadius: '16px', overflow: 'hidden' }}>
-            <div className="table-container" style={{ margin: 0 }}>
+          <div className="card" style={{ padding: '0', borderRadius: '16px', overflow: 'hidden', minHeight: '260px' }}>
+            <div className="table-container" style={{ margin: 0, opacity: loadingKeys && apiKeys.length > 0 ? 0.75 : 1, transition: 'opacity 0.2s ease' }}>
               <table className="hrm-table">
                 <thead>
                   <tr>
@@ -2000,9 +2012,9 @@ export const TokensPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {loadingKeys ? (
+                  {loadingKeys && apiKeys.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '60px 40px', color: 'var(--text-muted)' }}>
                         <RotateCw size={24} className="animate-spin" style={{ margin: '0 auto 10px auto', display: 'block' }} />
                         <span>កំពុងទាញយកបញ្ជី API Keys...</span>
                       </td>

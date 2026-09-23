@@ -3,7 +3,7 @@ import React from 'react';
 interface StatCardProps {
   title: string;
   value: string | number;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   icon: React.ReactNode;
   variant?: 'primary' | 'gold' | 'success' | 'warning' | 'danger';
   trend?: string;

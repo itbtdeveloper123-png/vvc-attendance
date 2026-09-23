@@ -1,11 +1,13 @@
 <?php
 /**
- * High-Fidelity PDF to Word (.docx) Microservice API
+ * High-Fidelity PDF to Word (.docx) Cloud Microservice API
  * 
- * Free & Open-Source Engine:
+ * 100% Cloud-Powered via official iLovePDF Cloud API:
+ * - 0% Server CPU / RAM impact
+ * - ZERO Local Python execution (No subprocesses, protects hosting from RLIMIT_NPROC / 40 processes limit)
  * - 100% Genuine Vector Layout & Structure Preservation
  * - High-Resolution Image & Photo Stream Extraction
- * - Automatic Khmer Unicode Font Mapping (Khmer OS Battambang)
+ * - Automatic Khmer Font Formatting
  * 
  * Endpoint: /api/convert-pdf-word.php
  * Method: POST (multipart/form-data) or GET (health check / download)
@@ -31,7 +33,6 @@ error_reporting(E_ALL);
 // Base directories
 $rootDir = dirname(__DIR__);
 $uploadDir = $rootDir . '/uploads/pdf_conversions';
-$scriptPath = $rootDir . '/scripts/convert_pdf_to_docx.py';
 
 // Create uploads directory if not exists
 if (!is_dir($uploadDir)) {
@@ -59,44 +60,6 @@ function cleanup_expired_files(string $dir, int $maxAgeSeconds = 86400): void {
     }
 }
 cleanup_expired_files($uploadDir);
-
-// -----------------------------------------------------------------------------
-// Locate Python Executable
-// -----------------------------------------------------------------------------
-function find_python_executable(string $rootDir): string {
-    // 1. Check local project virtualenv (.venv) on Windows
-    $windowsVenv = $rootDir . '/.venv/Scripts/python.exe';
-    if (file_exists($windowsVenv)) {
-        return $windowsVenv;
-    }
-
-    // 2. Check local project virtualenv on Linux/macOS
-    $linuxVenv = $rootDir . '/.venv/bin/python3';
-    if (file_exists($linuxVenv)) {
-        return $linuxVenv;
-    }
-
-    // 3. Check environment variable override
-    $customPython = getenv('PYTHON_EXECUTABLE');
-    if ($customPython && file_exists($customPython)) {
-        return $customPython;
-    }
-
-    // 4. Check common Linux/cPanel paths
-    $commonLinuxPaths = [
-        '/usr/bin/python3',
-        '/usr/local/bin/python3',
-        '/bin/python3',
-    ];
-    foreach ($commonLinuxPaths as $path) {
-        if (@file_exists($path)) {
-            return $path;
-        }
-    }
-
-    // 5. Default to system python3 or python
-    return (DIRECTORY_SEPARATOR === '\\') ? 'python' : 'python3';
-}
 
 // -----------------------------------------------------------------------------
 // Database Helper: Locate Active iLovePDF Credentials
@@ -320,15 +283,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
-    // Health check
-    $pythonBin = find_python_executable($rootDir);
-    $scriptExists = file_exists($scriptPath);
+    // Health check (100% Cloud, NO local python required)
     $iloveCreds = get_active_ilovepdf_credentials();
     echo json_encode([
         'status' => 'online',
-        'service' => 'PDF to Word Microservice (Layout & Images Engine)',
-        'python_executable' => $pythonBin,
-        'converter_script_available' => $scriptExists,
+        'service' => 'PDF to Word Microservice (Official iLovePDF Cloud Engine)',
+        'python_disabled' => true,
         'ilovepdf_cloud_api_configured' => ($iloveCreds !== null),
         'timestamp' => time(),
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
@@ -418,85 +378,30 @@ $khmerFont = isset($_POST['khmer_font']) && trim((string)$_POST['khmer_font']) !
     : 'Khmer OS Battambang';
 
 $startTime = microtime(true);
-$parsedResult = null;
-$conversionEngine = 'Python pdf2docx (Local Vector Engine)';
-$fullOutput = '';
 
 // -----------------------------------------------------------------------------
-// Engine Priority 1: Official iLovePDF Cloud API
+// Engine: Official iLovePDF Cloud API (100% Cloud, NO Local Python)
 // -----------------------------------------------------------------------------
 $iloveCreds = get_active_ilovepdf_credentials();
-if (!empty($iloveCreds['public_key'])) {
-    $iloveRes = convert_with_ilovepdf($pdfFilePath, $docxFilePath, $iloveCreds['public_key'], $iloveCreds['secret_key'] ?? null);
-    if (!empty($iloveRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
-        $parsedResult = [
-            'success' => true,
-            'engine' => 'iLovePDF Cloud API (Official)',
-            'file_size' => filesize($docxFilePath),
-            'pages' => 1,
-            'elapsed_seconds' => round(microtime(true) - $startTime, 2),
-            'font_applied' => $khmerFont,
-        ];
-        $conversionEngine = 'iLovePDF Cloud API (Official)';
-        @unlink($pdfFilePath);
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Engine Priority 2: High-Fidelity Python Vector Engine (Fallback)
-// -----------------------------------------------------------------------------
-if (!$parsedResult) {
-    $pythonBin = find_python_executable($rootDir);
-
-    $envPrefix = '';
-    if (DIRECTORY_SEPARATOR !== '\\') {
-        $homeDir = getenv('HOME') ?: (isset($_SERVER['DOCUMENT_ROOT']) ? dirname($_SERVER['DOCUMENT_ROOT']) : '/home/samann1');
-        $envPrefix = 'export HOME=' . escapeshellarg($homeDir) . '; ';
-        $envPrefix .= 'export OPENBLAS_NUM_THREADS=1; export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; export NUMEXPR_NUM_THREADS=1; ';
-        $sitePaths = @glob($homeDir . '/.local/lib/python*/site-packages');
-        if (!empty($sitePaths)) {
-            $envPrefix .= 'export PYTHONPATH=' . escapeshellarg(implode(':', $sitePaths)) . ':$PYTHONPATH; ';
-        }
-    }
-
-    $command = $envPrefix . escapeshellcmd($pythonBin) . ' '
-        . escapeshellarg($scriptPath) . ' '
-        . escapeshellarg($pdfFilePath) . ' '
-        . escapeshellarg($docxFilePath) . ' '
-        . escapeshellarg($khmerFont) . ' 2>&1';
-
-    // Support both shell_exec and exec
-    if (function_exists('shell_exec')) {
-        $fullOutput = (string)@shell_exec($command);
-    } elseif (function_exists('exec')) {
-        $tempLines = [];
-        $ret = 0;
-        @exec($command, $tempLines, $ret);
-        $fullOutput = implode("\n", $tempLines);
-    }
-
-    $outputLines = explode("\n", str_replace("\r", "", $fullOutput));
-
-    // Clean up input PDF to save disk space
+if (empty($iloveCreds['public_key'])) {
     @unlink($pdfFilePath);
-
-    // Parse Result JSON
-    foreach ($outputLines as $line) {
-        if (strpos($line, '__RESULT_JSON__:') === 0) {
-            $jsonStr = substr($line, strlen('__RESULT_JSON__:'));
-            $parsedResult = json_decode($jsonStr, true);
-            break;
-        }
-    }
-}
-
-if (!$parsedResult || empty($parsedResult['success']) || !file_exists($docxFilePath)) {
     http_response_code(500);
-    $errorMessage = $parsedResult['error'] ?? 'ការបម្លែងឯកសារមិនជោគជ័យឡើយ';
     echo json_encode([
         'status' => 'error',
-        'message' => 'កំហុសពេលបម្លែង PDF to Word: ' . $errorMessage,
-        'debug_output' => $fullOutput,
+        'message' => 'មិនទាន់មាន iLovePDF API Key នៅក្នុង Admin Panel ឡើយ។ សូមចូល Admin Panel > Tokens & Sessions > បញ្ចូល iLovePDF Key!',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$iloveRes = convert_with_ilovepdf($pdfFilePath, $docxFilePath, $iloveCreds['public_key'], $iloveCreds['secret_key'] ?? null);
+@unlink($pdfFilePath);
+
+if (empty($iloveRes['success']) || !file_exists($docxFilePath) || filesize($docxFilePath) === 0) {
+    http_response_code(500);
+    $errorMessage = $iloveRes['error'] ?? 'ការបម្លែងឯកសារតាម iLovePDF Cloud API មិនជោគជ័យឡើយ';
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'កំហុសពេលបម្លែង PDF to Word (iLovePDF Cloud): ' . $errorMessage,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -517,9 +422,9 @@ echo json_encode([
     'download_url' => $downloadUrl,
     'file_name' => $docxFileName,
     'original_name' => $originalName,
-    'file_size' => $parsedResult['file_size'] ?? filesize($docxFilePath),
-    'pages' => $parsedResult['pages'] ?? 1,
-    'elapsed_seconds' => $parsedResult['elapsed_seconds'] ?? round(microtime(true) - $startTime, 2),
-    'font_applied' => $parsedResult['font_applied'] ?? $khmerFont,
-    'engine' => $parsedResult['engine'] ?? $conversionEngine,
+    'file_size' => filesize($docxFilePath),
+    'pages' => 1,
+    'elapsed_seconds' => round(microtime(true) - $startTime, 2),
+    'font_applied' => $khmerFont,
+    'engine' => 'iLovePDF Cloud API (Official)',
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
