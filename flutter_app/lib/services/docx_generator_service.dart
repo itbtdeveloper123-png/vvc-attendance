@@ -309,6 +309,52 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
+  /// Decorative solid colored bar (Header/Footer bars for CV and Certificates)
+  static String _buildDecorativeSolidBarXml({int totalWidth = 9500, String color = '184E77', int heightDxa = 140}) {
+    return '''<w:tbl>
+  <w:tblPr>
+    <w:tblW w:w="$totalWidth" w:type="dxa"/>
+    <w:jc w:val="center"/>
+    <w:tblBorders>
+      <w:top w:val="none"/>
+      <w:left w:val="none"/>
+      <w:bottom w:val="none"/>
+      <w:right w:val="none"/>
+      <w:insideH w:val="none"/>
+      <w:insideV w:val="none"/>
+    </w:tblBorders>
+  </w:tblPr>
+  <w:tblGrid>
+    <w:gridCol w:w="$totalWidth"/>
+  </w:tblGrid>
+  <w:tr>
+    <w:trPr>
+      <w:cantSplit/>
+      <w:trHeight w:val="$heightDxa" w:hRule="exact"/>
+    </w:trPr>
+    <w:tc>
+      <w:tcPr>
+        <w:tcW w:w="$totalWidth" w:type="dxa"/>
+        <w:shd w:val="clear" w:color="auto" w:fill="$color"/>
+        <w:tcMar>
+          <w:top w:w="0" w:type="dxa"/>
+          <w:bottom w:w="0" w:type="dxa"/>
+          <w:left w:w="0" w:type="dxa"/>
+          <w:right w:w="0" w:type="dxa"/>
+        </w:tcMar>
+        <w:vAlign w:val="center"/>
+      </w:tcPr>
+      <w:p>
+        <w:pPr>
+          <w:spacing w:line="100" w:lineRule="auto" w:before="0" w:after="0"/>
+        </w:pPr>
+      </w:p>
+    </w:tc>
+  </w:tr>
+</w:tbl>
+''';
+  }
+
   /// Decorative divider line OpenXML (1.0pt solid line)
   static String _makeDividerLineXml({String color = '184E77'}) {
     return '''<w:p>
@@ -409,7 +455,7 @@ class DocxGeneratorService {
     int totalWidth = 9500,
     bool hasPhoto = false,
   }) {
-    final textWidth = (totalWidth * 0.76).floor();
+    final textWidth = (totalWidth * 0.74).floor();
     final photoWidth = totalWidth - textWidth;
 
     final buffer = StringBuffer();
@@ -433,7 +479,7 @@ class DocxGeneratorService {
     buffer.write('  <w:tr>\n');
     buffer.write('    <w:trPr><w:cantSplit/></w:trPr>\n');
 
-    // Column 1: Contact Details (Generous line spacing to prevent Khmer text collision)
+    // Column 1: Contact Details (Aligned tab stops for colons)
     buffer.write('    <w:tc>\n');
     buffer.write('      <w:tcPr>\n');
     buffer.write('        <w:tcW w:w="$textWidth" w:type="dxa"/>\n');
@@ -445,6 +491,7 @@ class DocxGeneratorService {
       final escaped = _escapeXml(clean);
       buffer.write('      <w:p>\n');
       buffer.write('        <w:pPr>\n');
+      buffer.write('          <w:tabs><w:tab w:val="left" w:pos="2400"/></w:tabs>\n');
       buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:before="0" w:after="20"/>\n');
       buffer.write('        </w:pPr>\n');
 
@@ -458,15 +505,16 @@ class DocxGeneratorService {
         buffer.write('            <w:sz w:val="21"/>\n');
         buffer.write('            <w:szCs w:val="21"/>\n');
         buffer.write('          </w:rPr>\n');
-        buffer.write('          <w:t xml:space="preserve">${parts[0]} : </w:t>\n');
+        buffer.write('          <w:t>${parts[0]}</w:t>\n');
         buffer.write('        </w:r>\n');
         buffer.write('        <w:r>\n');
+        buffer.write('          <w:tab/>\n');
         buffer.write('          <w:rPr>\n');
         buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
         buffer.write('            <w:sz w:val="20"/>\n');
         buffer.write('            <w:szCs w:val="20"/>\n');
         buffer.write('          </w:rPr>\n');
-        buffer.write('          <w:t>${parts.sublist(1).join(delim)}</w:t>\n');
+        buffer.write('          <w:t xml:space="preserve">: ${parts.sublist(1).join(delim)}</w:t>\n');
         buffer.write('        </w:r>\n');
       } else {
         buffer.write('        <w:r>\n');
@@ -482,7 +530,7 @@ class DocxGeneratorService {
     }
     buffer.write('    </w:tc>\n');
 
-    // Column 2: 3x4 Photo Frame
+    // Column 2: 3x4 Photo Frame (Crisp 1pt border with zero excess margin)
     buffer.write('    <w:tc>\n');
     buffer.write('      <w:tcPr>\n');
     buffer.write('        <w:tcW w:w="$photoWidth" w:type="dxa"/>\n');
@@ -503,10 +551,10 @@ class DocxGeneratorService {
       buffer.write('        </w:tcBorders>\n');
     }
     buffer.write('        <w:tcMar>\n');
-    buffer.write('          <w:top w:w="20" w:type="dxa"/>\n');
-    buffer.write('          <w:bottom w:w="20" w:type="dxa"/>\n');
-    buffer.write('          <w:left w:w="20" w:type="dxa"/>\n');
-    buffer.write('          <w:right w:w="20" w:type="dxa"/>\n');
+    buffer.write('          <w:top w:w="0" w:type="dxa"/>\n');
+    buffer.write('          <w:bottom w:w="0" w:type="dxa"/>\n');
+    buffer.write('          <w:left w:w="0" w:type="dxa"/>\n');
+    buffer.write('          <w:right w:w="0" w:type="dxa"/>\n');
     buffer.write('        </w:tcMar>\n');
     buffer.write('        <w:vAlign w:val="center"/>\n');
     buffer.write('      </w:tcPr>\n');
@@ -573,7 +621,7 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  /// Bullet item OpenXML with navy bullet and bold key
+  /// Bullet item OpenXML with navy bullet, bold key, and aligned colon
   static String _buildBulletItemXml({
     required String bulletText,
     int indentLeft = 360,
@@ -582,6 +630,7 @@ class DocxGeneratorService {
     final buffer = StringBuffer();
     buffer.write('<w:p>\n');
     buffer.write('  <w:pPr>\n');
+    buffer.write('    <w:tabs><w:tab w:val="left" w:pos="3100"/></w:tabs>\n');
     buffer.write('    <w:spacing w:line="250" w:lineRule="auto" w:before="0" w:after="15"/>\n');
     buffer.write('    <w:ind w:left="$indentLeft" w:hanging="$hanging"/>\n');
     buffer.write('  </w:pPr>\n');
@@ -611,17 +660,18 @@ class DocxGeneratorService {
       buffer.write('      <w:sz w:val="20"/>\n');
       buffer.write('      <w:szCs w:val="20"/>\n');
       buffer.write('    </w:rPr>\n');
-      buffer.write('    <w:t xml:space="preserve">${_escapeXml(key)} : </w:t>\n');
+      buffer.write('    <w:t>${_escapeXml(key)}</w:t>\n');
       buffer.write('  </w:r>\n');
 
-      // Value in regular font
+      // Value with aligned colon via tab stop
       buffer.write('  <w:r>\n');
+      buffer.write('    <w:tab/>\n');
       buffer.write('    <w:rPr>\n');
       buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
       buffer.write('      <w:sz w:val="20"/>\n');
       buffer.write('      <w:szCs w:val="20"/>\n');
       buffer.write('    </w:rPr>\n');
-      buffer.write('    <w:t>${_escapeXml(val)}</w:t>\n');
+      buffer.write('    <w:t xml:space="preserve">: ${_escapeXml(val)}</w:t>\n');
       buffer.write('  </w:r>\n');
     } else {
       buffer.write('  <w:r>\n');
@@ -650,6 +700,16 @@ class DocxGeneratorService {
     final lines = rawText.split(RegExp(r'\r?\n'));
     int i = 0;
     bool hasEmittedFooterLine = false;
+
+    final isCvDoc = lines.any((l) =>
+        l.contains('ប្រវត្តិរូបសង្ខេប') ||
+        l.toUpperCase().contains('CURRICULUM VITAE') ||
+        l.toUpperCase() == 'RESUME' ||
+        l.contains('[PHOTO]'));
+
+    if (isCvDoc && isFirstPage) {
+      buffer.write(_buildDecorativeSolidBarXml(totalWidth: printableWidthDxa, color: '184E77', heightDxa: 140));
+    }
 
     // Document Title Deduplication:
     // If rawText already contains a main title heading (e.g. # ប្រវត្តិរូបសង្ខេប), do not print docTitle separately.
@@ -950,6 +1010,10 @@ class DocxGeneratorService {
         align: 'left',
       ));
       i++;
+    }
+
+    if (isCvDoc) {
+      buffer.write(_buildDecorativeSolidBarXml(totalWidth: printableWidthDxa, color: '184E77', heightDxa: 140));
     }
   }
 
