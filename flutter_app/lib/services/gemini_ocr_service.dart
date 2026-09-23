@@ -410,6 +410,8 @@ class GeminiOcrService {
   static Future<File> exportToDocx({
     required GeminiOcrResult result,
     required String outputPath,
+    File? photoFile,
+    Uint8List? photoBytes,
     DocxPaperSize pageSize = DocxPaperSize.a4,
     DocxPageOrientation orientation = DocxPageOrientation.portrait,
     DocxPageMargin margin = DocxPageMargin.normal,
@@ -419,6 +421,8 @@ class GeminiOcrService {
       content: result.fullText,
       multiPageContents: result.pageTexts,
       outputPath: outputPath,
+      photoFile: photoFile,
+      photoBytes: photoBytes,
       pageSize: pageSize,
       orientation: orientation,
       margin: margin,

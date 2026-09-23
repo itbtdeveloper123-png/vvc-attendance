@@ -416,11 +416,24 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         throw Exception(ocrResult.errorMessage ?? 'មិនអាចស្រង់អត្ថបទពីឯកសារ PDF បានឡើយ។');
       }
 
+      // Check if document is a CV or contains a photo placeholder to automatically extract candidate photo
+      File? candidatePhoto;
+      final isCvDoc = ocrResult.fullText.contains('ប្រវត្តិរូប') ||
+          ocrResult.fullText.toUpperCase().contains('CURRICULUM VITAE') ||
+          ocrResult.fullText.toUpperCase().contains('RESUME') ||
+          ocrResult.fullText.contains('[PHOTO]');
+      if (isCvDoc && imagePaths.isNotEmpty) {
+        try {
+          candidatePhoto = await _tryExtractPhotoFromPage(imagePaths.first);
+        } catch (_) {}
+      }
+
       final timeStamp = DateTime.now().millisecondsSinceEpoch;
       final docxPath = '${tempDir.path}/PDF_to_Word_$timeStamp.docx';
       final docxFile = await GeminiOcrService.exportToDocx(
         result: ocrResult,
         outputPath: docxPath,
+        photoFile: candidatePhoto,
         pageSize: detectedFormat.paperSize,
         orientation: detectedFormat.orientation,
       );
@@ -436,6 +449,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           detectedFormat: detectedFormat,
           multiImagePaths: imagePaths,
           sourcePdfPath: pdfPath,
+          initialPhotoFile: candidatePhoto,
         );
       }
     } catch (e) {
@@ -828,6 +842,54 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           builder: (modalContext, setModalState) {
             final hasText = currentText.trim().isNotEmpty;
 
+            // Re-generate DOCX when format, orientation, or text changes
+            Future<void> reGenerateDocx({
+              DocxPaperSize? newSize,
+              DocxPageOrientation? newOrient,
+              DocxPageMargin? newMargin,
+              String? newContent,
+            }) async {
+              final targetSize = newSize ?? currentPaperSize;
+              final targetOrient = newOrient ?? currentOrientation;
+              final targetMargin = newMargin ?? currentMargin;
+              final targetContent = newContent ?? currentText;
+
+              setModalState(() {
+                currentPaperSize = targetSize;
+                currentOrientation = targetOrient;
+                currentMargin = targetMargin;
+                if (newContent != null) currentText = newContent;
+                isRegenerating = true;
+              });
+
+              try {
+                final tempDir = await getTemporaryDirectory();
+                final timeStamp = DateTime.now().millisecondsSinceEpoch;
+                final updatedPath = '${tempDir.path}/Doc_${targetSize.name}_${targetOrient.name}_$timeStamp.docx';
+                final isCvDoc = targetContent.contains('ប្រវត្តិរូប') ||
+                    targetContent.toUpperCase().contains('CURRICULUM VITAE') ||
+                    targetContent.toUpperCase().contains('RESUME') ||
+                    targetContent.contains('[PHOTO]');
+                final newDocx = await DocxGeneratorService.generateDocx(
+                  title: isCvDoc ? 'ប្រវត្តិរូបសង្ខេប' : '',
+                  content: targetContent,
+                  outputPath: updatedPath,
+                  photoFile: cvPhotoFile,
+                  pageSize: targetSize,
+                  orientation: targetOrient,
+                  margin: targetMargin,
+                );
+                setModalState(() {
+                  currentFilePath = newDocx.path;
+                  isRegenerating = false;
+                });
+                _showToast('បានរៀបចំជា ${targetSize.name} (${targetOrient == DocxPageOrientation.landscape ? "ផ្តេក" : "បញ្ឈរ"}) រួចរាល់!');
+              } catch (e) {
+                setModalState(() => isRegenerating = false);
+                _showToast('កំហុសរៀបចំ Word ឡើងវិញ: $e', isError: true);
+              }
+            }
+
             // Pick 3x4 Photo for CV
             Future<void> pickCvPhoto() async {
               final picker = ImagePicker();
@@ -860,9 +922,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                           ListTile(
                             leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
                             title: Text('លុបរូបថតចេញ', style: GoogleFonts.kantumruyPro(fontSize: 13, color: const Color(0xFFE11D48))),
-                            onTap: () {
+                            onTap: () async {
                               Navigator.pop(bCtx);
                               setModalState(() => cvPhotoFile = null);
+                              await reGenerateDocx();
                             },
                           ),
                       ],
@@ -877,51 +940,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                   setModalState(() {
                     cvPhotoFile = File(picked.path);
                   });
+                  await reGenerateDocx();
                   _showToast('បានជ្រើសរើសរូបថត 3x4 រួចរាល់!');
                 }
-              }
-            }
-
-            // Re-generate DOCX when format, orientation, or text changes
-            Future<void> reGenerateDocx({
-              DocxPaperSize? newSize,
-              DocxPageOrientation? newOrient,
-              DocxPageMargin? newMargin,
-              String? newContent,
-            }) async {
-              final targetSize = newSize ?? currentPaperSize;
-              final targetOrient = newOrient ?? currentOrientation;
-              final targetMargin = newMargin ?? currentMargin;
-              final targetContent = newContent ?? currentText;
-
-              setModalState(() {
-                currentPaperSize = targetSize;
-                currentOrientation = targetOrient;
-                currentMargin = targetMargin;
-                if (newContent != null) currentText = newContent;
-                isRegenerating = true;
-              });
-
-              try {
-                final tempDir = await getTemporaryDirectory();
-                final timeStamp = DateTime.now().millisecondsSinceEpoch;
-                final updatedPath = '${tempDir.path}/Doc_${targetSize.name}_${targetOrient.name}_$timeStamp.docx';
-                final newDocx = await DocxGeneratorService.generateDocx(
-                  title: 'ពាក្យសុំច្បាប់ឈប់សម្រាក',
-                  content: targetContent,
-                  outputPath: updatedPath,
-                  pageSize: targetSize,
-                  orientation: targetOrient,
-                  margin: targetMargin,
-                );
-                setModalState(() {
-                  currentFilePath = newDocx.path;
-                  isRegenerating = false;
-                });
-                _showToast('បានរៀបចំជា ${targetSize.name} (${targetOrient == DocxPageOrientation.landscape ? "ផ្តេក" : "បញ្ឈរ"}) រួចរាល់!');
-              } catch (e) {
-                setModalState(() => isRegenerating = false);
-                _showToast('កំហុសរៀបចំ Word ឡើងវិញ: $e', isError: true);
               }
             }
 

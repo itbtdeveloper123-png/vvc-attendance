@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
 
 /// Supported standard paper sizes with dimensions in OpenXML dxa (1 pt = 20 dxa, 1 inch = 1440 dxa)
@@ -109,23 +110,37 @@ class DocxGeneratorService {
   }
 
   /// Generate a .docx file from structured text/markdown and save to [outputPath]
-  /// Supports dynamic [pageSize], [orientation], and [margin]
+  /// Supports dynamic [pageSize], [orientation], and [margin], and real [photoFile] / [photoBytes] embedding.
   static Future<File> generateDocx({
     required String title,
     required String content,
     required String outputPath,
     List<String>? multiPageContents,
+    File? photoFile,
+    Uint8List? photoBytes,
     DocxPaperSize pageSize = DocxPaperSize.a4,
     DocxPageOrientation orientation = DocxPageOrientation.portrait,
     DocxPageMargin margin = DocxPageMargin.normal,
   }) async {
     final archive = Archive();
 
+    // Check if photo is provided as file or bytes
+    Uint8List? effectivePhotoBytes = photoBytes;
+    if (effectivePhotoBytes == null && photoFile != null && photoFile.existsSync()) {
+      try {
+        effectivePhotoBytes = await photoFile.readAsBytes();
+      } catch (_) {}
+    }
+    final hasPhoto = effectivePhotoBytes != null && effectivePhotoBytes.isNotEmpty;
+
     // 1. [Content_Types].xml
     const contentTypesXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
+  <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
@@ -140,12 +155,22 @@ class DocxGeneratorService {
     archive.addFile(ArchiveFile('_rels/.rels', relsXml.length, utf8.encode(relsXml)));
 
     // 3. word/_rels/document.xml.rels
-    const docRelsXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>
-</Relationships>''';
+    final docRelsBuffer = StringBuffer();
+    docRelsBuffer.write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
+    docRelsBuffer.write('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n');
+    docRelsBuffer.write('  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>\n');
+    docRelsBuffer.write('  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>\n');
+    if (hasPhoto) {
+      docRelsBuffer.write('  <Relationship Id="rIdPhoto1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/photo1.jpg"/>\n');
+    }
+    docRelsBuffer.write('</Relationships>');
+    final docRelsXml = docRelsBuffer.toString();
     archive.addFile(ArchiveFile('word/_rels/document.xml.rels', docRelsXml.length, utf8.encode(docRelsXml)));
+
+    // Add photo binary to media folder if present
+    if (effectivePhotoBytes != null && effectivePhotoBytes.isNotEmpty) {
+      archive.addFile(ArchiveFile('word/media/photo1.jpg', effectivePhotoBytes.length, effectivePhotoBytes));
+    }
 
     // 4. word/fontTable.xml
     const fontTableXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -209,6 +234,7 @@ class DocxGeneratorService {
       marginDxa: marginDxa,
       printableWidthDxa: printableWidthDxa,
       isLandscape: isLandscape,
+      hasPhoto: hasPhoto,
     );
     archive.addFile(ArchiveFile('word/document.xml', documentXml.length, utf8.encode(documentXml)));
 
@@ -221,7 +247,7 @@ class DocxGeneratorService {
     return file;
   }
 
-  /// Builds the complete `word/document.xml` with dynamic page size and printable width
+  /// Master document.xml generator with high-fidelity typography, sections, and tables
   static String _buildDocumentXml({
     required String title,
     required String content,
@@ -231,10 +257,15 @@ class DocxGeneratorService {
     required int marginDxa,
     required int printableWidthDxa,
     required bool isLandscape,
+    bool hasPhoto = false,
   }) {
     final buffer = StringBuffer();
     buffer.write('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n');
-    buffer.write('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">\n');
+    buffer.write('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
+        'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" '
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+        'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">\n');
     buffer.write('<w:body>\n');
 
     if (multiPageContents != null && multiPageContents.length > 1) {
@@ -249,6 +280,7 @@ class DocxGeneratorService {
           isFirstPage: i == 0,
           docTitle: i == 0 ? title : null,
           printableWidthDxa: printableWidthDxa,
+          hasPhoto: hasPhoto,
         );
       }
     } else {
@@ -258,17 +290,18 @@ class DocxGeneratorService {
         isFirstPage: true,
         docTitle: title,
         printableWidthDxa: printableWidthDxa,
+        hasPhoto: hasPhoto,
       );
     }
 
-    // Dynamic Page & Margin settings
+    // Dynamic Page & Margin settings - Note: w:docGrid is intentionally omitted
+    // to allow Microsoft Word to render Khmer complex text without line collision or squishing.
     final orientAttr = isLandscape ? ' w:orient="landscape"' : '';
     buffer.write('''
     <w:sectPr>
       <w:pgSz w:w="$pageWidthDxa" w:h="$pageHeightDxa"$orientAttr/>
       <w:pgMar w:top="$marginDxa" w:right="$marginDxa" w:bottom="$marginDxa" w:left="$marginDxa" w:header="708" w:footer="708" w:gutter="0"/>
       <w:cols w:space="708"/>
-      <w:docGrid w:linePitch="360"/>
     </w:sectPr>
 ''');
     buffer.write('</w:body>\n');
@@ -370,8 +403,12 @@ class DocxGeneratorService {
 ''';
   }
 
-  /// 2-Column CV Header Table (Left: Contact Info, Right: 3x4 Photo Frame)
-  static String _buildCvHeaderTableXml(List<String> contactLines, {int totalWidth = 9500}) {
+  /// 2-Column CV Header Table (Left: Contact Info, Right: 3x4 Photo Frame with Embedded Photo)
+  static String _buildCvHeaderTableXml(
+    List<String> contactLines, {
+    int totalWidth = 9500,
+    bool hasPhoto = false,
+  }) {
     final textWidth = (totalWidth * 0.76).floor();
     final photoWidth = totalWidth - textWidth;
 
@@ -396,7 +433,7 @@ class DocxGeneratorService {
     buffer.write('  <w:tr>\n');
     buffer.write('    <w:trPr><w:cantSplit/></w:trPr>\n');
 
-    // Column 1: Contact Details
+    // Column 1: Contact Details (Generous line spacing to prevent Khmer text collision)
     buffer.write('    <w:tc>\n');
     buffer.write('      <w:tcPr>\n');
     buffer.write('        <w:tcW w:w="$textWidth" w:type="dxa"/>\n');
@@ -408,7 +445,7 @@ class DocxGeneratorService {
       final escaped = _escapeXml(clean);
       buffer.write('      <w:p>\n');
       buffer.write('        <w:pPr>\n');
-      buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:after="40"/>\n');
+      buffer.write('          <w:spacing w:line="340" w:lineRule="auto" w:after="60"/>\n');
       buffer.write('        </w:pPr>\n');
 
       if (escaped.contains(' : ') || escaped.contains(': ')) {
@@ -450,17 +487,19 @@ class DocxGeneratorService {
     buffer.write('      <w:tcPr>\n');
     buffer.write('        <w:tcW w:w="$photoWidth" w:type="dxa"/>\n');
     buffer.write('        <w:tcBorders>\n');
-    buffer.write('          <w:top w:val="single" w:sz="8" w:color="184E77"/>\n');
-    buffer.write('          <w:left w:val="single" w:sz="8" w:color="184E77"/>\n');
-    buffer.write('          <w:bottom w:val="single" w:sz="8" w:color="184E77"/>\n');
-    buffer.write('          <w:right w:val="single" w:sz="8" w:color="184E77"/>\n');
+    buffer.write('          <w:top w:val="single" w:sz="6" w:color="184E77"/>\n');
+    buffer.write('          <w:left w:val="single" w:sz="6" w:color="184E77"/>\n');
+    buffer.write('          <w:bottom w:val="single" w:sz="6" w:color="184E77"/>\n');
+    buffer.write('          <w:right w:val="single" w:sz="6" w:color="184E77"/>\n');
     buffer.write('        </w:tcBorders>\n');
-    buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="184E77"/>\n');
+    if (!hasPhoto) {
+      buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>\n');
+    }
     buffer.write('        <w:tcMar>\n');
-    buffer.write('          <w:top w:w="140" w:type="dxa"/>\n');
-    buffer.write('          <w:bottom w:w="140" w:type="dxa"/>\n');
-    buffer.write('          <w:left w:w="80" w:type="dxa"/>\n');
-    buffer.write('          <w:right w:w="80" w:type="dxa"/>\n');
+    buffer.write('          <w:top w:w="40" w:type="dxa"/>\n');
+    buffer.write('          <w:bottom w:w="40" w:type="dxa"/>\n');
+    buffer.write('          <w:left w:w="40" w:type="dxa"/>\n');
+    buffer.write('          <w:right w:w="40" w:type="dxa"/>\n');
     buffer.write('        </w:tcMar>\n');
     buffer.write('        <w:vAlign w:val="center"/>\n');
     buffer.write('      </w:tcPr>\n');
@@ -469,16 +508,52 @@ class DocxGeneratorService {
     buffer.write('          <w:spacing w:line="240" w:lineRule="auto" w:after="0"/>\n');
     buffer.write('          <w:jc w:val="center"/>\n');
     buffer.write('        </w:pPr>\n');
-    buffer.write('        <w:r>\n');
-    buffer.write('          <w:rPr>\n');
-    buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-    buffer.write('            <w:b/>\n');
-    buffer.write('            <w:color w:val="FFFFFF"/>\n');
-    buffer.write('            <w:sz w:val="20"/>\n');
-    buffer.write('            <w:szCs w:val="20"/>\n');
-    buffer.write('          </w:rPr>\n');
-    buffer.write('          <w:t>រូបថត 3x4</w:t>\n');
-    buffer.write('        </w:r>\n');
+
+    if (hasPhoto) {
+      // Real Embedded Photo DrawingML (Standard 3x4 cm / ~1.5 x 2.0 inches in EMUs)
+      buffer.write('        <w:r>\n');
+      buffer.write('          <w:drawing>\n');
+      buffer.write('            <wp:inline distT="0" distB="0" distL="0" distR="0">\n');
+      buffer.write('              <wp:extent cx="1371600" cy="1828800"/>\n');
+      buffer.write('              <wp:effectExtent l="0" t="0" r="0" b="0"/>\n');
+      buffer.write('              <wp:docPr id="1" name="Candidate Photo"/>\n');
+      buffer.write('              <wp:cNvGraphicFramePr>\n');
+      buffer.write('                <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>\n');
+      buffer.write('              </wp:cNvGraphicFramePr>\n');
+      buffer.write('              <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">\n');
+      buffer.write('                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">\n');
+      buffer.write('                  <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">\n');
+      buffer.write('                    <pic:nvPicPr>\n');
+      buffer.write('                      <pic:cNvPr id="1" name="photo1.jpg"/>\n');
+      buffer.write('                      <pic:cNvPicPr/>\n');
+      buffer.write('                    </pic:nvPicPr>\n');
+      buffer.write('                    <pic:blipFill>\n');
+      buffer.write('                      <a:blip r:embed="rIdPhoto1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>\n');
+      buffer.write('                      <a:stretch><a:fillRect/></a:stretch>\n');
+      buffer.write('                    </pic:blipFill>\n');
+      buffer.write('                    <pic:spPr>\n');
+      buffer.write('                      <a:xfrm><a:off x="0" y="0"/><a:ext cx="1371600" cy="1828800"/></a:xfrm>\n');
+      buffer.write('                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>\n');
+      buffer.write('                      <a:ln w="12700"><a:solidFill><a:srgbClr val="184E77"/></a:solidFill></a:ln>\n');
+      buffer.write('                    </pic:spPr>\n');
+      buffer.write('                  </pic:pic>\n');
+      buffer.write('                </a:graphicData>\n');
+      buffer.write('              </a:graphic>\n');
+      buffer.write('            </wp:inline>\n');
+      buffer.write('          </w:drawing>\n');
+      buffer.write('        </w:r>\n');
+    } else {
+      // Subtle Placeholder Frame
+      buffer.write('        <w:r>\n');
+      buffer.write('          <w:rPr>\n');
+      buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
+      buffer.write('            <w:color w:val="64748B"/>\n');
+      buffer.write('            <w:sz w:val="20"/>\n');
+      buffer.write('            <w:szCs w:val="20"/>\n');
+      buffer.write('          </w:rPr>\n');
+      buffer.write('          <w:t>រូបថត 3x4</w:t>\n');
+      buffer.write('        </w:r>\n');
+    }
     buffer.write('      </w:p>\n');
     buffer.write('    </w:tc>\n');
 
@@ -500,7 +575,7 @@ class DocxGeneratorService {
     final buffer = StringBuffer();
     buffer.write('<w:p>\n');
     buffer.write('  <w:pPr>\n');
-    buffer.write('    <w:spacing w:line="260" w:lineRule="auto" w:after="30"/>\n');
+    buffer.write('    <w:spacing w:line="320" w:lineRule="auto" w:after="50"/>\n');
     buffer.write('    <w:ind w:left="$indentLeft" w:hanging="$hanging"/>\n');
     buffer.write('  </w:pPr>\n');
 
@@ -563,27 +638,43 @@ class DocxGeneratorService {
     bool isFirstPage = true,
     String? docTitle,
     int printableWidthDxa = 9500,
+    bool hasPhoto = false,
   }) {
     final lines = rawText.split(RegExp(r'\r?\n'));
     int i = 0;
     bool hasEmittedFooterLine = false;
 
-    // Optional document title (only if genuine custom title and not already at start of document)
-    if (docTitle != null &&
-        docTitle.trim().isNotEmpty &&
+    // Document Title Deduplication:
+    // If rawText already contains a main title heading (e.g. # ប្រវត្តិរូបសង្ខេប), do not print docTitle separately.
+    final cleanDocTitle = docTitle?.replaceAll(RegExp(r'^[#*\s]+'), '').trim().toLowerCase() ?? '';
+    final hasExplicitDocTitle = docTitle != null &&
+        cleanDocTitle.isNotEmpty &&
         docTitle != 'ឯកសារស្កេន' &&
         docTitle != 'Khmer' &&
-        docTitle != 'Scan') {
-      final firstLines = rawText.split('\n').take(4).map((l) => l.trim().toLowerCase()).toList();
-      if (!firstLines.contains(docTitle.trim().toLowerCase())) {
-        buffer.write(_makeParagraph(
-          text: docTitle.trim(),
-          align: 'center',
-          isBold: true,
-          fontSizePt: 14.5,
-          fontFamily: 'Khmer OS Muol Light',
-        ));
-      }
+        docTitle != 'Scan' &&
+        docTitle != 'ពាក្យសុំច្បាប់ឈប់សម្រាក';
+
+    final firstFewLines = rawText
+        .split('\n')
+        .take(5)
+        .map((l) => l.replaceAll(RegExp(r'^[#*\s]+'), '').trim().toLowerCase())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    final docAlreadyContainsTitle = firstFewLines.any((l) =>
+        (hasExplicitDocTitle && (l == cleanDocTitle || l.contains(cleanDocTitle))) ||
+        l.contains('ប្រវត្តិរូបសង្ខេប') ||
+        l.contains('curriculum vitae') ||
+        l == 'resume');
+
+    if (hasExplicitDocTitle && !docAlreadyContainsTitle) {
+      buffer.write(_makeParagraph(
+        text: docTitle.trim(),
+        align: 'center',
+        isBold: true,
+        fontSizePt: 14.5,
+        fontFamily: 'Khmer OS Muol Light',
+      ));
     }
 
     while (i < lines.length) {
@@ -624,7 +715,7 @@ class DocxGeneratorService {
       if (trimmed.contains('ប្រវត្តិរូបសង្ខេប') ||
           trimmed.toUpperCase().contains('CURRICULUM VITAE') ||
           trimmed.toUpperCase() == 'RESUME') {
-        final cleanTitle = trimmed.replaceAll(RegExp(r'^#+\s*'), '').trim();
+        final cleanTitle = trimmed.replaceAll(RegExp(r'^[#*\s]+'), '').trim();
         buffer.write(_makeParagraph(
           text: cleanTitle,
           align: 'center',
@@ -679,8 +770,11 @@ class DocxGeneratorService {
         }
 
         if (headerContact.isNotEmpty) {
-          buffer.write(_buildCvHeaderTableXml(headerContact, totalWidth: printableWidthDxa));
-          buffer.write(_makeDividerLineXml(color: '184E77'));
+          buffer.write(_buildCvHeaderTableXml(
+            headerContact,
+            totalWidth: printableWidthDxa,
+            hasPhoto: hasPhoto,
+          ));
         }
 
         if (extraPersonal.isNotEmpty) {
