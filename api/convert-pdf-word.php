@@ -120,7 +120,182 @@ function get_active_ilovepdf_credentials(): ?array {
         ];
     }
 
+// -----------------------------------------------------------------------------
+// Database Helper: Locate Active CloudConvert Credentials
+// -----------------------------------------------------------------------------
+function get_active_cloudconvert_credentials(): ?string {
+    $rootDir = dirname(__DIR__);
+    if (file_exists($rootDir . '/config.php')) {
+        @include_once $rootDir . '/config.php';
+    }
+
+    $dbServer = defined('DB_SERVER') ? DB_SERVER : 'localhost';
+    $dbUser = defined('DB_USERNAME') ? DB_USERNAME : 'root';
+    $dbPass = defined('DB_PASSWORD') ? DB_PASSWORD : '';
+    $dbName = defined('DB_NAME') ? DB_NAME : 'samann1_attendance_db';
+
+    try {
+        if (class_exists('mysqli')) {
+            $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
+            if ($conn && !$conn->connect_error) {
+                $conn->set_charset('utf8mb4');
+                // 1. Check admin_api_keys table for service_name = 'cloudconvert'
+                $res = @$conn->query("SELECT api_key FROM admin_api_keys WHERE service_name = 'cloudconvert' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+                if ($res && ($row = $res->fetch_assoc()) && !empty($row['api_key'])) {
+                    $key = trim($row['api_key']);
+                    $conn->close();
+                    return $key;
+                }
+                // 2. Check app_settings fallback
+                $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'cloudconvert_api_key' LIMIT 1");
+                if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
+                    $val = trim($row['setting_value']);
+                    $conn->close();
+                    return $val;
+                }
+                $conn->close();
+            }
+        }
+    } catch (\Throwable $e) {}
+
+    // 3. Check environment variable override
+    $envKey = getenv('CLOUDCONVERT_API_KEY');
+    if (!empty($envKey)) {
+        return trim($envKey);
+    }
+
     return null;
+}
+
+// -----------------------------------------------------------------------------
+// Official CloudConvert API v2 Engine: PDF to Word (.docx)
+// High-fidelity vector engine: 100% layout, fonts, tables, borders & photos
+// -----------------------------------------------------------------------------
+function convert_with_cloudconvert(string $pdfPath, string $docxPath, string $apiKey): array {
+    if (!function_exists('curl_init')) {
+        return ['success' => false, 'error' => 'cURL PHP extension is not installed'];
+    }
+
+    // 1. Create Conversion Job: POST https://api.cloudconvert.com/v2/jobs
+    $jobPayload = [
+        'tasks' => [
+            'import-pdf-task' => [
+                'operation' => 'import/upload',
+            ],
+            'convert-to-docx-task' => [
+                'operation' => 'convert',
+                'input' => 'import-pdf-task',
+                'output_format' => 'docx',
+                'engine' => 'office',
+            ],
+            'export-docx-task' => [
+                'operation' => 'export/url',
+                'input' => 'convert-to-docx-task',
+            ],
+        ],
+    ];
+
+    $ch = curl_init('https://api.cloudconvert.com/v2/jobs');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json',
+        'Accept: application/json',
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($jobPayload));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    $jobResp = curl_exec($ch);
+    $jobHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($jobHttpCode !== 201 && $jobHttpCode !== 200) {
+        $errData = json_decode((string)$jobResp, true);
+        $errMsg = $errData['message'] ?? 'HTTP ' . $jobHttpCode;
+        return ['success' => false, 'error' => 'CloudConvert Job Create Failed: ' . $errMsg];
+    }
+
+    $jobData = json_decode((string)$jobResp, true);
+    $jobId = $jobData['data']['id'] ?? null;
+    $tasks = $jobData['data']['tasks'] ?? [];
+
+    $uploadTask = null;
+    foreach ($tasks as $task) {
+        if (($task['name'] ?? '') === 'import-pdf-task') {
+            $uploadTask = $task;
+            break;
+        }
+    }
+
+    if (!$uploadTask || empty($uploadTask['result']['form']['url'])) {
+        return ['success' => false, 'error' => 'CloudConvert did not return upload form URL'];
+    }
+
+    $uploadUrl = $uploadTask['result']['form']['url'];
+    $parameters = $uploadTask['result']['form']['parameters'] ?? [];
+
+    // 2. Upload PDF file to CloudConvert
+    $postFields = $parameters;
+    $postFields['file'] = curl_file_create($pdfPath, 'application/pdf', basename($pdfPath));
+
+    $ch = curl_init($uploadUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_exec($ch);
+    $upCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    // 3. Wait for Job completion via long-polling: GET https://api.cloudconvert.com/v2/jobs/{id}/wait
+    $ch = curl_init('https://api.cloudconvert.com/v2/jobs/' . $jobId . '/wait');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $apiKey,
+        'Accept: application/json',
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+    $waitResp = curl_exec($ch);
+    $waitCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($waitCode !== 200) {
+        return ['success' => false, 'error' => 'Waiting for CloudConvert job failed (HTTP ' . $waitCode . ')'];
+    }
+
+    $finishedJob = json_decode((string)$waitResp, true);
+    $finishedTasks = $finishedJob['data']['tasks'] ?? [];
+
+    $exportUrl = null;
+    foreach ($finishedTasks as $task) {
+        if (($task['name'] ?? '') === 'export-docx-task') {
+            $files = $task['result']['files'] ?? [];
+            if (!empty($files[0]['url'])) {
+                $exportUrl = $files[0]['url'];
+            }
+            break;
+        }
+    }
+
+    if (!$exportUrl) {
+        return ['success' => false, 'error' => 'CloudConvert export URL not found'];
+    }
+
+    // 4. Download converted Word (.docx)
+    $fp = fopen($docxPath, 'w+');
+    $ch = curl_init($exportUrl);
+    curl_setopt($ch, CURLOPT_FILE, $fp);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 180);
+    curl_exec($ch);
+    $dlCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    fclose($fp);
+    curl_close($ch);
+
+    if ($dlCode === 200 && file_exists($docxPath) && filesize($docxPath) > 0) {
+        return ['success' => true];
+    }
+
+    return ['success' => false, 'error' => 'Failed to download converted DOCX from CloudConvert (HTTP ' . $dlCode . ')'];
 }
 
 // -----------------------------------------------------------------------------
@@ -378,30 +553,45 @@ $khmerFont = isset($_POST['khmer_font']) && trim((string)$_POST['khmer_font']) !
     : 'Khmer OS Battambang';
 
 $startTime = microtime(true);
+$engineUsed = '';
 
 // -----------------------------------------------------------------------------
-// Engine: Official iLovePDF Cloud API (100% Cloud, NO Local Python)
+// Priority 1: CloudConvert API v2 (Official Vector Engine for PDF to DOCX)
 // -----------------------------------------------------------------------------
-$iloveCreds = get_active_ilovepdf_credentials();
-if (empty($iloveCreds['public_key'])) {
-    @unlink($pdfFilePath);
-    http_response_code(500);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'មិនទាន់មាន iLovePDF API Key នៅក្នុង Admin Panel ឡើយ។ សូមចូល Admin Panel > Tokens & Sessions > បញ្ចូល iLovePDF Key!',
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+$cloudConvertKey = get_active_cloudconvert_credentials();
+$ccRes = null;
+if (!empty($cloudConvertKey)) {
+    $ccRes = convert_with_cloudconvert($pdfFilePath, $docxFilePath, $cloudConvertKey);
+    if (!empty($ccRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
+        @unlink($pdfFilePath);
+        $engineUsed = 'CloudConvert API v2 (Official Vector Engine)';
+    }
 }
 
-$iloveRes = convert_with_ilovepdf($pdfFilePath, $docxFilePath, $iloveCreds['public_key'], $iloveCreds['secret_key'] ?? null);
+// -----------------------------------------------------------------------------
+// Priority 2: iLovePDF Cloud API (Fallback if configured)
+// -----------------------------------------------------------------------------
+if (empty($engineUsed)) {
+    $iloveCreds = get_active_ilovepdf_credentials();
+    if (!empty($iloveCreds['public_key'])) {
+        $iloveRes = convert_with_ilovepdf($pdfFilePath, $docxFilePath, $iloveCreds['public_key'], $iloveCreds['secret_key'] ?? null);
+        if (!empty($iloveRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
+            @unlink($pdfFilePath);
+            $engineUsed = 'iLovePDF Cloud API';
+        }
+    }
+}
+
 @unlink($pdfFilePath);
 
-if (empty($iloveRes['success']) || !file_exists($docxFilePath) || filesize($docxFilePath) === 0) {
+if (empty($engineUsed) || !file_exists($docxFilePath) || filesize($docxFilePath) === 0) {
     http_response_code(500);
-    $errorMessage = $iloveRes['error'] ?? 'ការបម្លែងឯកសារតាម iLovePDF Cloud API មិនជោគជ័យឡើយ';
+    $errorMessage = !empty($cloudConvertKey)
+        ? ($ccRes['error'] ?? 'ការបម្លែងតាម CloudConvert API មិនជោគជ័យឡើយ')
+        : 'មិនទាន់មាន CloudConvert API Key នៅក្នុង Admin Panel ឡើយ។ សូមចូល Admin Panel > Tokens & Sessions > បញ្ចូល CloudConvert Key!';
     echo json_encode([
         'status' => 'error',
-        'message' => 'កំហុសពេលបម្លែង PDF to Word (iLovePDF Cloud): ' . $errorMessage,
+        'message' => $errorMessage,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -426,5 +616,5 @@ echo json_encode([
     'pages' => 1,
     'elapsed_seconds' => round(microtime(true) - $startTime, 2),
     'font_applied' => $khmerFont,
-    'engine' => 'iLovePDF Cloud API (Official)',
+    'engine' => $engineUsed,
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);

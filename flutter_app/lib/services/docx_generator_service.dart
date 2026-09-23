@@ -309,14 +309,14 @@ class DocxGeneratorService {
     return buffer.toString();
   }
 
-  /// Decorative divider line OpenXML (1.5pt solid line)
+  /// Decorative divider line OpenXML (1.0pt solid line)
   static String _makeDividerLineXml({String color = '184E77'}) {
     return '''<w:p>
   <w:pPr>
     <w:pBdr>
-      <w:bottom w:val="single" w:sz="18" w:space="1" w:color="$color"/>
+      <w:bottom w:val="single" w:sz="12" w:space="1" w:color="$color"/>
     </w:pBdr>
-    <w:spacing w:line="100" w:lineRule="auto" w:before="60" w:after="80"/>
+    <w:spacing w:line="80" w:lineRule="auto" w:before="20" w:after="30"/>
   </w:pPr>
 </w:p>
 ''';
@@ -375,24 +375,24 @@ class DocxGeneratorService {
         <w:tcW w:w="$totalWidth" w:type="dxa"/>
         <w:shd w:val="clear" w:color="auto" w:fill="$bgColor"/>
         <w:tcMar>
-          <w:top w:w="80" w:type="dxa"/>
-          <w:bottom w:w="80" w:type="dxa"/>
-          <w:left w:w="160" w:type="dxa"/>
-          <w:right w:w="160" w:type="dxa"/>
+          <w:top w:w="40" w:type="dxa"/>
+          <w:bottom w:w="40" w:type="dxa"/>
+          <w:left w:w="120" w:type="dxa"/>
+          <w:right w:w="120" w:type="dxa"/>
         </w:tcMar>
         <w:vAlign w:val="center"/>
       </w:tcPr>
       <w:p>
         <w:pPr>
-          <w:spacing w:line="240" w:lineRule="auto" w:before="60" w:after="0"/>
+          <w:spacing w:line="240" w:lineRule="auto" w:before="20" w:after="0"/>
         </w:pPr>
         <w:r>
           <w:rPr>
             <w:rFonts w:ascii="Khmer OS Muol Light" w:hAnsi="Khmer OS Muol Light" w:cs="Khmer OS Muol Light"/>
             <w:b/>
             <w:color w:val="FFFFFF"/>
-            <w:sz w:val="23"/>
-            <w:szCs w:val="23"/>
+            <w:sz w:val="22"/>
+            <w:szCs w:val="22"/>
           </w:rPr>
           <w:t>$cleanText</w:t>
         </w:r>
@@ -445,7 +445,7 @@ class DocxGeneratorService {
       final escaped = _escapeXml(clean);
       buffer.write('      <w:p>\n');
       buffer.write('        <w:pPr>\n');
-      buffer.write('          <w:spacing w:line="340" w:lineRule="auto" w:after="60"/>\n');
+      buffer.write('          <w:spacing w:line="260" w:lineRule="auto" w:before="0" w:after="20"/>\n');
       buffer.write('        </w:pPr>\n');
 
       if (escaped.contains(' : ') || escaped.contains(': ')) {
@@ -455,16 +455,16 @@ class DocxGeneratorService {
         buffer.write('          <w:rPr>\n');
         buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
         buffer.write('            <w:b/>\n');
-        buffer.write('            <w:sz w:val="22"/>\n');
-        buffer.write('            <w:szCs w:val="22"/>\n');
+        buffer.write('            <w:sz w:val="21"/>\n');
+        buffer.write('            <w:szCs w:val="21"/>\n');
         buffer.write('          </w:rPr>\n');
         buffer.write('          <w:t xml:space="preserve">${parts[0]} : </w:t>\n');
         buffer.write('        </w:r>\n');
         buffer.write('        <w:r>\n');
         buffer.write('          <w:rPr>\n');
         buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-        buffer.write('            <w:sz w:val="21"/>\n');
-        buffer.write('            <w:szCs w:val="21"/>\n');
+        buffer.write('            <w:sz w:val="20"/>\n');
+        buffer.write('            <w:szCs w:val="20"/>\n');
         buffer.write('          </w:rPr>\n');
         buffer.write('          <w:t>${parts.sublist(1).join(delim)}</w:t>\n');
         buffer.write('        </w:r>\n');
@@ -472,8 +472,8 @@ class DocxGeneratorService {
         buffer.write('        <w:r>\n');
         buffer.write('          <w:rPr>\n');
         buffer.write('            <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-        buffer.write('            <w:sz w:val="21"/>\n');
-        buffer.write('            <w:szCs w:val="21"/>\n');
+        buffer.write('            <w:sz w:val="20"/>\n');
+        buffer.write('            <w:szCs w:val="20"/>\n');
         buffer.write('          </w:rPr>\n');
         buffer.write('          <w:t>$escaped</w:t>\n');
         buffer.write('        </w:r>\n');
@@ -486,20 +486,27 @@ class DocxGeneratorService {
     buffer.write('    <w:tc>\n');
     buffer.write('      <w:tcPr>\n');
     buffer.write('        <w:tcW w:w="$photoWidth" w:type="dxa"/>\n');
-    buffer.write('        <w:tcBorders>\n');
-    buffer.write('          <w:top w:val="single" w:sz="6" w:color="184E77"/>\n');
-    buffer.write('          <w:left w:val="single" w:sz="6" w:color="184E77"/>\n');
-    buffer.write('          <w:bottom w:val="single" w:sz="6" w:color="184E77"/>\n');
-    buffer.write('          <w:right w:val="single" w:sz="6" w:color="184E77"/>\n');
-    buffer.write('        </w:tcBorders>\n');
     if (!hasPhoto) {
+      buffer.write('        <w:tcBorders>\n');
+      buffer.write('          <w:top w:val="single" w:sz="6" w:color="94A3B8"/>\n');
+      buffer.write('          <w:left w:val="single" w:sz="6" w:color="94A3B8"/>\n');
+      buffer.write('          <w:bottom w:val="single" w:sz="6" w:color="94A3B8"/>\n');
+      buffer.write('          <w:right w:val="single" w:sz="6" w:color="94A3B8"/>\n');
+      buffer.write('        </w:tcBorders>\n');
       buffer.write('        <w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>\n');
+    } else {
+      buffer.write('        <w:tcBorders>\n');
+      buffer.write('          <w:top w:val="none"/>\n');
+      buffer.write('          <w:left w:val="none"/>\n');
+      buffer.write('          <w:bottom w:val="none"/>\n');
+      buffer.write('          <w:right w:val="none"/>\n');
+      buffer.write('        </w:tcBorders>\n');
     }
     buffer.write('        <w:tcMar>\n');
-    buffer.write('          <w:top w:w="40" w:type="dxa"/>\n');
-    buffer.write('          <w:bottom w:w="40" w:type="dxa"/>\n');
-    buffer.write('          <w:left w:w="40" w:type="dxa"/>\n');
-    buffer.write('          <w:right w:w="40" w:type="dxa"/>\n');
+    buffer.write('          <w:top w:w="20" w:type="dxa"/>\n');
+    buffer.write('          <w:bottom w:w="20" w:type="dxa"/>\n');
+    buffer.write('          <w:left w:w="20" w:type="dxa"/>\n');
+    buffer.write('          <w:right w:w="20" w:type="dxa"/>\n');
     buffer.write('        </w:tcMar>\n');
     buffer.write('        <w:vAlign w:val="center"/>\n');
     buffer.write('      </w:tcPr>\n');
@@ -510,11 +517,11 @@ class DocxGeneratorService {
     buffer.write('        </w:pPr>\n');
 
     if (hasPhoto) {
-      // Real Embedded Photo DrawingML (Standard 3x4 cm / ~1.5 x 2.0 inches in EMUs)
+      // Real Embedded Photo DrawingML (Standard 3x4: 2.7cm x 3.6cm = 972000 x 1296000 EMUs)
       buffer.write('        <w:r>\n');
       buffer.write('          <w:drawing>\n');
       buffer.write('            <wp:inline distT="0" distB="0" distL="0" distR="0">\n');
-      buffer.write('              <wp:extent cx="1371600" cy="1828800"/>\n');
+      buffer.write('              <wp:extent cx="972000" cy="1296000"/>\n');
       buffer.write('              <wp:effectExtent l="0" t="0" r="0" b="0"/>\n');
       buffer.write('              <wp:docPr id="1" name="Candidate Photo"/>\n');
       buffer.write('              <wp:cNvGraphicFramePr>\n');
@@ -532,9 +539,9 @@ class DocxGeneratorService {
       buffer.write('                      <a:stretch><a:fillRect/></a:stretch>\n');
       buffer.write('                    </pic:blipFill>\n');
       buffer.write('                    <pic:spPr>\n');
-      buffer.write('                      <a:xfrm><a:off x="0" y="0"/><a:ext cx="1371600" cy="1828800"/></a:xfrm>\n');
+      buffer.write('                      <a:xfrm><a:off x="0" y="0"/><a:ext cx="972000" cy="1296000"/></a:xfrm>\n');
       buffer.write('                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>\n');
-      buffer.write('                      <a:ln w="12700"><a:solidFill><a:srgbClr val="184E77"/></a:solidFill></a:ln>\n');
+      buffer.write('                      <a:ln w="9525"><a:solidFill><a:srgbClr val="184E77"/></a:solidFill></a:ln>\n');
       buffer.write('                    </pic:spPr>\n');
       buffer.write('                  </pic:pic>\n');
       buffer.write('                </a:graphicData>\n');
@@ -569,13 +576,13 @@ class DocxGeneratorService {
   /// Bullet item OpenXML with navy bullet and bold key
   static String _buildBulletItemXml({
     required String bulletText,
-    int indentLeft = 400,
-    int hanging = 220,
+    int indentLeft = 360,
+    int hanging = 180,
   }) {
     final buffer = StringBuffer();
     buffer.write('<w:p>\n');
     buffer.write('  <w:pPr>\n');
-    buffer.write('    <w:spacing w:line="320" w:lineRule="auto" w:after="50"/>\n');
+    buffer.write('    <w:spacing w:line="250" w:lineRule="auto" w:before="0" w:after="15"/>\n');
     buffer.write('    <w:ind w:left="$indentLeft" w:hanging="$hanging"/>\n');
     buffer.write('  </w:pPr>\n');
 
@@ -584,8 +591,8 @@ class DocxGeneratorService {
     buffer.write('    <w:rPr>\n');
     buffer.write('      <w:rFonts w:ascii="Segoe UI Symbol" w:hAnsi="Segoe UI Symbol" w:cs="Segoe UI Symbol"/>\n');
     buffer.write('      <w:color w:val="184E77"/>\n');
-    buffer.write('      <w:sz w:val="21"/>\n');
-    buffer.write('      <w:szCs w:val="21"/>\n');
+    buffer.write('      <w:sz w:val="20"/>\n');
+    buffer.write('      <w:szCs w:val="20"/>\n');
     buffer.write('    </w:rPr>\n');
     buffer.write('    <w:t xml:space="preserve">•  </w:t>\n');
     buffer.write('  </w:r>\n');
@@ -601,8 +608,8 @@ class DocxGeneratorService {
       buffer.write('    <w:rPr>\n');
       buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
       buffer.write('      <w:b/>\n');
-      buffer.write('      <w:sz w:val="21"/>\n');
-      buffer.write('      <w:szCs w:val="21"/>\n');
+      buffer.write('      <w:sz w:val="20"/>\n');
+      buffer.write('      <w:szCs w:val="20"/>\n');
       buffer.write('    </w:rPr>\n');
       buffer.write('    <w:t xml:space="preserve">${_escapeXml(key)} : </w:t>\n');
       buffer.write('  </w:r>\n');
@@ -611,8 +618,8 @@ class DocxGeneratorService {
       buffer.write('  <w:r>\n');
       buffer.write('    <w:rPr>\n');
       buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-      buffer.write('      <w:sz w:val="21"/>\n');
-      buffer.write('      <w:szCs w:val="21"/>\n');
+      buffer.write('      <w:sz w:val="20"/>\n');
+      buffer.write('      <w:szCs w:val="20"/>\n');
       buffer.write('    </w:rPr>\n');
       buffer.write('    <w:t>${_escapeXml(val)}</w:t>\n');
       buffer.write('  </w:r>\n');
@@ -620,8 +627,8 @@ class DocxGeneratorService {
       buffer.write('  <w:r>\n');
       buffer.write('    <w:rPr>\n');
       buffer.write('      <w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang"/>\n');
-      buffer.write('      <w:sz w:val="21"/>\n');
-      buffer.write('      <w:szCs w:val="21"/>\n');
+      buffer.write('      <w:sz w:val="20"/>\n');
+      buffer.write('      <w:szCs w:val="20"/>\n');
       buffer.write('    </w:rPr>\n');
       buffer.write('    <w:t>${_escapeXml(bulletText)}</w:t>\n');
       buffer.write('  </w:r>\n');

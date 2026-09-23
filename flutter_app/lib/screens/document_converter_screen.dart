@@ -261,16 +261,61 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       final decoded = img.decodeImage(bytes);
       if (decoded == null) return null;
 
-      final cropX = (decoded.width * 0.64).toInt();
-      final cropY = (decoded.height * 0.08).toInt();
-      final cropW = (decoded.width * 0.28).toInt();
-      final cropH = (decoded.height * 0.24).toInt();
+      final w = decoded.width;
+      final h = decoded.height;
 
-      if (cropX + cropW <= decoded.width && cropY + cropH <= decoded.height) {
+      // Candidate search area for 3x4 photo in top-right of CV (strictly above first section banner)
+      final searchStartX = (w * 0.65).toInt();
+      final searchEndX = (w * 0.96).toInt();
+      final searchStartY = (h * 0.04).toInt();
+      final searchEndY = (h * 0.21).toInt();
+
+      // Find the bounding box of the non-white rectangular photo area
+      int minX = searchEndX, maxX = searchStartX;
+      int minY = searchEndY, maxY = searchStartY;
+      int nonWhiteCount = 0;
+
+      for (int y = searchStartY; y < searchEndY; y += 2) {
+        for (int x = searchStartX; x < searchEndX; x += 2) {
+          final p = decoded.getPixel(x, y);
+          final r = p.r;
+          final g = p.g;
+          final b = p.b;
+          // Check if pixel is not paper white/gray
+          final isWhite = r > 238 && g > 238 && b > 238;
+          if (!isWhite) {
+            nonWhiteCount++;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+        }
+      }
+
+      int cropX, cropY, cropW, cropH;
+      final foundW = maxX - minX;
+      final foundH = maxY - minY;
+
+      // If a distinct non-white photo box of reasonable size is found
+      if (nonWhiteCount > 150 && foundW > 30 && foundH > 40 && foundH < (h * 0.18)) {
+        cropX = (minX - 2).clamp(0, w - 1);
+        cropY = (minY - 2).clamp(0, h - 1);
+        cropW = (foundW + 4).clamp(10, w - cropX);
+        cropH = (foundH + 4).clamp(10, h - cropY);
+      } else {
+        // Fallback default 3x4 ratio top-right crop strictly above banner
+        cropX = (w * 0.73).toInt();
+        cropY = (h * 0.06).toInt();
+        cropW = (w * 0.18).toInt();
+        cropH = (h * 0.13).toInt();
+      }
+
+      if (cropX + cropW <= w && cropY + cropH <= h) {
         final cropped = img.copyCrop(decoded, x: cropX, y: cropY, width: cropW, height: cropH);
         final tempDir = await getTemporaryDirectory();
         final photoFile = File('${tempDir.path}/cropped_cv_photo_${DateTime.now().millisecondsSinceEpoch}.jpg');
-        await photoFile.writeAsBytes(img.encodeJpg(cropped, quality: 92));
+        await photoFile.writeAsBytes(img.encodeJpg(cropped, quality: 95));
         return photoFile;
       }
     } catch (_) {}
@@ -436,6 +481,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         photoFile: candidatePhoto,
         pageSize: detectedFormat.paperSize,
         orientation: detectedFormat.orientation,
+        margin: isCvDoc ? DocxPageMargin.narrow : DocxPageMargin.normal,
       );
 
       if (mounted) {
@@ -835,7 +881,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
 
         DocxPaperSize currentPaperSize = detectedFormat?.paperSize ?? DocxPaperSize.a4;
         DocxPageOrientation currentOrientation = detectedFormat?.orientation ?? DocxPageOrientation.portrait;
-        DocxPageMargin currentMargin = DocxPageMargin.normal;
+        final isInitialCv = (extractedText ?? '').contains('ប្រវត្តិរូប') ||
+            (extractedText ?? '').toUpperCase().contains('CURRICULUM VITAE') ||
+            (extractedText ?? '').toUpperCase().contains('RESUME');
+        DocxPageMargin currentMargin = isInitialCv ? DocxPageMargin.narrow : DocxPageMargin.normal;
         bool isRegenerating = false;
 
         return StatefulBuilder(
