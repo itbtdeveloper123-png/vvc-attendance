@@ -1999,7 +1999,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         normalizedText.toUpperCase().contains('RESUME');
 
     return Container(
-      padding: EdgeInsets.fromLTRB(isLandscape ? 32 : 28, 26, isLandscape ? 32 : 28, 30),
+      padding: EdgeInsets.fromLTRB(isLandscape ? 32 : 28, 20, isLandscape ? 32 : 28, 24),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -2018,64 +2018,14 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Dynamic Paper watermark / header banner
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.description_rounded, size: 12, color: Color(0xFF2563EB)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${paperSize.name} • ${isLandscape ? "ផ្តេក (Landscape)" : "បញ្ឈរ (Portrait)"}',
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF2563EB),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.auto_awesome, size: 12, color: Color(0xFF10B981)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'ទម្រង់ក្រដាសពិត ១០០%',
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF10B981),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const Divider(height: 20),
+          // Authentic Top Solid Navy Bar for CV (Matches Image 1)
           if (isCv) ...[
             Container(
-              height: 3.5,
+              height: 7,
               width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 10),
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF0E3B66),
+                color: const Color(0xFF184E77),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2083,6 +2033,19 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
 
           // Document Body Elements (Matches 1-page Word sheet)
           ..._buildPreviewElements(lines, isDark, photoFile: photoFile, onPickPhoto: onPickPhoto),
+
+          // Authentic Bottom Solid Navy Bar for CV (Matches Image 1)
+          if (isCv) ...[
+            Container(
+              height: 7,
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF184E77),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2677,92 +2640,39 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               width: 88,
               height: 118,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: const Color(0xFF184E77), width: 1.5),
+                borderRadius: BorderRadius.circular(3),
+                border: Border.all(color: const Color(0xFF184E77), width: 1.2),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
+                    color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: photoFile != null
-                    ? Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.file(photoFile, fit: BoxFit.cover),
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              color: Colors.black.withValues(alpha: 0.6),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.photo_camera_rounded, size: 10, color: Colors.white),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    'ប្តូររូប',
-                                    style: GoogleFonts.kantumruyPro(
-                                      fontSize: 8.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
+                borderRadius: BorderRadius.circular(2),
+                child: photoFile != null && photoFile.existsSync()
+                    ? Image.file(photoFile, fit: BoxFit.cover)
                     : Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFF1E3A8A),
-                              Color(0xFF184E77),
-                              Color(0xFF0F172A),
-                            ],
-                          ),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.person_rounded,
-                              size: 40,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(height: 3),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: Text(
-                                'រូបថត 3x4',
-                                style: GoogleFonts.kantumruyPro(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
+                            Icon(
+                              Icons.person_outline_rounded,
+                              size: 38,
+                              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '+ បញ្ចូលរូប',
+                              'រូបថត 3x4',
                               style: GoogleFonts.kantumruyPro(
-                                fontSize: 7.5,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF93C5FD),
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
                               ),
                             ),
                           ],
