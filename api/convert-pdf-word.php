@@ -123,7 +123,7 @@ function get_active_ilovepdf_credentials(): ?array {
 // -----------------------------------------------------------------------------
 // Database Helper: Locate Active CloudConvert Credentials
 // -----------------------------------------------------------------------------
-function get_active_cloudconvert_credentials(): ?string {
+function get_active_cloudconvert_credentials(): ?array {
     $rootDir = dirname(__DIR__);
     if (file_exists($rootDir . '/config.php')) {
         @include_once $rootDir . '/config.php';
@@ -140,18 +140,19 @@ function get_active_cloudconvert_credentials(): ?string {
             if ($conn && !$conn->connect_error) {
                 $conn->set_charset('utf8mb4');
                 // 1. Check admin_api_keys table for service_name = 'cloudconvert'
-                $res = @$conn->query("SELECT api_key FROM admin_api_keys WHERE service_name = 'cloudconvert' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+                $res = @$conn->query("SELECT id, api_key FROM admin_api_keys WHERE service_name = 'cloudconvert' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
                 if ($res && ($row = $res->fetch_assoc()) && !empty($row['api_key'])) {
+                    $keyId = (int)$row['id'];
                     $key = trim($row['api_key']);
                     $conn->close();
-                    return $key;
+                    return ['id' => $keyId, 'api_key' => $key];
                 }
                 // 2. Check app_settings fallback
                 $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'cloudconvert_api_key' LIMIT 1");
                 if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
                     $val = trim($row['setting_value']);
                     $conn->close();
-                    return $val;
+                    return ['id' => 0, 'api_key' => $val];
                 }
                 $conn->close();
             }
@@ -161,10 +162,73 @@ function get_active_cloudconvert_credentials(): ?string {
     // 3. Check environment variable override
     $envKey = getenv('CLOUDCONVERT_API_KEY');
     if (!empty($envKey)) {
-        return trim($envKey);
+        return ['id' => 0, 'api_key' => trim($envKey)];
     }
 
     return null;
+}
+
+function record_cloudconvert_usage(int $keyId, string $apiKey): void {
+    if ($keyId <= 0) return;
+    $rootDir = dirname(__DIR__);
+    if (file_exists($rootDir . '/config.php')) {
+        @include_once $rootDir . '/config.php';
+    }
+
+    $dbServer = defined('DB_SERVER') ? DB_SERVER : 'localhost';
+    $dbUser = defined('DB_USERNAME') ? DB_USERNAME : 'root';
+    $dbPass = defined('DB_PASSWORD') ? DB_PASSWORD : '';
+    $dbName = defined('DB_NAME') ? DB_NAME : 'samann1_attendance_db';
+
+    // Fetch latest real-time credits from CloudConvert
+    $latestCredits = null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init('https://api.cloudconvert.com/v2/users/me');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                "Authorization: Bearer {$apiKey}",
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ],
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode === 200 && !empty($resp)) {
+            $data = json_decode((string)$resp, true);
+            if (isset($data['data']['credits'])) {
+                $latestCredits = (int)$data['data']['credits'];
+            }
+        }
+    }
+
+    try {
+        if (class_exists('mysqli')) {
+            $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
+            if ($conn && !$conn->connect_error) {
+                $conn->set_charset('utf8mb4');
+                if ($latestCredits !== null) {
+                    $stmt = $conn->prepare("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, free_calls = ?, credits = ?, last_used_at = NOW(), last_checked_at = NOW() WHERE id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param('iii', $latestCredits, $latestCredits, $keyId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                } else {
+                    $stmt = $conn->prepare("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, last_used_at = NOW(), last_checked_at = NOW() WHERE id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param('i', $keyId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+                $conn->close();
+            }
+        }
+    } catch (\Throwable $e) {}
 }
 
 // -----------------------------------------------------------------------------
@@ -558,13 +622,16 @@ $engineUsed = '';
 // -----------------------------------------------------------------------------
 // Priority 1: CloudConvert API v2 (Official Vector Engine for PDF to DOCX)
 // -----------------------------------------------------------------------------
-$cloudConvertKey = get_active_cloudconvert_credentials();
+$ccCreds = get_active_cloudconvert_credentials();
 $ccRes = null;
-if (!empty($cloudConvertKey)) {
-    $ccRes = convert_with_cloudconvert($pdfFilePath, $docxFilePath, $cloudConvertKey);
+if (!empty($ccCreds['api_key'])) {
+    $ccRes = convert_with_cloudconvert($pdfFilePath, $docxFilePath, $ccCreds['api_key']);
     if (!empty($ccRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
         @unlink($pdfFilePath);
         $engineUsed = 'CloudConvert API v2 (Official Vector Engine)';
+        if (!empty($ccCreds['id'])) {
+            record_cloudconvert_usage((int)$ccCreds['id'], $ccCreds['api_key']);
+        }
     }
 }
 
@@ -586,7 +653,7 @@ if (empty($engineUsed)) {
 
 if (empty($engineUsed) || !file_exists($docxFilePath) || filesize($docxFilePath) === 0) {
     http_response_code(500);
-    $errorMessage = !empty($cloudConvertKey)
+    $errorMessage = !empty($ccCreds['api_key'])
         ? ($ccRes['error'] ?? 'ការបម្លែងតាម CloudConvert API មិនជោគជ័យឡើយ')
         : 'មិនទាន់មាន CloudConvert API Key នៅក្នុង Admin Panel ឡើយ។ សូមចូល Admin Panel > Tokens & Sessions > បញ្ចូល CloudConvert Key!';
     echo json_encode([

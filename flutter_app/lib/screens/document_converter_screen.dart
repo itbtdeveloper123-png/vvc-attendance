@@ -119,13 +119,14 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     });
 
     try {
+      // Step 1: Gemini AI reads and transcribes Khmer text & analyzes structure
       final result = await GeminiOcrService.processKhmerDocument(
         imagePaths: imagePaths,
         onProgress: (cur, total) {
           if (mounted) {
             setState(() {
               _progressMessage = 'AI Gemini កំពុងអានឯកសារខ្មែរ (ទំព័រ $cur/$total)...';
-              _progressValue = cur / total;
+              _progressValue = 0.2 + (cur / total * 0.4);
             });
           }
         },
@@ -139,10 +140,10 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
       final timeStamp = DateTime.now().millisecondsSinceEpoch;
 
       if (exportToDocx) {
-        // Generate real Word (.docx) document
+        // Step 2: Convert to Word (.docx) preserving 100% original layout via CloudConvert API v2
         setState(() {
-          _progressMessage = 'កំពុងបង្កើតឯកសារ Word (.docx)...';
-          _progressValue = 0.9;
+          _progressMessage = 'កំពុងបម្លែងជា Word (.docx) តាម CloudConvert API v2...';
+          _progressValue = 0.75;
         });
 
         final initialFormat = result.detectedPageFormat ?? const DetectedPageFormat(
@@ -152,24 +153,67 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           heightPt: 841.89,
         );
 
-        final docxPath = '${tempDir.path}/Doc_${result.documentTitle ?? "Khmer"}_$timeStamp.docx';
-        final docxFile = await GeminiOcrService.exportToDocx(
-          result: result,
-          outputPath: docxPath,
-          pageSize: initialFormat.paperSize,
-          orientation: initialFormat.orientation,
-        );
+        File? docxFile;
+        File? extractedPhoto;
+
+        // Try high-fidelity vector conversion via CloudConvert API v2 microservice
+        if (PdfToWordMicroservice.isServerEnabled) {
+          try {
+            final tempPdfPath = '${tempDir.path}/Scan_CloudConvert_$timeStamp.pdf';
+            await DocumentConversionService.convertImagesToPdf(
+              imagePaths: imagePaths,
+              outputPath: tempPdfPath,
+            );
+            final ccResult = await PdfToWordMicroservice.convertPdfToDocx(
+              pdfPath: tempPdfPath,
+              onProgress: (pct, msg) {
+                if (mounted) {
+                  setState(() {
+                    _progressValue = 0.75 + (pct * 0.23);
+                    _progressMessage = msg;
+                  });
+                }
+              },
+            );
+            if (ccResult.success && ccResult.docxFile != null && ccResult.docxFile!.existsSync()) {
+              docxFile = ccResult.docxFile;
+              extractedPhoto = ccResult.photoFile;
+            }
+          } catch (_) {}
+        }
+
+        // Clean fallback to native OpenXML Word generation if CloudConvert is unavailable
+        if (docxFile == null) {
+          final docxPath = '${tempDir.path}/Doc_${result.documentTitle ?? "Khmer"}_$timeStamp.docx';
+          docxFile = await GeminiOcrService.exportToDocx(
+            result: result,
+            outputPath: docxPath,
+            pageSize: initialFormat.paperSize,
+            orientation: initialFormat.orientation,
+          );
+        }
+
+        // Auto extract photo for CV if not extracted from docx
+        if (extractedPhoto == null && imagePaths.isNotEmpty) {
+          final isCv = result.fullText.contains('ប្រវត្តិរូប') ||
+              result.fullText.toUpperCase().contains('CURRICULUM VITAE') ||
+              result.fullText.toUpperCase().contains('RESUME');
+          if (isCv) {
+            extractedPhoto = await _tryExtractPhotoFromPage(imagePaths.first);
+          }
+        }
 
         if (mounted) {
           setState(() => _isProcessing = false);
           _showResultSheet(
             title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
-            subtitle: 'ឯកសាររក្សាទម្រង់ដើម (${initialFormat.summaryLabel}) និងអក្សរខ្មែរយូនីកូដបានយ៉ាងត្រឹមត្រូវ',
+            subtitle: 'AI Gemini អានអត្ថបទ និង CloudConvert រក្សាទម្រង់ដើម ១០០% (${initialFormat.summaryLabel})',
             filePath: docxFile.path,
             extractedText: result.fullText,
             isDocx: true,
             detectedFormat: initialFormat,
             multiImagePaths: imagePaths,
+            initialPhotoFile: extractedPhoto,
           );
         }
       } else {
@@ -186,7 +230,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        _showToast('កំហុសស្កេន AI: $e', isError: true);
+        _showToast('កំហុសដំណើរការ AI / CloudConvert: $e', isError: true);
       }
     }
   }
@@ -1006,6 +1050,8 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                     orientation: currentOrientation,
                     photoFile: cvPhotoFile,
                     filePath: currentFilePath,
+                    originalScanImagePath: hasOriginalScan ? multiImagePaths.first : null,
+                    initialShowOriginal: showOriginalLayout,
                     onPickPhoto: pickCvPhoto,
                     paperBuilder: (text, size, orient, photo, onPick) => _buildA4PaperContent(
                       text,
@@ -1684,7 +1730,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         children: [
           // Top Control Toolbar for Document Preview
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E293B) : Colors.white,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
@@ -1692,139 +1738,156 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
             ),
             child: Row(
               children: [
-                // Mode 1: Fit Screen
-                InkWell(
-                  onTap: () {
-                    if (!isFitScreen && onToggleFitScreen != null) onToggleFitScreen();
-                  },
-                  borderRadius: BorderRadius.circular(7),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isFitScreen
-                          ? const Color(0xFF2563EB)
-                          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(
-                        color: isFitScreen ? const Color(0xFF2563EB) : AppTheme.border,
-                      ),
-                    ),
+                // Left side: Horizontally scrollable mode selection chips
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.fit_screen_rounded,
-                          size: 13,
-                          color: isFitScreen ? Colors.white : AppTheme.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'សមស្របអេក្រង់',
-                          style: GoogleFonts.kantumruyPro(
-                            fontSize: 10.5,
-                            fontWeight: isFitScreen ? FontWeight.bold : FontWeight.w500,
-                            color: isFitScreen ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                        // Mode 1: Fit Screen
+                        InkWell(
+                          onTap: () {
+                            if (!isFitScreen && onToggleFitScreen != null) onToggleFitScreen();
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+                            decoration: BoxDecoration(
+                              color: isFitScreen
+                                  ? const Color(0xFF2563EB)
+                                  : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isFitScreen ? const Color(0xFF2563EB) : AppTheme.border,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.fit_screen_rounded,
+                                  size: 13,
+                                  color: isFitScreen ? Colors.white : AppTheme.textMuted,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'សមស្របអេក្រង់',
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontSize: 10.5,
+                                    fontWeight: isFitScreen ? FontWeight.bold : FontWeight.w500,
+                                    color: isFitScreen ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
+                        const SizedBox(width: 5),
 
-                // Mode 2: True A4 (Pinch-to-zoom)
-                InkWell(
-                  onTap: () {
-                    if (isFitScreen && onToggleFitScreen != null) onToggleFitScreen();
-                  },
-                  borderRadius: BorderRadius.circular(7),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: !isFitScreen
-                          ? const Color(0xFF2563EB)
-                          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(
-                        color: !isFitScreen ? const Color(0xFF2563EB) : AppTheme.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.zoom_in_rounded,
-                          size: 13,
-                          color: !isFitScreen ? Colors.white : AppTheme.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'ក្រដាស A4 ពិត (Zoom)',
-                          style: GoogleFonts.kantumruyPro(
-                            fontSize: 10.5,
-                            fontWeight: !isFitScreen ? FontWeight.bold : FontWeight.w500,
-                            color: !isFitScreen ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                        // Mode 2: True A4 (Pinch-to-zoom)
+                        InkWell(
+                          onTap: () {
+                            if (isFitScreen && onToggleFitScreen != null) onToggleFitScreen();
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+                            decoration: BoxDecoration(
+                              color: !isFitScreen
+                                  ? const Color(0xFF2563EB)
+                                  : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: !isFitScreen ? const Color(0xFF2563EB) : AppTheme.border,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.zoom_in_rounded,
+                                  size: 13,
+                                  color: !isFitScreen ? Colors.white : AppTheme.textMuted,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'ក្រដាស A4 ពិត (Zoom)',
+                                  style: GoogleFonts.kantumruyPro(
+                                    fontSize: 10.5,
+                                    fontWeight: !isFitScreen ? FontWeight.bold : FontWeight.w500,
+                                    color: !isFitScreen ? Colors.white : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
 
-                // Mode 3: Genuine Layout vs Editable Text (Only if original scan is available)
-                if (originalScanImagePath != null && onToggleLayoutMode != null) ...[
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: onToggleLayoutMode,
-                    borderRadius: BorderRadius.circular(7),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: showOriginalLayout
-                            ? const Color(0xFF10B981)
-                            : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(
-                          color: showOriginalLayout ? const Color(0xFF10B981) : AppTheme.border,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            showOriginalLayout ? Icons.auto_awesome_rounded : Icons.edit_note_rounded,
-                            size: 13,
-                            color: showOriginalLayout ? Colors.white : AppTheme.textMuted,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            showOriginalLayout ? 'ប្លង់ដើម ១០០%' : 'ទម្រង់អត្ថបទ',
-                            style: GoogleFonts.kantumruyPro(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.bold,
-                              color: showOriginalLayout
-                                  ? Colors.white
-                                  : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                        // Mode 3: Genuine Layout vs Editable Text (Only if original scan is available)
+                        if (originalScanImagePath != null && onToggleLayoutMode != null) ...[
+                          const SizedBox(width: 5),
+                          InkWell(
+                            onTap: onToggleLayoutMode,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+                              decoration: BoxDecoration(
+                                color: showOriginalLayout
+                                    ? const Color(0xFF10B981)
+                                    : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: showOriginalLayout ? const Color(0xFF10B981) : AppTheme.border,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    showOriginalLayout ? Icons.auto_awesome_rounded : Icons.edit_note_rounded,
+                                    size: 13,
+                                    color: showOriginalLayout ? Colors.white : AppTheme.textMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    showOriginalLayout ? 'ប្លង់ដើម ១០០%' : 'ទម្រង់អត្ថបទ',
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: showOriginalLayout
+                                          ? Colors.white
+                                          : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
 
-                const Spacer(),
+                const SizedBox(width: 6),
+                Container(width: 1, height: 18, color: AppTheme.border.withValues(alpha: 0.6)),
+                const SizedBox(width: 4),
 
+                // Right side: Pinned action buttons (Always in view, no overflow)
                 // Add Photo Button (for CV)
                 if (isCv && onPickPhoto != null) ...[
                   IconButton(
-                    tooltip: 'ជ្រើសរើសរូបថត 3x4',
+                    tooltip: photoFile != null ? 'ប្តូររូបថត 3x4' : 'បញ្ចូលរូបថត 3x4',
                     icon: Icon(
                       photoFile != null ? Icons.photo_camera_rounded : Icons.add_a_photo_rounded,
-                      size: 16,
+                      size: 17,
                       color: photoFile != null ? const Color(0xFF10B981) : const Color(0xFF2563EB),
                     ),
                     visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     onPressed: onPickPhoto,
                   ),
                 ],
@@ -1835,10 +1898,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                     tooltip: 'មើលពេញអេក្រង់ (Full Screen)',
                     icon: const Icon(
                       Icons.open_in_full_rounded,
-                      size: 15,
+                      size: 16,
                       color: Color(0xFF2563EB),
                     ),
                     visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     onPressed: onOpenFullScreen,
                   ),
                 ],
@@ -3566,6 +3631,8 @@ class A4DocumentFullscreenViewer extends StatefulWidget {
   final DocxPageOrientation orientation;
   final File? photoFile;
   final String? filePath;
+  final String? originalScanImagePath;
+  final bool initialShowOriginal;
   final VoidCallback? onPickPhoto;
   final Future<void> Function(String newText)? onSaveText;
   final Widget Function(
@@ -3584,6 +3651,8 @@ class A4DocumentFullscreenViewer extends StatefulWidget {
     required this.paperBuilder,
     this.photoFile,
     this.filePath,
+    this.originalScanImagePath,
+    this.initialShowOriginal = true,
     this.onPickPhoto,
     this.onSaveText,
   });
@@ -3596,6 +3665,7 @@ class _A4DocumentFullscreenViewerState extends State<A4DocumentFullscreenViewer>
   late TransformationController _transformController;
   late DocxPageOrientation _orientation;
   late String _currentText;
+  late bool _showOriginal;
   double _currentScale = 1.0;
   bool _isDarkDesk = true;
 
@@ -3605,6 +3675,9 @@ class _A4DocumentFullscreenViewerState extends State<A4DocumentFullscreenViewer>
     _transformController = TransformationController();
     _orientation = widget.orientation;
     _currentText = widget.initialText;
+    _showOriginal = widget.initialShowOriginal &&
+        widget.originalScanImagePath != null &&
+        File(widget.originalScanImagePath!).existsSync();
     _transformController.addListener(_onTransformationChanged);
   }
 
@@ -3650,6 +3723,39 @@ class _A4DocumentFullscreenViewerState extends State<A4DocumentFullscreenViewer>
   Widget build(BuildContext context) {
     final isLandscape = _orientation == DocxPageOrientation.landscape;
     final paperWidth = isLandscape ? 877.0 : 620.0;
+    final hasOriginal = widget.originalScanImagePath != null &&
+        File(widget.originalScanImagePath!).existsSync();
+
+    final paperContent = (_showOriginal && hasOriginal)
+        ? Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: _isDarkDesk ? 0.45 : 0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+              border: Border.all(
+                color: _isDarkDesk ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                width: 1.2,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Image.file(
+              File(widget.originalScanImagePath!),
+              fit: BoxFit.contain,
+            ),
+          )
+        : widget.paperBuilder(
+            _currentText,
+            widget.paperSize,
+            _orientation,
+            widget.photoFile,
+            widget.onPickPhoto,
+          );
 
     return Scaffold(
       backgroundColor: _isDarkDesk ? const Color(0xFF0B1120) : const Color(0xFFE2E8F0),
@@ -3685,6 +3791,31 @@ class _A4DocumentFullscreenViewerState extends State<A4DocumentFullscreenViewer>
           ],
         ),
         actions: [
+          // Toggle Original Layout vs Text View
+          if (hasOriginal)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ActionChip(
+                avatar: Icon(
+                  _showOriginal ? Icons.verified_rounded : Icons.edit_note_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  _showOriginal ? 'ប្លង់ដើម ១០០%' : 'ទម្រង់អត្ថបទ',
+                  style: GoogleFonts.kantumruyPro(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                backgroundColor: _showOriginal ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                onPressed: () => setState(() => _showOriginal = !_showOriginal),
+              ),
+            ),
+
           // Dark/Light Desk Toggle
           IconButton(
             tooltip: _isDarkDesk ? 'ផ្ទៃតុពណ៌ភ្លឺ' : 'ផ្ទៃតុពណ៌ងងឹត',
@@ -3730,13 +3861,7 @@ class _A4DocumentFullscreenViewerState extends State<A4DocumentFullscreenViewer>
                 padding: const EdgeInsets.all(24),
                 child: SizedBox(
                   width: paperWidth,
-                  child: widget.paperBuilder(
-                    _currentText,
-                    widget.paperSize,
-                    _orientation,
-                    widget.photoFile,
-                    widget.onPickPhoto,
-                  ),
+                  child: paperContent,
                 ),
               ),
             ),

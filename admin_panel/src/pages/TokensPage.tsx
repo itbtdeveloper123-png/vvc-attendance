@@ -2066,9 +2066,9 @@ export const TokensPage: React.FC = () => {
               />
             )}
             <StatCard
-              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : activeTab === 'ilovepdf_keys' ? 'ឯកសារអាចបម្លែងបាន' : activeTab === 'cloudconvert_keys' ? 'ម៉ាស៊ីនបម្លែង (Engine)' : 'Full-Res Credits'}
-              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : activeTab === 'ilovepdf_keys' ? `~${(apiKeyStats.total_free_calls || 250).toLocaleString()} Files` : activeTab === 'cloudconvert_keys' ? 'Office Engine v2' : `${apiKeyStats.total_credits}`}
-              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : activeTab === 'ilovepdf_keys' ? 'PDF ទៅ Word .docx' : activeTab === 'cloudconvert_keys' ? 'PDF ទៅ Word (.docx)' : 'កាត់រូបច្បាស់ High-Res'}
+              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : activeTab === 'ilovepdf_keys' ? 'ឯកសារអាចបម្លែងបាន' : activeTab === 'cloudconvert_keys' ? 'ការបម្លែងថ្ងៃនេះ' : 'Full-Res Credits'}
+              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : activeTab === 'ilovepdf_keys' ? `~${(apiKeyStats.total_free_calls || 250).toLocaleString()} Files` : activeTab === 'cloudconvert_keys' ? `${apiKeyStats.total_daily_used || 0} លើក` : `${apiKeyStats.total_credits}`}
+              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : activeTab === 'ilovepdf_keys' ? 'PDF ទៅ Word .docx' : activeTab === 'cloudconvert_keys' ? 'ម៉ាស៊ីន Office Engine v2' : 'កាត់រូបច្បាស់ High-Res'}
               icon={activeTab === 'cloudconvert_keys' ? <FileText size={22} color="#EA580C" /> : activeTab === 'ilovepdf_keys' ? <FileText size={22} color="#F59E0B" /> : <Sparkles size={22} color="#F59E0B" />}
             />
             <StatCard
@@ -2447,20 +2447,25 @@ export const TokensPage: React.FC = () => {
                                   📄 PDF ទៅ Word (.docx)
                                 </span>
                               ) : activeTab === 'cloudconvert_keys' ? (
-                                <span
-                                  className="badge"
-                                  style={{
-                                    fontSize: '11.5px',
-                                    fontWeight: 700,
-                                    padding: '4px 10px',
-                                    borderRadius: '16px',
-                                    background: 'rgba(234, 88, 12, 0.1)',
-                                    color: '#EA580C',
-                                    border: '1px solid rgba(234, 88, 12, 0.25)',
-                                  }}
-                                >
-                                  ⚡ Office Engine v2
-                                </span>
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      fontSize: '11.5px',
+                                      fontWeight: 700,
+                                      padding: '4px 10px',
+                                      borderRadius: '16px',
+                                      background: 'rgba(234, 88, 12, 0.1)',
+                                      color: '#EA580C',
+                                      border: '1px solid rgba(234, 88, 12, 0.25)',
+                                    }}
+                                  >
+                                    ⚡ Office Engine v2
+                                  </span>
+                                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                    ប្រើថ្ងៃនេះ៖ <strong style={{ color: (k.daily_requests_used || 0) > 0 ? '#EA580C' : 'var(--text-muted)' }}>{k.daily_requests_used || 0}</strong> លើក
+                                  </div>
+                                </div>
                               ) : (
                                 <span style={{ fontWeight: 700, fontSize: '13px', color: k.credits > 0 ? '#F59E0B' : 'var(--text-muted)' }}>
                                   {k.credits}
