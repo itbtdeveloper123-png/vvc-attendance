@@ -41,6 +41,11 @@ class PdfToWordMicroservice {
     return ApiService.baseUrl.replaceAll('api.php', 'api/convert-pdf-word.php');
   }
 
+  /// Whether the microservice vector backend (iLovePDF / Server) is enabled.
+  /// When true, high-fidelity vector conversion is prioritized.
+  /// When false, the system falls back directly to AI Gemini OCR.
+  static bool isServerEnabled = true;
+
   /// Check if the backend microservice engine is online and responsive
   static Future<bool> isServiceAvailable() async {
     try {

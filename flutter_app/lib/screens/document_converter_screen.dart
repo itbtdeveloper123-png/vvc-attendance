@@ -293,6 +293,11 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     try {
       final detectedFormat = await DocumentConversionService.detectPdfPageFormat(pdfPath);
 
+      if (!PdfToWordMicroservice.isServerEnabled) {
+        await _convertPdfWithGeminiOcr(pdfPath);
+        return;
+      }
+
       final result = await PdfToWordMicroservice.convertPdfToDocx(
         pdfPath: pdfPath,
         onProgress: (pct, msg) {
