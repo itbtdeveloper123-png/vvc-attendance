@@ -967,7 +967,64 @@ function verify_ilovepdf_key(string $publicKey, ?string $secretKey = null): arra
     ];
 }
 
+function verify_cloudconvert_key(string $apiKey): array {
+    $apiKey = trim($apiKey);
+    if (empty($apiKey)) {
+        return ['success' => false, 'message' => 'CloudConvert API Key មិនអាចទទេបានឡើយ', 'free_calls' => 0, 'credits' => 0, 'status' => 'invalid'];
+    }
+
+    $ch = curl_init('https://api.cloudconvert.com/v2/users/me');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer {$apiKey}",
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['success' => false, 'message' => 'Curl Error: ' . $curlErr, 'http_code' => $httpCode, 'free_calls' => 0, 'credits' => 0, 'status' => 'error'];
+    }
+
+    $data = json_decode((string)$resp, true);
+    if ($httpCode !== 200 || empty($data['data'])) {
+        $msg = $data['message'] ?? "CloudConvert Auth Error (HTTP {$httpCode})";
+        return [
+            'success' => false,
+            'message' => 'CloudConvert API Key មិនត្រឹមត្រូវ៖ ' . $msg,
+            'http_code' => $httpCode,
+            'status' => 'invalid',
+            'free_calls' => 0,
+            'credits' => 0,
+        ];
+    }
+
+    $userData = $data['data'];
+    $credits = (int)($userData['credits'] ?? 0);
+    $username = $userData['username'] ?? $userData['email'] ?? 'CloudConvert User';
+
+    return [
+        'success' => true,
+        'message' => "CloudConvert Key ត្រឹមត្រូវ និងដំណើរការល្អ! ({$credits} Conversion Minutes / ម្ចាស់: {$username})",
+        'http_code' => 200,
+        'status' => 'active',
+        'free_calls' => $credits,
+        'credits' => $credits,
+        'username' => $username,
+    ];
+}
+
 function verify_api_key_universal(string $service, string $apiKey, ?string $secretKey = null): array {
+    if ($service === 'cloudconvert') {
+        return verify_cloudconvert_key($apiKey);
+    }
     if ($service === 'ilovepdf') {
         return verify_ilovepdf_key($apiKey, $secretKey);
     }
@@ -1832,6 +1889,9 @@ try {
                     dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'ilovepdf_secret_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$secretKey]);
                 }
                 dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'ilovepdf_enabled', '1') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            } elseif ($service === 'cloudconvert') {
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'cloudconvert_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$apiKey]);
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'cloudconvert_enabled', '1') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
             }
 
             sendJson([
