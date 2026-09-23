@@ -250,7 +250,6 @@ function convert_with_cloudconvert(string $pdfPath, string $docxPath, string $ap
                 'operation' => 'convert',
                 'input' => 'import-pdf-task',
                 'output_format' => 'docx',
-                'engine' => 'office',
             ],
             'export-docx-task' => [
                 'operation' => 'export/url',
