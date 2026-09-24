@@ -263,8 +263,20 @@ class PdfToWordMicroservice {
 
       final xmlStr = utf8.decode(docFile.content as List<int>, allowMalformed: true);
 
+      // Strip Word field codes and drawing metadata that contain coordinate numbers
+      final preCleaned = xmlStr
+          .replaceAll(RegExp(r'<w:instrText[^>]*>[\s\S]*?<\/w:instrText>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<w:fldSimple[^>]*>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<w:fldChar[^>]*\/>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<wp:docPr[^>]*\/>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<wp:extent[^>]*\/>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<a:off[^>]*\/>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<a:ext[^>]*\/>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<v:shape[^>]*>', caseSensitive: false), ' ')
+          .replaceAll(RegExp(r'<v:path[^>]*>', caseSensitive: false), ' ');
+
       // Clean tags while preserving table structure
-      final cleaned = xmlStr
+      final cleaned = preCleaned
           .replaceAll(RegExp(r'</w:tc>'), '\t')
           .replaceAll(RegExp(r'</w:tr>'), '\n')
           .replaceAll(RegExp(r'</w:p>'), '\n')
@@ -292,13 +304,46 @@ class PdfToWordMicroservice {
     final result = <String>[];
     int i = 0;
     while (i < lines.length) {
-      final line = lines[i];
+      var line = lines[i];
+
+      // Strip leading/trailing coordinate artifacts from Word DrawingML (e.g. "803275 291411 ព័ត៌មាន...")
+      line = line
+          .replaceFirst(RegExp(r'^\s*[-]?\d{4,}\s+[-]?\d{3,}\s*'), '')
+          .replaceFirst(RegExp(r'^\s*0\s+0\s+'), '')
+          .trim();
+
+      // Discard pure coordinate lines or geometry tokens (e.g. "6343650 -188618", "0 0", "803275 291411")
       if (line.isEmpty) {
         if (result.isNotEmpty && result.last.isNotEmpty) {
           result.add('');
         }
         i++;
         continue;
+      }
+
+      if (RegExp(r'^[-]?\d{3,}\s+[-]?\d{3,}').hasMatch(line) ||
+          RegExp(r'^\d{4,}(\s+\d{3,})+$').hasMatch(line) ||
+          line == '0 0' ||
+          line == '0, 0' ||
+          line == '0') {
+        i++;
+        continue;
+      }
+
+      // Detect legacy font garbled headers right before known CV sections
+      if (line.contains('ñ') || line.contains('è') || line.contains('é') || line.contains('កñក')) {
+        // If followed by personal info fields
+        bool isPersonalSection = false;
+        for (int lookAhead = 1; lookAhead <= 3 && i + lookAhead < lines.length; lookAhead++) {
+          final nextL = lines[i + lookAhead];
+          if (nextL.contains('ឈ្មោះ') || nextL.contains('ភេទ') || nextL.contains('សញ្ជាតិ')) {
+            isPersonalSection = true;
+            break;
+          }
+        }
+        if (isPersonalSection) {
+          line = 'ព័ត៌មានផ្ទាល់ខ្លួន';
+        }
       }
 
       // If current line contains tabs from table columns (e.g. multi-column CV rows)
@@ -341,7 +386,7 @@ class PdfToWordMicroservice {
       // If current line is ":" and previous line exists and next line exists
       if ((line == ':' || line == '៖' || line == ':-') && result.isNotEmpty && i + 1 < lines.length) {
         final prev = result.removeLast();
-        final next = lines[i + 1];
+        final next = lines[i + 1].trim();
         result.add('$prev : $next');
         i += 2;
         continue;

@@ -918,7 +918,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
 
         int activeTab = 0; // 0: Preview, 1: Original Scan (if available) or Raw Text, 2: Raw Text
         String currentText = PdfToWordMicroservice.normalizeExtractedCvText(extractedText ?? '');
+        final String? genuineDocxPath = filePath;
         String? currentFilePath = filePath;
+        bool hasUserEdited = false;
         File? cvPhotoFile = initialPhotoFile;
         bool isFitScreen = true; // Proportional fit-to-mobile width by default
         bool showOriginalLayout = hasOriginalScan; // Default to authentic 100% original layout when available
@@ -942,6 +944,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
               DocxPageMargin? newMargin,
               String? newContent,
             }) async {
+              if (newContent != null) hasUserEdited = true;
               final targetSize = newSize ?? currentPaperSize;
               final targetOrient = newOrient ?? currentOrientation;
               final targetMargin = newMargin ?? currentMargin;
@@ -1134,6 +1137,35 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                       ],
                     ),
                   ),
+
+                  // Informative banner for Word (.docx) genuine layout
+                  if (isDocx && filePath != null) ...[
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(20, 4, 20, 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.2 : 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'ឯកសារ Word (.docx) ត្រូវបានបម្លែងរក្សាទម្រង់ដើម ១០០%។ ចុច «ចែករំលែក / បើកក្នុង Word» ខាងក្រោមដើម្បីបើកមើលក្នុង Microsoft Word ឬ WPS Office!',
+                              style: GoogleFonts.kantumruyPro(
+                                fontSize: 11,
+                                color: isDark ? Colors.white70 : const Color(0xFF1E3A8A),
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
 
 
@@ -1579,9 +1611,12 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                                if (currentFilePath != null) {
+                                final pathToShare = (!hasUserEdited && genuineDocxPath != null && File(genuineDocxPath).existsSync())
+                                    ? genuineDocxPath
+                                    : currentFilePath;
+                                if (pathToShare != null) {
                                   await Share.shareXFiles(
-                                    [XFile(currentFilePath!)],
+                                    [XFile(pathToShare)],
                                     text: 'ឯកសារបម្លែងពី VVC Attendance',
                                   );
                                 } else if (hasText) {
@@ -1829,7 +1864,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                         if (originalScanImagePath != null && onToggleLayoutMode != null) ...[
                           const SizedBox(width: 5),
                           InkWell(
-                            onTap: onToggleLayoutMode,
+                            onTap: showOriginalLayout ? null : onToggleLayoutMode,
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
@@ -1846,17 +1881,55 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    showOriginalLayout ? Icons.auto_awesome_rounded : Icons.edit_note_rounded,
+                                    Icons.auto_awesome_rounded,
                                     size: 13,
                                     color: showOriginalLayout ? Colors.white : AppTheme.textMuted,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    showOriginalLayout ? 'ប្លង់ដើម ១០០%' : 'ទម្រង់អត្ថបទ',
+                                    'ប្លង់ដើម ១០០%',
                                     style: GoogleFonts.kantumruyPro(
                                       fontSize: 10.5,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: showOriginalLayout ? FontWeight.bold : FontWeight.w500,
                                       color: showOriginalLayout
+                                          ? Colors.white
+                                          : (isDark ? Colors.white70 : AppTheme.textPrimary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: !showOriginalLayout ? null : onToggleLayoutMode,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+                              decoration: BoxDecoration(
+                                color: !showOriginalLayout
+                                    ? const Color(0xFF2563EB)
+                                    : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: !showOriginalLayout ? const Color(0xFF2563EB) : AppTheme.border,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.edit_note_rounded,
+                                    size: 13,
+                                    color: !showOriginalLayout ? Colors.white : AppTheme.textMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'ទម្រង់អត្ថបទ',
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontSize: 10.5,
+                                      fontWeight: !showOriginalLayout ? FontWeight.bold : FontWeight.w500,
+                                      color: !showOriginalLayout
                                           ? Colors.white
                                           : (isDark ? Colors.white70 : AppTheme.textPrimary),
                                     ),
