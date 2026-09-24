@@ -365,7 +365,7 @@ function ensure_api_keys_table(): void {
         id INT AUTO_INCREMENT PRIMARY KEY,
         service_name VARCHAR(50) NOT NULL DEFAULT 'remove_bg',
         key_label VARCHAR(100) NOT NULL,
-        api_key VARCHAR(255) NOT NULL UNIQUE,
+        api_key TEXT NOT NULL,
         free_calls INT DEFAULT 50,
         credits INT DEFAULT 1,
         is_active TINYINT DEFAULT 1,
@@ -376,6 +376,24 @@ function ensure_api_keys_table(): void {
         INDEX idx_service (service_name),
         INDEX idx_active (is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Ensure api_key column is TEXT to support long JWT tokens (CloudConvert tokens are ~800+ chars)
+    $colKey = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'api_key'");
+    if (!empty($colKey)) {
+        $type = strtolower($colKey[0]['Type'] ?? '');
+        if (strpos($type, 'varchar') !== false) {
+            $indices = dbQuery("SHOW INDEX FROM admin_api_keys WHERE Column_name = 'api_key'");
+            if (!empty($indices)) {
+                foreach ($indices as $idx) {
+                    $idxName = $idx['Key_name'] ?? '';
+                    if ($idxName && $idxName !== 'PRIMARY') {
+                        @dbQuery("ALTER TABLE admin_api_keys DROP INDEX `{$idxName}`");
+                    }
+                }
+            }
+            @dbQuery("ALTER TABLE admin_api_keys MODIFY COLUMN api_key TEXT NOT NULL");
+        }
+    }
 
     // Ensure real-time usage tracking columns exist
     $cols = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'daily_requests_used'");
@@ -396,7 +414,12 @@ function ensure_api_keys_table(): void {
     }
     $colsSecret = dbQuery("SHOW COLUMNS FROM admin_api_keys LIKE 'secret_key'");
     if (empty($colsSecret)) {
-        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN secret_key VARCHAR(255) NULL");
+        @dbQuery("ALTER TABLE admin_api_keys ADD COLUMN secret_key TEXT NULL");
+    } else {
+        $typeSec = strtolower($colsSecret[0]['Type'] ?? '');
+        if (strpos($typeSec, 'varchar') !== false) {
+            @dbQuery("ALTER TABLE admin_api_keys MODIFY COLUMN secret_key TEXT NULL");
+        }
     }
 
     // Pre-seed default Remove.bg keys if table is empty

@@ -5456,7 +5456,7 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         service_name VARCHAR(50) NOT NULL DEFAULT 'remove_bg',
                         key_label VARCHAR(100) NOT NULL,
-                        api_key VARCHAR(255) NOT NULL UNIQUE,
+                        api_key TEXT NOT NULL,
                         free_calls INT DEFAULT 50,
                         credits INT DEFAULT 1,
                         is_active TINYINT DEFAULT 1,
