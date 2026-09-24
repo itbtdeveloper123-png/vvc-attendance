@@ -374,7 +374,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     setState(() {
       _isProcessing = true;
       _progressMessage = PdfToWordMicroservice.isServerEnabled
-          ? 'កំពុងវិភាគទម្រង់ និងបម្លែងតាម iLovePDF / Microservice...'
+          ? 'កំពុងវិភាគទម្រង់ និងបម្លែងតាម CloudConvert API v2...'
           : 'កំពុងដំណើរការ AI Gemini OCR អានអក្សរ...';
       _progressValue = 0.15;
     });

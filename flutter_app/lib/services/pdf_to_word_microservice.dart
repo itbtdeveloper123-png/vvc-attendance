@@ -37,31 +37,37 @@ class PdfToWordConversionResult {
 /// Client Service for the High-Fidelity PDF to Word Microservice
 /// Preserves 100% genuine vector layout, embedded images/photos, and tables.
 class PdfToWordMicroservice {
-  static String get _endpointUrl {
-    return ApiService.baseUrl.replaceAll('api.php', 'api/convert-pdf-word.php');
+  static List<String> get _endpointCandidates {
+    final base = ApiService.baseUrl;
+    final list = <String>[];
+    list.add(base.replaceAll('api.php', 'api/convert-pdf-word.php'));
+    if (base.contains('/flutter/')) {
+      list.add(base.replaceAll('/flutter/api.php', '/api/convert-pdf-word.php'));
+    }
+    return list;
   }
 
-  /// Whether the microservice vector backend (iLovePDF / Server) is enabled.
+  /// Whether the microservice vector backend (CloudConvert / Server) is enabled.
   /// When true, high-fidelity vector conversion is prioritized.
   /// When false, the system falls back directly to AI Gemini OCR.
   static bool isServerEnabled = true;
 
   /// Check if the backend microservice engine is online and responsive
   static Future<bool> isServiceAvailable() async {
-    try {
-      final dio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 5),
-        receiveTimeout: const Duration(seconds: 5),
-      ));
-      final response = await dio.get(_endpointUrl);
-      if (response.statusCode == 200 && response.data != null) {
-        final status = response.data['status']?.toString();
-        return status == 'online';
-      }
-      return false;
-    } catch (_) {
-      return false;
+    for (final url in _endpointCandidates) {
+      try {
+        final dio = Dio(BaseOptions(
+          connectTimeout: const Duration(seconds: 5),
+          receiveTimeout: const Duration(seconds: 5),
+        ));
+        final response = await dio.get(url);
+        if (response.statusCode == 200 && response.data != null) {
+          final status = response.data['status']?.toString();
+          if (status == 'online') return true;
+        }
+      } catch (_) {}
     }
+    return false;
   }
 
   /// Convert PDF to high-fidelity Word (.docx) preserving original layout and photos
@@ -86,29 +92,53 @@ class PdfToWordMicroservice {
         receiveTimeout: const Duration(minutes: 5), // Large PDFs may take up to 2-3 mins
       ));
 
-      final formData = FormData.fromMap({
-        'pdf_file': await MultipartFile.fromFile(
-          pdfPath,
-          filename: pdfPath.split(Platform.pathSeparator).last,
-        ),
-        'khmer_font': khmerFont,
-      });
+      Response? response;
+      dynamic lastDioError;
 
-      final response = await dio.post(
-        _endpointUrl,
-        data: formData,
-        onSendProgress: (sent, total) {
-          if (total > 0) {
-            final uploadFraction = sent / total;
-            // 10% to 50% for upload phase
-            final pct = 0.1 + (uploadFraction * 0.4);
-            onProgress?.call(pct, 'កំពុង Upload ឯកសារ (${(uploadFraction * 100).toInt()}%)...');
+      for (final endpoint in _endpointCandidates) {
+        try {
+          final formData = FormData.fromMap({
+            'pdf_file': await MultipartFile.fromFile(
+              pdfPath,
+              filename: pdfPath.split(Platform.pathSeparator).last,
+            ),
+            'khmer_font': khmerFont,
+          });
+
+          final res = await dio.post(
+            endpoint,
+            data: formData,
+            onSendProgress: (sent, total) {
+              if (total > 0) {
+                final uploadFraction = sent / total;
+                // 10% to 50% for upload phase
+                final pct = 0.1 + (uploadFraction * 0.4);
+                onProgress?.call(pct, 'កំពុង Upload ឯកសារ (${(uploadFraction * 100).toInt()}%)...');
+              }
+            },
+          );
+
+          if (res.statusCode == 200 && res.data != null && res.data['status'] == 'success') {
+            response = res;
+            break;
           }
-        },
-      );
+          response = res;
+        } on DioException catch (e) {
+          lastDioError = e;
+        } catch (e) {
+          lastDioError = e;
+        }
+      }
 
-      if (response.statusCode != 200 || response.data == null) {
-        final errorMsg = response.data?['message']?.toString() ?? 'Server ឆ្លើយតបកំហុស (${response.statusCode})';
+      if (response == null && lastDioError != null) {
+        if (lastDioError is DioException) {
+          throw lastDioError;
+        }
+        throw Exception(lastDioError.toString());
+      }
+
+      if (response == null || response.statusCode != 200 || response.data == null) {
+        final errorMsg = response?.data?['message']?.toString() ?? 'Server ឆ្លើយតបកំហុស (${response?.statusCode})';
         return PdfToWordConversionResult(
           success: false,
           errorMessage: errorMsg,

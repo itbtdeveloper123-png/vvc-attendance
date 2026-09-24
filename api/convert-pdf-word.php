@@ -120,6 +120,9 @@ function get_active_ilovepdf_credentials(): ?array {
         ];
     }
 
+    return null;
+}
+
 // -----------------------------------------------------------------------------
 // Database Helper: Locate Active CloudConvert Credentials
 // -----------------------------------------------------------------------------
@@ -249,6 +252,7 @@ function convert_with_cloudconvert(string $pdfPath, string $docxPath, string $ap
             'convert-to-docx-task' => [
                 'operation' => 'convert',
                 'input' => 'import-pdf-task',
+                'input_format' => 'pdf',
                 'output_format' => 'docx',
             ],
             'export-docx-task' => [
