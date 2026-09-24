@@ -1044,9 +1044,63 @@ function verify_cloudconvert_key(string $apiKey): array {
     ];
 }
 
+function verify_convertapi_key(string $apiKey): array {
+    $apiKey = trim($apiKey);
+    if (empty($apiKey)) {
+        return ['success' => false, 'message' => 'ConvertAPI Secret Key មិនអាចទទេបានឡើយ', 'free_calls' => 0, 'credits' => 0, 'status' => 'invalid'];
+    }
+
+    $ch = curl_init('https://v2.convertapi.com/user?Secret=' . urlencode($apiKey));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+        ],
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['success' => false, 'message' => 'Curl Error: ' . $curlErr, 'http_code' => $httpCode, 'free_calls' => 0, 'credits' => 0, 'status' => 'error'];
+    }
+
+    $data = json_decode((string)$resp, true);
+    if ($httpCode !== 200 || !is_array($data) || (isset($data['Active']) && $data['Active'] === false)) {
+        $msg = $data['Message'] ?? "ConvertAPI Auth Error (HTTP {$httpCode})";
+        return [
+            'success' => false,
+            'message' => 'ConvertAPI Secret Key មិនត្រឹមត្រូវ៖ ' . $msg,
+            'http_code' => $httpCode,
+            'status' => 'invalid',
+            'free_calls' => 0,
+            'credits' => 0,
+        ];
+    }
+
+    $secondsLeft = (int)($data['SecondsLeft'] ?? 0);
+    $username = $data['UserName'] ?? $data['Email'] ?? 'ConvertAPI User';
+
+    return [
+        'success' => true,
+        'message' => "ConvertAPI Key ត្រឹមត្រូវ និងដំណើរការល្អ! ({$secondsLeft} Seconds Left / ម្ចាស់: {$username})",
+        'http_code' => 200,
+        'status' => 'active',
+        'free_calls' => $secondsLeft,
+        'credits' => $secondsLeft,
+        'username' => $username,
+    ];
+}
+
 function verify_api_key_universal(string $service, string $apiKey, ?string $secretKey = null): array {
     if ($service === 'cloudconvert') {
         return verify_cloudconvert_key($apiKey);
+    }
+    if ($service === 'convertapi') {
+        return verify_convertapi_key($apiKey);
     }
     if ($service === 'ilovepdf') {
         return verify_ilovepdf_key($apiKey, $secretKey);
@@ -1893,8 +1947,8 @@ try {
                 sendJson(['success' => false, 'message' => 'API Key មិនត្រឹមត្រូវឡើយ៖ ' . ($verify['message'] ?? 'Invalid Key')], 400);
             }
 
-            $freeCalls = $verify['free_calls'] ?? ($service === 'ilovepdf' ? 250 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 15 : 50)));
-            $credits = $verify['credits'] ?? ($service === 'ilovepdf' ? 2500 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1)));
+            $freeCalls = $verify['free_calls'] ?? ($service === 'convertapi' ? 1500 : ($service === 'ilovepdf' ? 250 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 15 : 50))));
+            $credits = $verify['credits'] ?? ($service === 'convertapi' ? 1500 : ($service === 'ilovepdf' ? 2500 : ($service === 'cutout_pro' ? 5 : ($service === 'gemini' ? 1500 : 1))));
             $status = $verify['status'] ?? 'active';
 
             $priorityCount = dbQuery("SELECT MAX(priority) as max_p FROM admin_api_keys WHERE service_name = ?", [$service]);
@@ -1915,6 +1969,9 @@ try {
             } elseif ($service === 'cloudconvert') {
                 dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'cloudconvert_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$apiKey]);
                 dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'cloudconvert_enabled', '1') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            } elseif ($service === 'convertapi') {
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'convertapi_secret', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [$apiKey]);
+                dbQuery("INSERT INTO app_settings (admin_id, setting_key, setting_value) VALUES ('SYSTEM_WIDE', 'convertapi_enabled', '1') ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
             }
 
             sendJson([

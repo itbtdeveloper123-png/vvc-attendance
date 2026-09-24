@@ -371,6 +371,73 @@ export const testCloudConvertKeyRealtime = async (apiKey: string): Promise<{
   }
 };
 
+export const testConvertApiKeyRealtime = async (apiKey: string): Promise<{
+  success: boolean;
+  httpCode: number;
+  status: 'active' | 'invalid' | 'error';
+  latencyMs: number;
+  message: string;
+  credits?: number;
+  userName?: string;
+  detail?: string;
+}> => {
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    return {
+      success: false,
+      httpCode: 400,
+      status: 'invalid',
+      latencyMs: 0,
+      message: 'ConvertAPI Secret Key មិនអាចទទេបានឡើយ',
+    };
+  }
+
+  const start = performance.now();
+  try {
+    const res = await fetch(`https://v2.convertapi.com/user?Secret=${encodeURIComponent(trimmed)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    const latency = Math.round(performance.now() - start);
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || (data && data.Active === false)) {
+      return {
+        success: false,
+        httpCode: res.status,
+        status: 'invalid',
+        latencyMs: latency,
+        message: data?.Message || `ConvertAPI Auth Error (${res.status})`,
+        detail: data?.Code ? `Error Code: ${data.Code}` : 'Invalid API Secret',
+      };
+    }
+
+    const secondsLeft = data.SecondsLeft ?? 0;
+    const userName = data.UserName || data.Email || 'ConvertAPI User';
+
+    return {
+      success: true,
+      httpCode: 200,
+      status: 'active',
+      latencyMs: latency,
+      message: `Key ត្រឹមត្រូវ និងដំណើរការល្អ! (${secondsLeft.toLocaleString()} Seconds Left / ម្ចាស់: ${userName})`,
+      credits: secondsLeft,
+      userName,
+      detail: `Email: ${data.Email || ''}`,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      httpCode: 0,
+      status: 'error',
+      latencyMs: Math.round(performance.now() - start),
+      message: `មិនអាចភ្ជាប់ទៅ ConvertAPI បានឡើយ: ${err?.message || err}`,
+    };
+  }
+};
+
 function calculateSecondsUntil1400Cambodia(): number {
   const now = new Date();
   // Cambodia is UTC+7
@@ -423,7 +490,7 @@ const GeminiCountdownTimer: React.FC<GeminiCountdownTimerProps> = React.memo(({ 
 });
 
 export const TokensPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys' | 'cutout_pro_keys' | 'gemini_keys' | 'ilovepdf_keys' | 'cloudconvert_keys'>('active_sessions');
+  const [activeTab, setActiveTab] = useState<'active_sessions' | 'global_settings' | 'remove_bg_keys' | 'cutout_pro_keys' | 'gemini_keys' | 'ilovepdf_keys' | 'cloudconvert_keys' | 'convertapi_keys'>('active_sessions');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [groups, setGroups] = useState<SessionGroup[]>([]);
@@ -435,14 +502,15 @@ export const TokensPage: React.FC = () => {
   const [savingSettings, setSavingSettings] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  // AI API Keys Management State (Remove.bg, Cutout.pro, Google Gemini, iLovePDF & CloudConvert)
-  const currentServiceName = activeTab === 'cutout_pro_keys' ? 'cutout_pro' : activeTab === 'gemini_keys' ? 'gemini' : activeTab === 'ilovepdf_keys' ? 'ilovepdf' : activeTab === 'cloudconvert_keys' ? 'cloudconvert' : 'remove_bg';
+  // AI API Keys Management State (Remove.bg, Cutout.pro, Google Gemini, iLovePDF, CloudConvert & ConvertAPI)
+  const currentServiceName = activeTab === 'cutout_pro_keys' ? 'cutout_pro' : activeTab === 'gemini_keys' ? 'gemini' : activeTab === 'ilovepdf_keys' ? 'ilovepdf' : activeTab === 'cloudconvert_keys' ? 'cloudconvert' : activeTab === 'convertapi_keys' ? 'convertapi' : 'remove_bg';
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [removeBgCount, setRemoveBgCount] = useState<number>(0);
   const [cutoutProCount, setCutoutProCount] = useState<number>(0);
   const [geminiCount, setGeminiCount] = useState<number>(0);
   const [ilovePdfCount, setIlovePdfCount] = useState<number>(0);
   const [cloudConvertCount, setCloudConvertCount] = useState<number>(0);
+  const [convertApiCount, setConvertApiCount] = useState<number>(0);
   const [revealedSecretKeyIds, setRevealedSecretKeyIds] = useState<Record<number, boolean>>({});
   const [apiKeyStats, setApiKeyStats] = useState<any>({
     total_keys: 0,
@@ -597,12 +665,13 @@ export const TokensPage: React.FC = () => {
 
   const loadCounts = async () => {
     try {
-      const [rmbg, cutout, gemini, ilovepdf, cloudconvert] = await Promise.all([
+      const [rmbg, cutout, gemini, ilovepdf, cloudconvert, convertapi] = await Promise.all([
         adminApi.getApiKeys('remove_bg'),
         adminApi.getApiKeys('cutout_pro'),
         adminApi.getApiKeys('gemini'),
         adminApi.getApiKeys('ilovepdf'),
         adminApi.getApiKeys('cloudconvert'),
+        adminApi.getApiKeys('convertapi'),
       ]);
       if (rmbg && rmbg.success) setRemoveBgCount(rmbg.keys?.length || 0);
       if (cutout && cutout.success) setCutoutProCount(cutout.keys?.length || 0);
@@ -613,6 +682,7 @@ export const TokensPage: React.FC = () => {
       }
       if (ilovepdf && ilovepdf.success) setIlovePdfCount(ilovepdf.keys?.length || 0);
       if (cloudconvert && cloudconvert.success) setCloudConvertCount(cloudconvert.keys?.length || 0);
+      if (convertapi && convertapi.success) setConvertApiCount(convertapi.keys?.length || 0);
     } catch (e) {
       console.error(e);
       setGeminiCount(1);
@@ -638,6 +708,8 @@ export const TokensPage: React.FC = () => {
           setIlovePdfCount(res.keys.length);
         } else if (service === 'cloudconvert') {
           setCloudConvertCount(res.keys.length);
+        } else if (service === 'convertapi') {
+          setConvertApiCount(res.keys.length);
         }
       } else if (service === 'gemini') {
         // Automatically ensure existing Gemini Key is seeded and displayed
@@ -719,7 +791,7 @@ export const TokensPage: React.FC = () => {
     onSync: async (isSilent) => {
       if (activeTab === 'active_sessions') {
         await loadSessions(isSilent);
-      } else if (['remove_bg_keys', 'cutout_pro_keys', 'gemini_keys', 'ilovepdf_keys', 'cloudconvert_keys'].includes(activeTab)) {
+      } else if (['remove_bg_keys', 'cutout_pro_keys', 'gemini_keys', 'ilovepdf_keys', 'cloudconvert_keys', 'convertapi_keys'].includes(activeTab)) {
         await loadApiKeys(currentServiceName, isSilent);
       }
     },
@@ -767,6 +839,17 @@ export const TokensPage: React.FC = () => {
     if (currentServiceName === 'cloudconvert') {
       showBanner('info', 'កំពុងតេស្តបញ្ជាក់សុពលភាពផ្ទាល់ជាមួយ CloudConvert API v2 Server...');
       const testRes = await testCloudConvertKeyRealtime(newKeyString.trim());
+      if (!testRes.success) {
+        showBanner('error', `❌ មិនអាចរក្សាទុកបានទេ៖ ${testRes.message}`);
+        setIsAddingKey(false);
+        return;
+      }
+    }
+
+    // Deep Real-time Test for ConvertAPI before adding
+    if (currentServiceName === 'convertapi') {
+      showBanner('info', 'កំពុងតេស្តបញ្ជាក់សុពលភាពផ្ទាល់ជាមួយ ConvertAPI v2 Server...');
+      const testRes = await testConvertApiKeyRealtime(newKeyString.trim());
       if (!testRes.success) {
         showBanner('error', `❌ មិនអាចរក្សាទុកបានទេ៖ ${testRes.message}`);
         setIsAddingKey(false);
@@ -856,6 +939,25 @@ export const TokensPage: React.FC = () => {
           showBanner('success', `✅ Key "${kObj?.key_label || 'CloudConvert'}" ${testRes.message}`);
         } else {
           showBanner('error', `❌ Key "${kObj?.key_label || 'CloudConvert'}" ${testRes.message}`);
+        }
+        await loadApiKeys(currentServiceName, true);
+        setTestingKeyId(null);
+        return;
+      }
+
+      if (currentServiceName === 'convertapi') {
+        const kObj = apiKeys.find((k) => k.id === id);
+        const kStr = kObj?.api_key || '';
+        showBanner('info', `កំពុងតេស្ត ConvertAPI Key "${kObj?.key_label || ''}" ផ្ទាល់...`);
+        const testRes = await testConvertApiKeyRealtime(kStr);
+        try {
+          await adminApi.testApiKey(id);
+        } catch (_) {}
+
+        if (testRes.success) {
+          showBanner('success', `✅ Key "${kObj?.key_label || 'ConvertAPI'}" ${testRes.message}`);
+        } else {
+          showBanner('error', `❌ Key "${kObj?.key_label || 'ConvertAPI'}" ${testRes.message}`);
         }
         await loadApiKeys(currentServiceName, true);
         setTestingKeyId(null);
@@ -1008,6 +1110,39 @@ export const TokensPage: React.FC = () => {
         return;
       }
 
+      if (currentServiceName === 'convertapi') {
+        let activeCount = 0;
+        let invalidCount = 0;
+
+        const updated = await Promise.all(
+          apiKeys.map(async (k) => {
+            const res = await testConvertApiKeyRealtime(k.api_key);
+            if (res.success) activeCount++;
+            else invalidCount++;
+
+            return {
+              ...k,
+              is_active: res.success,
+              last_status: res.status,
+              free_calls: res.credits !== undefined ? res.credits : k.free_calls,
+              credits: res.credits !== undefined ? res.credits : k.credits,
+              last_checked_at: `${new Date().toISOString().replace('T', ' ').substring(0, 16)} (${res.latencyMs}ms)`,
+            };
+          })
+        );
+
+        setApiKeys(updated);
+
+        try {
+          await adminApi.syncAllApiKeys(currentServiceName);
+        } catch (_) {}
+
+        await loadApiKeys(currentServiceName, true);
+        showBanner('success', `បានធ្វើសមកាលកម្ម ConvertAPI Keys ទាំងអស់៖ ✅ ${activeCount} សកម្ម, ❌ ${invalidCount} មិនដំណើរការ`);
+        setSyncingAllKeys(false);
+        return;
+      }
+
       if (currentServiceName === 'ilovepdf') {
         let activeCount = 0;
         let invalidCount = 0;
@@ -1105,7 +1240,7 @@ export const TokensPage: React.FC = () => {
     }
     if (activeTab === 'active_sessions') {
       loadSessions(sessions.length > 0);
-    } else if (['remove_bg_keys', 'cutout_pro_keys', 'gemini_keys', 'ilovepdf_keys', 'cloudconvert_keys'].includes(activeTab)) {
+    } else if (['remove_bg_keys', 'cutout_pro_keys', 'gemini_keys', 'ilovepdf_keys', 'cloudconvert_keys', 'convertapi_keys'].includes(activeTab)) {
       loadApiKeys(currentServiceName, false);
     }
   }, [activeTab]);
@@ -1460,6 +1595,28 @@ export const TokensPage: React.FC = () => {
           >
             <Zap size={15} color={activeTab === 'cloudconvert_keys' ? '#EA580C' : undefined} />
             <span>CloudConvert API ({cloudConvertCount})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('convertapi_keys')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              borderRadius: '10px',
+              fontWeight: 700,
+              fontSize: '13px',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              background: activeTab === 'convertapi_keys' ? '#fff' : 'transparent',
+              color: activeTab === 'convertapi_keys' ? '#0284C7' : 'var(--text-secondary)',
+              boxShadow: activeTab === 'convertapi_keys' ? '0 4px 12px rgba(0,0,0,0.06)' : 'none',
+            }}
+          >
+            <Code2 size={15} color={activeTab === 'convertapi_keys' ? '#0284C7' : undefined} />
+            <span>ConvertAPI ({convertApiCount})</span>
           </button>
         </div>
       </div>
@@ -1911,9 +2068,9 @@ export const TokensPage: React.FC = () => {
 
       {/* ========================================================================= */}
       {/* ========================================================================= */}
-      {/* 3. AI API KEYS POOL MANAGEMENT TAB (Remove.bg, Cutout.pro, Google Gemini, iLovePDF & CloudConvert) */}
+      {/* 3. AI API KEYS POOL MANAGEMENT TAB (Remove.bg, Cutout.pro, Google Gemini, iLovePDF, CloudConvert & ConvertAPI) */}
       {/* ========================================================================= */}
-      {(activeTab === 'remove_bg_keys' || activeTab === 'cutout_pro_keys' || activeTab === 'gemini_keys' || activeTab === 'ilovepdf_keys' || activeTab === 'cloudconvert_keys') && (
+      {(activeTab === 'remove_bg_keys' || activeTab === 'cutout_pro_keys' || activeTab === 'gemini_keys' || activeTab === 'ilovepdf_keys' || activeTab === 'cloudconvert_keys' || activeTab === 'convertapi_keys') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* SERVICE BADGE & DESCRIPTION */}
           <div
@@ -1929,6 +2086,8 @@ export const TokensPage: React.FC = () => {
                 ? 'linear-gradient(135deg, rgba(225, 29, 72, 0.08), rgba(244, 63, 94, 0.08))'
                 : activeTab === 'cloudconvert_keys'
                 ? 'linear-gradient(135deg, rgba(234, 88, 12, 0.08), rgba(249, 115, 22, 0.08))'
+                : activeTab === 'convertapi_keys'
+                ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.08), rgba(6, 182, 212, 0.08))'
                 : 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.08))',
               border: activeTab === 'gemini_keys'
                 ? '1px solid rgba(37, 99, 235, 0.25)'
@@ -1938,6 +2097,8 @@ export const TokensPage: React.FC = () => {
                 ? '1px solid rgba(225, 29, 72, 0.25)'
                 : activeTab === 'cloudconvert_keys'
                 ? '1px solid rgba(234, 88, 12, 0.25)'
+                : activeTab === 'convertapi_keys'
+                ? '1px solid rgba(2, 132, 199, 0.25)'
                 : '1px solid rgba(99, 102, 241, 0.25)',
               display: 'flex',
               alignItems: 'center',
@@ -1960,6 +2121,8 @@ export const TokensPage: React.FC = () => {
                     ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                     : activeTab === 'cloudconvert_keys'
                     ? 'linear-gradient(135deg, #EA580C, #F97316)'
+                    : activeTab === 'convertapi_keys'
+                    ? 'linear-gradient(135deg, #0284C7, #06B6D4)'
                     : 'linear-gradient(135deg, #6366F1, #3B82F6)',
                   color: '#fff',
                   display: 'inline-flex',
@@ -1968,7 +2131,7 @@ export const TokensPage: React.FC = () => {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                 }}
               >
-                {activeTab === 'gemini_keys' ? <Bot size={22} /> : activeTab === 'cutout_pro_keys' ? <Wand2 size={22} /> : activeTab === 'ilovepdf_keys' ? <FileText size={22} /> : activeTab === 'cloudconvert_keys' ? <Zap size={22} /> : <Sparkles size={22} />}
+                {activeTab === 'gemini_keys' ? <Bot size={22} /> : activeTab === 'cutout_pro_keys' ? <Wand2 size={22} /> : activeTab === 'ilovepdf_keys' ? <FileText size={22} /> : activeTab === 'cloudconvert_keys' ? <Zap size={22} /> : activeTab === 'convertapi_keys' ? <Code2 size={22} /> : <Sparkles size={22} />}
               </span>
               <div>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -1980,6 +2143,8 @@ export const TokensPage: React.FC = () => {
                     ? 'iLovePDF Cloud API Keys Pool (PDF to Word .docx Converter)'
                     : activeTab === 'cloudconvert_keys'
                     ? 'CloudConvert API v2 Pool (High-Precision PDF to Word .docx)'
+                    : activeTab === 'convertapi_keys'
+                    ? 'ConvertAPI v2 Pool (Failover Engine for PDF to Word .docx)'
                     : 'Remove.bg API Keys Pool (Background Cutout & Signatures)'}
                 </h3>
                 <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -1991,6 +2156,8 @@ export const TokensPage: React.FC = () => {
                     ? 'iLovePDF API ដំណើរការបម្លែងឯកសារ PDF ទៅជា Microsoft Word (.docx) ដោយរក្សា Layout, រូបថត 3x4, តារាង និងបន្ទាត់ពណ៌បានស្អាតឥតខ្ចោះ ១០០%។'
                     : activeTab === 'cloudconvert_keys'
                     ? 'CloudConvert API v2 ប្រើប្រាស់ Office Engine ផ្លូវការដើម្បីបម្លែង PDF ទៅ Word (.docx) ដោយរក្សារូបថត, Layout, Font, Margin និងតារាងបាន ១០០%។'
+                    : activeTab === 'convertapi_keys'
+                    ? 'ConvertAPI ផ្តល់ជូន Free 1,500 Seconds / គណនីសម្រាប់បម្លែង PDF ទៅ Word (.docx) ដោយស្វ័យប្រវត្តិតាម Auto-Failover នៅពេល CloudConvert អស់ Credits។'
                     : 'គណនី Remove.bg នីមួយៗផ្តល់ជូន 50 Free Previews / ខែ ដោយប្រព័ន្ធនឹង Auto Failover ទៅ Key បន្ទាប់ពេលអស់ Credit។'}
                 </p>
               </div>
@@ -2006,6 +2173,8 @@ export const TokensPage: React.FC = () => {
                   ? 'https://www.iloveapi.com/user/projects'
                   : activeTab === 'cloudconvert_keys'
                   ? 'https://cloudconvert.com/dashboard/api/v2/keys'
+                  : activeTab === 'convertapi_keys'
+                  ? 'https://www.convertapi.com/a/signin'
                   : 'https://www.remove.bg/dashboard#api-key'
               }
               target="_blank"
@@ -2022,6 +2191,8 @@ export const TokensPage: React.FC = () => {
                   ? 'យក API Key ពី iloveapi.com'
                   : activeTab === 'cloudconvert_keys'
                   ? 'យក API Key ពី CloudConvert.com'
+                  : activeTab === 'convertapi_keys'
+                  ? 'យក API Secret ពី ConvertAPI.com'
                   : 'យក API Key ពី Remove.bg'}
               </span>
               <ExternalLink size={13} />
@@ -2057,6 +2228,13 @@ export const TokensPage: React.FC = () => {
                 subtitle="Conversion Minutes សម្រាប់ PDF ទៅ Word"
                 icon={<Zap size={22} color="#EA580C" />}
               />
+            ) : activeTab === 'convertapi_keys' ? (
+              <StatCard
+                title="ConvertAPI Seconds នៅសល់"
+                value={`${(apiKeyStats.total_credits || apiKeyStats.total_free_calls || 0).toLocaleString()} Secs`}
+                subtitle="Conversion Seconds សម្រាប់ Failover"
+                icon={<Code2 size={22} color="#0284C7" />}
+              />
             ) : (
               <StatCard
                 title={activeTab === 'cutout_pro_keys' ? 'Free Credits នៅសល់' : 'Free Calls នៅសល់ / ខែ'}
@@ -2066,10 +2244,10 @@ export const TokensPage: React.FC = () => {
               />
             )}
             <StatCard
-              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : activeTab === 'ilovepdf_keys' ? 'ឯកសារអាចបម្លែងបាន' : activeTab === 'cloudconvert_keys' ? 'ការបម្លែងថ្ងៃនេះ' : 'Full-Res Credits'}
-              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : activeTab === 'ilovepdf_keys' ? `~${(apiKeyStats.total_free_calls || 250).toLocaleString()} Files` : activeTab === 'cloudconvert_keys' ? `${apiKeyStats.total_daily_used || 0} លើក` : `${apiKeyStats.total_credits}`}
-              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : activeTab === 'ilovepdf_keys' ? 'PDF ទៅ Word .docx' : activeTab === 'cloudconvert_keys' ? 'ម៉ាស៊ីន Office Engine v2' : 'កាត់រូបច្បាស់ High-Res'}
-              icon={activeTab === 'cloudconvert_keys' ? <FileText size={22} color="#EA580C" /> : activeTab === 'ilovepdf_keys' ? <FileText size={22} color="#F59E0B" /> : <Sparkles size={22} color="#F59E0B" />}
+              title={activeTab === 'gemini_keys' ? 'Daily Limit (RPD) នៅសល់' : activeTab === 'cutout_pro_keys' ? 'HD Photo Credits' : activeTab === 'ilovepdf_keys' ? 'ឯកសារអាចបម្លែងបាន' : activeTab === 'cloudconvert_keys' || activeTab === 'convertapi_keys' ? 'ការបម្លែងថ្ងៃនេះ' : 'Full-Res Credits'}
+              value={activeTab === 'gemini_keys' ? `${(apiKeyStats.total_daily_remaining ?? (apiKeyStats.active_keys * 1500)).toLocaleString()} / ${(apiKeyStats.total_daily_limit || (apiKeyStats.active_keys * 1500)).toLocaleString()}` : activeTab === 'ilovepdf_keys' ? `~${(apiKeyStats.total_free_calls || 250).toLocaleString()} Files` : activeTab === 'cloudconvert_keys' || activeTab === 'convertapi_keys' ? `${apiKeyStats.total_daily_used || 0} លើក` : `${apiKeyStats.total_credits}`}
+              subtitle={activeTab === 'gemini_keys' ? `ប្រើប្រាស់ថ្ងៃនេះ៖ ${apiKeyStats.total_daily_used || 0} លើក` : activeTab === 'ilovepdf_keys' ? 'PDF ទៅ Word .docx' : activeTab === 'cloudconvert_keys' ? 'ម៉ាស៊ីន Office Engine v2' : activeTab === 'convertapi_keys' ? 'ម៉ាស៊ីន Failover v2' : 'កាត់រូបច្បាស់ High-Res'}
+              icon={activeTab === 'cloudconvert_keys' ? <FileText size={22} color="#EA580C" /> : activeTab === 'convertapi_keys' ? <Code2 size={22} color="#0284C7" /> : activeTab === 'ilovepdf_keys' ? <FileText size={22} color="#F59E0B" /> : <Sparkles size={22} color="#F59E0B" />}
             />
             <StatCard
               title={activeTab === 'gemini_keys' ? 'ម៉ោង Reset Daily Limit' : 'ស្ថានភាពប្រព័ន្ធ Failover'}
@@ -2165,11 +2343,13 @@ export const TokensPage: React.FC = () => {
                     ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                     : activeTab === 'cloudconvert_keys'
                     ? 'linear-gradient(135deg, #EA580C, #F97316)'
+                    : activeTab === 'convertapi_keys'
+                    ? 'linear-gradient(135deg, #0284C7, #06B6D4)'
                     : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                 }}
               >
                 <Plus size={16} />
-                <span>+ បន្ថែម {activeTab === 'gemini_keys' ? 'Google Gemini' : activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : activeTab === 'ilovepdf_keys' ? 'iLovePDF' : activeTab === 'cloudconvert_keys' ? 'CloudConvert' : 'Remove.bg'} Key ថ្មី</span>
+                <span>+ បន្ថែម {activeTab === 'gemini_keys' ? 'Google Gemini' : activeTab === 'cutout_pro_keys' ? 'Cutout.pro' : activeTab === 'ilovepdf_keys' ? 'iLovePDF' : activeTab === 'cloudconvert_keys' ? 'CloudConvert' : activeTab === 'convertapi_keys' ? 'ConvertAPI' : 'Remove.bg'} Key ថ្មី</span>
               </button>
             </div>
           </div>
@@ -2184,10 +2364,10 @@ export const TokensPage: React.FC = () => {
                     <th>ឈ្មោះសម្គាល់ (Label)</th>
                     <th>{activeTab === 'ilovepdf_keys' ? 'Public Key & Secret Key' : 'API Key (Secret)'}</th>
                     <th style={{ textAlign: 'center' }}>
-                      {activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits' : activeTab === 'ilovepdf_keys' ? 'Credits & Files នៅសល់' : activeTab === 'cloudconvert_keys' ? 'Credits (Mins)' : 'Free Calls / ខែ'}
+                      {activeTab === 'gemini_keys' ? 'Free Quota (RPM)' : activeTab === 'cutout_pro_keys' ? 'Free Credits' : activeTab === 'ilovepdf_keys' ? 'Credits & Files នៅសល់' : activeTab === 'cloudconvert_keys' ? 'Credits (Mins)' : activeTab === 'convertapi_keys' ? 'Credits (Seconds)' : 'Free Calls / ខែ'}
                     </th>
                     <th style={{ textAlign: 'center' }}>
-                      {activeTab === 'gemini_keys' ? 'Daily Limit (RPD)' : activeTab === 'cutout_pro_keys' ? 'Paid / Total Credits' : activeTab === 'ilovepdf_keys' ? 'Conversion Type' : activeTab === 'cloudconvert_keys' ? 'Conversion Engine' : 'Full-Res Credits'}
+                      {activeTab === 'gemini_keys' ? 'Daily Limit (RPD)' : activeTab === 'cutout_pro_keys' ? 'Paid / Total Credits' : activeTab === 'ilovepdf_keys' ? 'Conversion Type' : activeTab === 'cloudconvert_keys' || activeTab === 'convertapi_keys' ? 'Conversion Engine' : 'Full-Res Credits'}
                     </th>
                     <th style={{ textAlign: 'center' }}>ស្ថានភាព (Status)</th>
                     <th style={{ width: '180px', textAlign: 'center' }}>សកម្មភាព (Actions)</th>
@@ -2231,6 +2411,8 @@ export const TokensPage: React.FC = () => {
                                         ? 'rgba(236, 72, 153, 0.15)'
                                         : activeTab === 'cloudconvert_keys'
                                         ? 'rgba(234, 88, 12, 0.15)'
+                                        : activeTab === 'convertapi_keys'
+                                        ? 'rgba(2, 132, 199, 0.15)'
                                         : 'rgba(99, 102, 241, 0.15)'
                                       : 'rgba(148, 163, 184, 0.15)',
                                     color: k.is_active
@@ -2240,6 +2422,8 @@ export const TokensPage: React.FC = () => {
                                         ? '#EC4899'
                                         : activeTab === 'cloudconvert_keys'
                                         ? '#EA580C'
+                                        : activeTab === 'convertapi_keys'
+                                        ? '#0284C7'
                                         : 'var(--primary)'
                                       : 'var(--text-muted)',
                                     display: 'inline-flex',
@@ -2391,6 +2575,20 @@ export const TokensPage: React.FC = () => {
                                 >
                                   {(k.credits || k.free_calls || 0).toLocaleString()} Mins
                                 </span>
+                              ) : activeTab === 'convertapi_keys' ? (
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '3px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '12px',
+                                    fontWeight: 800,
+                                    background: 'rgba(2, 132, 199, 0.12)',
+                                    color: '#0284C7',
+                                  }}
+                                >
+                                  {(k.credits || k.free_calls || 0).toLocaleString()} Secs
+                                </span>
                               ) : (
                                 <span
                                   style={{
@@ -2464,6 +2662,26 @@ export const TokensPage: React.FC = () => {
                                   </span>
                                   <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
                                     ប្រើថ្ងៃនេះ៖ <strong style={{ color: (k.daily_requests_used || 0) > 0 ? '#EA580C' : 'var(--text-muted)' }}>{k.daily_requests_used || 0}</strong> លើក
+                                  </div>
+                                </div>
+                              ) : activeTab === 'convertapi_keys' ? (
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                  <span
+                                    className="badge"
+                                    style={{
+                                      fontSize: '11.5px',
+                                      fontWeight: 700,
+                                      padding: '4px 10px',
+                                      borderRadius: '16px',
+                                      background: 'rgba(2, 132, 199, 0.1)',
+                                      color: '#0284C7',
+                                      border: '1px solid rgba(2, 132, 199, 0.25)',
+                                    }}
+                                  >
+                                    ⚡ ConvertAPI v2
+                                  </span>
+                                  <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                                    ប្រើថ្ងៃនេះ៖ <strong style={{ color: (k.daily_requests_used || 0) > 0 ? '#0284C7' : 'var(--text-muted)' }}>{k.daily_requests_used || 0}</strong> លើក
                                   </div>
                                 </div>
                               ) : (
@@ -2729,7 +2947,7 @@ export const TokensPage: React.FC = () => {
                       <input
                         type="text"
                         className="form-input"
-                        placeholder={activeTab === 'gemini_keys' ? 'ឧ. AIzaSyD...' : activeTab === 'cloudconvert_keys' ? 'ឧ. eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1Ni...' : 'ឧ. LM9UPg8HqRKeZ89FeM2hhaCR'}
+                        placeholder={activeTab === 'gemini_keys' ? 'ឧ. AIzaSyD...' : activeTab === 'cloudconvert_keys' ? 'ឧ. eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1Ni...' : activeTab === 'convertapi_keys' ? 'ឧ. secret_xxxxxxxxxxxxxxxxxxxx' : 'ឧ. LM9UPg8HqRKeZ89FeM2hhaCR'}
                         value={newKeyString}
                         onChange={(e) => setNewKeyString(e.target.value)}
                         required
@@ -2742,6 +2960,8 @@ export const TokensPage: React.FC = () => {
                           ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Cutout.pro Server ដោយស្វ័យប្រវត្តមុនពេល Save។'
                           : activeTab === 'cloudconvert_keys'
                           ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ផ្ទាល់ជាមួយ CloudConvert API v2 Server (users/me) ភ្លាមៗមុនពេល Save។'
+                          : activeTab === 'convertapi_keys'
+                          ? 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ផ្ទាល់ជាមួយ ConvertAPI v2 Server (user info) ភ្លាមៗមុនពេល Save។'
                           : 'ប្រព័ន្ធនឹងធ្វើការ Test ផ្ទៀងផ្ទាត់ជាមួយ Server របស់ Remove.bg ដោយស្វ័យប្រវត្តមុនពេល Save។'}
                       </span>
                     </div>
@@ -2764,6 +2984,8 @@ export const TokensPage: React.FC = () => {
                           ? 'linear-gradient(135deg, #E11D48, #F43F5E)'
                           : activeTab === 'cloudconvert_keys'
                           ? 'linear-gradient(135deg, #EA580C, #F97316)'
+                          : activeTab === 'convertapi_keys'
+                          ? 'linear-gradient(135deg, #0284C7, #06B6D4)'
                           : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
                         display: 'inline-flex',
                         alignItems: 'center',

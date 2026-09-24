@@ -171,6 +171,115 @@ function get_active_cloudconvert_credentials(): ?array {
     return null;
 }
 
+// -----------------------------------------------------------------------------
+// Database Helper: Locate Active ConvertAPI Credentials
+// -----------------------------------------------------------------------------
+function get_active_convertapi_credentials(): ?array {
+    $rootDir = dirname(__DIR__);
+    if (file_exists($rootDir . '/config.php')) {
+        @include_once $rootDir . '/config.php';
+    }
+
+    $dbServer = defined('DB_SERVER') ? DB_SERVER : 'localhost';
+    $dbUser = defined('DB_USERNAME') ? DB_USERNAME : 'root';
+    $dbPass = defined('DB_PASSWORD') ? DB_PASSWORD : '';
+    $dbName = defined('DB_NAME') ? DB_NAME : 'samann1_attendance_db';
+
+    try {
+        if (class_exists('mysqli')) {
+            $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
+            if ($conn && !$conn->connect_error) {
+                $conn->set_charset('utf8mb4');
+                // 1. Check admin_api_keys table for service_name = 'convertapi' and active
+                $res = @$conn->query("SELECT id, api_key FROM admin_api_keys WHERE service_name = 'convertapi' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
+                if ($res && ($row = $res->fetch_assoc()) && !empty($row['api_key'])) {
+                    $keyId = (int)$row['id'];
+                    $key = trim($row['api_key']);
+                    $conn->close();
+                    return ['id' => $keyId, 'api_key' => $key];
+                }
+                // 2. Check app_settings fallback
+                $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'convertapi_secret' LIMIT 1");
+                if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
+                    $val = trim($row['setting_value']);
+                    $conn->close();
+                    return ['id' => 0, 'api_key' => $val];
+                }
+                $conn->close();
+            }
+        }
+    } catch (\Throwable $e) {}
+
+    // 3. Check environment variable override
+    $envKey = getenv('CONVERTAPI_SECRET');
+    if (!empty($envKey)) {
+        return ['id' => 0, 'api_key' => trim($envKey)];
+    }
+
+    return null;
+}
+
+function record_convertapi_usage(int $keyId, string $apiKey): void {
+    if ($keyId <= 0) return;
+    $rootDir = dirname(__DIR__);
+    if (file_exists($rootDir . '/config.php')) {
+        @include_once $rootDir . '/config.php';
+    }
+
+    $dbServer = defined('DB_SERVER') ? DB_SERVER : 'localhost';
+    $dbUser = defined('DB_USERNAME') ? DB_USERNAME : 'root';
+    $dbPass = defined('DB_PASSWORD') ? DB_PASSWORD : '';
+    $dbName = defined('DB_NAME') ? DB_NAME : 'samann1_attendance_db';
+
+    // Fetch latest real-time seconds left from ConvertAPI
+    $latestCredits = null;
+    if (function_exists('curl_init')) {
+        $ch = curl_init('https://v2.convertapi.com/user?Secret=' . urlencode($apiKey));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+            ],
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($httpCode === 200 && !empty($resp)) {
+            $data = json_decode((string)$resp, true);
+            if (isset($data['SecondsLeft'])) {
+                $latestCredits = (int)$data['SecondsLeft'];
+            }
+        }
+    }
+
+    try {
+        if (class_exists('mysqli')) {
+            $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
+            if ($conn && !$conn->connect_error) {
+                $conn->set_charset('utf8mb4');
+                if ($latestCredits !== null) {
+                    $stmt = $conn->prepare("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, free_calls = ?, credits = ?, last_used_at = NOW(), last_checked_at = NOW() WHERE id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param('iii', $latestCredits, $latestCredits, $keyId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                } else {
+                    $stmt = $conn->prepare("UPDATE admin_api_keys SET daily_requests_used = daily_requests_used + 1, last_used_at = NOW(), last_checked_at = NOW() WHERE id = ?");
+                    if ($stmt) {
+                        $stmt->bind_param('i', $keyId);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+                $conn->close();
+            }
+        }
+    } catch (\Throwable $e) {}
+}
+
 function record_cloudconvert_usage(int $keyId, string $apiKey): void {
     if ($keyId <= 0) return;
     $rootDir = dirname(__DIR__);
@@ -363,6 +472,79 @@ function convert_with_cloudconvert(string $pdfPath, string $docxPath, string $ap
     }
 
     return ['success' => false, 'error' => 'Failed to download converted DOCX from CloudConvert (HTTP ' . $dlCode . ')'];
+}
+
+// -----------------------------------------------------------------------------
+// Official ConvertAPI Cloud REST Engine: PDF to Word (.docx)
+// High-fidelity failover engine when CloudConvert credits are depleted
+// -----------------------------------------------------------------------------
+function convert_with_convertapi(string $pdfPath, string $docxPath, string $secretKey): array {
+    if (!function_exists('curl_init')) {
+        return ['success' => false, 'error' => 'cURL PHP extension is not installed'];
+    }
+
+    $cfile = curl_file_create($pdfPath, 'application/pdf', basename($pdfPath));
+    $postFields = [
+        'File' => $cfile,
+        'StoreFile' => 'true',
+    ];
+
+    $ch = curl_init('https://v2.convertapi.com/convert/pdf/to/docx?Secret=' . urlencode($secretKey));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $postFields,
+        CURLOPT_TIMEOUT => 180,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['success' => false, 'error' => 'ConvertAPI cURL error: ' . $curlErr, 'http_code' => $httpCode];
+    }
+
+    $data = json_decode((string)$resp, true);
+
+    if ($httpCode !== 200 || empty($data['Files'][0]['Url'])) {
+        $errMsg = $data['Message'] ?? ('ConvertAPI error HTTP ' . $httpCode);
+        return [
+            'success' => false,
+            'error' => 'ConvertAPI conversion failed: ' . $errMsg,
+            'http_code' => $httpCode,
+            'code' => $data['Code'] ?? null,
+        ];
+    }
+
+    $fileUrl = $data['Files'][0]['Url'];
+
+    // Download converted DOCX file
+    $fp = fopen($docxPath, 'w+');
+    $ch = curl_init($fileUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_FILE => $fp,
+        CURLOPT_TIMEOUT => 180,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    curl_exec($ch);
+    $dlCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    fclose($fp);
+    curl_close($ch);
+
+    if ($dlCode === 200 && file_exists($docxPath) && filesize($docxPath) > 0) {
+        return [
+            'success' => true,
+            'engine' => 'ConvertAPI Cloud Engine v2',
+            'cost' => $data['ConversionCost'] ?? 1,
+            'file_size' => filesize($docxPath),
+        ];
+    }
+
+    @unlink($docxPath);
+    return ['success' => false, 'error' => 'Failed to download converted DOCX from ConvertAPI (HTTP ' . $dlCode . ')'];
 }
 
 // -----------------------------------------------------------------------------
@@ -621,6 +803,7 @@ $khmerFont = isset($_POST['khmer_font']) && trim((string)$_POST['khmer_font']) !
 
 $startTime = microtime(true);
 $engineUsed = '';
+$conversionErrors = [];
 
 // -----------------------------------------------------------------------------
 // Priority 1: CloudConvert API v2 (Official Vector Engine for PDF to DOCX)
@@ -635,11 +818,33 @@ if (!empty($ccCreds['api_key'])) {
         if (!empty($ccCreds['id'])) {
             record_cloudconvert_usage((int)$ccCreds['id'], $ccCreds['api_key']);
         }
+    } else {
+        $conversionErrors[] = 'CloudConvert: ' . ($ccRes['error'] ?? 'បរាជ័យ');
     }
 }
 
 // -----------------------------------------------------------------------------
-// Priority 2: iLovePDF Cloud API (Fallback if configured)
+// Priority 2: ConvertAPI Cloud Engine (Auto-Failover when CloudConvert depleted / error)
+// -----------------------------------------------------------------------------
+if (empty($engineUsed)) {
+    $caCreds = get_active_convertapi_credentials();
+    $caRes = null;
+    if (!empty($caCreds['api_key'])) {
+        $caRes = convert_with_convertapi($pdfFilePath, $docxFilePath, $caCreds['api_key']);
+        if (!empty($caRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
+            @unlink($pdfFilePath);
+            $engineUsed = 'ConvertAPI Cloud Engine v2 (Auto-Failover)';
+            if (!empty($caCreds['id'])) {
+                record_convertapi_usage((int)$caCreds['id'], $caCreds['api_key']);
+            }
+        } else {
+            $conversionErrors[] = 'ConvertAPI: ' . ($caRes['error'] ?? 'បរាជ័យ');
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Priority 3: iLovePDF Cloud API (Fallback if configured)
 // -----------------------------------------------------------------------------
 if (empty($engineUsed)) {
     $iloveCreds = get_active_ilovepdf_credentials();
@@ -647,7 +852,9 @@ if (empty($engineUsed)) {
         $iloveRes = convert_with_ilovepdf($pdfFilePath, $docxFilePath, $iloveCreds['public_key'], $iloveCreds['secret_key'] ?? null);
         if (!empty($iloveRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
             @unlink($pdfFilePath);
-            $engineUsed = 'iLovePDF Cloud API';
+            $engineUsed = 'iLovePDF Cloud API (Fallback Engine)';
+        } else {
+            $conversionErrors[] = 'iLovePDF: ' . ($iloveRes['error'] ?? 'បរាជ័យ');
         }
     }
 }
@@ -656,12 +863,14 @@ if (empty($engineUsed)) {
 
 if (empty($engineUsed) || !file_exists($docxFilePath) || filesize($docxFilePath) === 0) {
     http_response_code(500);
-    $errorMessage = !empty($ccCreds['api_key'])
-        ? ($ccRes['error'] ?? 'ការបម្លែងតាម CloudConvert API មិនជោគជ័យឡើយ')
-        : 'មិនទាន់មាន CloudConvert API Key នៅក្នុង Admin Panel ឡើយ។ សូមចូល Admin Panel > Tokens & Sessions > បញ្ចូល CloudConvert Key!';
+    $errorDetails = !empty($conversionErrors) ? implode(' | ', $conversionErrors) : '';
+    $errorMessage = !empty($errorDetails)
+        ? 'ការបម្លែងឯកសារមិនជោគជ័យឡើយ (សេវាទាំងអស់អស់ Credit ឬជួបបញ្ហា)៖ ' . $errorDetails
+        : 'មិនទាន់មាន CloudConvert ឬ ConvertAPI Key នៅក្នុង Admin Panel ឡើយ។ សូមចូល Admin Panel > Tokens & Sessions > បញ្ចូល API Key!';
     echo json_encode([
         'status' => 'error',
         'message' => $errorMessage,
+        'details' => $conversionErrors,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
