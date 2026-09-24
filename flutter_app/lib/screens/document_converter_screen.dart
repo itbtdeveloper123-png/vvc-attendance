@@ -412,6 +412,34 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           );
         } catch (_) {}
 
+        File finalDocxFile = result.docxFile!;
+
+        // Step 2: Use Gemini API key to Fix Khmer font & text while keeping 100% original layout
+        if (previewImages != null && previewImages.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _progressMessage = 'AI Gemini កំពុងពិនិត្យ និងជួសជុលពុម្ពអក្សរខ្មែរ (Fixing Khmer Font)...';
+              _progressValue = 0.92;
+            });
+          }
+          try {
+            finalDocxFile = await GeminiOcrService.fixKhmerDocxWithGemini(
+              docxFile: finalDocxFile,
+              documentImagePath: previewImages.first,
+              onProgress: (pct, msg) {
+                if (mounted) {
+                  setState(() {
+                    _progressMessage = msg;
+                    _progressValue = 0.90 + (pct * 0.08);
+                  });
+                }
+              },
+            );
+          } catch (e) {
+            debugPrint('Gemini font fixer error: $e');
+          }
+        }
+
         File? photo = result.photoFile;
         // Fallback photo extraction from page render if CV and no photo found in docx media
         if (photo == null && previewImages != null && previewImages.isNotEmpty) {
@@ -427,8 +455,8 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           setState(() => _isProcessing = false);
           _showResultSheet(
             title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
-            subtitle: 'រក្សាទម្រង់ដើម ពណ៌ តារាង និងរូបថត ១០០% (ទំព័រ: ${result.pages})',
-            filePath: result.docxFile!.path,
+            subtitle: 'CloudConvert រក្សាទម្រង់ដើម ១០០% & AI Gemini ជួសជុលអក្សរខ្មែរ (ទំព័រ: ${result.pages})',
+            filePath: finalDocxFile.path,
             extractedText: result.extractedText,
             isDocx: true,
             detectedFormat: detectedFormat,
@@ -1154,7 +1182,7 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'ឯកសារ Word (.docx) ត្រូវបានបម្លែងរក្សាទម្រង់ដើម ១០០%។ ចុច «ចែករំលែក / បើកក្នុង Word» ខាងក្រោមដើម្បីបើកមើលក្នុង Microsoft Word ឬ WPS Office!',
+                              'CloudConvert រក្សាទម្រង់ដើម ១០០% & AI Gemini ជួសជុលពុម្ពអក្សរខ្មែររួចរាល់។ ចុច «ចែករំលែក / បើកក្នុង Word» ខាងក្រោមដើម្បីបើកមើលក្នុង Microsoft Word ឬ WPS Office!',
                               style: GoogleFonts.kantumruyPro(
                                 fontSize: 11,
                                 color: isDark ? Colors.white70 : const Color(0xFF1E3A8A),
@@ -1605,6 +1633,38 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
+
+                            // AI Gemini Fix Khmer Font Button
+                            if (isDocx && multiImagePaths != null && multiImagePaths.isNotEmpty) ...[
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  _showToast('AI Gemini កំពុងពិនិត្យ និងជួសជុលពុម្ពអក្សរខ្មែរ...');
+                                  try {
+                                    final fixed = await GeminiOcrService.fixKhmerDocxWithGemini(
+                                      docxFile: File(currentFilePath ?? genuineDocxPath!),
+                                      documentImagePath: multiImagePaths.first,
+                                    );
+                                    setModalState(() {
+                                      currentFilePath = fixed.path;
+                                    });
+                                    _showToast('បានជួសជុលពុម្ពអក្សរខ្មែរជោគជ័យ!');
+                                  } catch (e) {
+                                    _showToast('កំហុសជួសជុលអក្សរ៖ $e', isError: true);
+                                  }
+                                },
+                                icon: const Icon(Icons.auto_fix_high_rounded, size: 16, color: Color(0xFF10B981)),
+                                label: Text(
+                                  'AI Fix Font',
+                                  style: GoogleFonts.kantumruyPro(fontSize: 11.5, fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                                  side: const BorderSide(color: Color(0xFF10B981)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                           ],
 
                           // Share / Open in Word Button

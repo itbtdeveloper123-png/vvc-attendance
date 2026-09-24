@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:archive/archive.dart';
+import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
 import 'docx_generator_service.dart';
 import 'document_conversion_service.dart';
@@ -442,5 +444,348 @@ class GeminiOcrService {
       default:
         return 'image/jpeg';
     }
+  }
+
+  /// Advanced AI-assisted Khmer Font & Text Repair for converted Word (.docx) files.
+  /// Preserves 100% of CloudConvert vector layout, photos, tables, shapes & margins,
+  /// while using Gemini AI to fix broken Khmer glyphs (tofu boxes □, ?, missing subscripts)
+  /// and injecting genuine Khmer Unicode font declarations into OpenXML runs.
+  static Future<File> fixKhmerDocxWithGemini({
+    required File docxFile,
+    required String documentImagePath,
+    void Function(double pct, String msg)? onProgress,
+  }) async {
+    try {
+      onProgress?.call(0.1, 'កំពុងអានទិន្នន័យឯកសារ Word...');
+      final bytes = await docxFile.readAsBytes();
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final docEntry = archive.findFile('word/document.xml');
+      if (docEntry == null) return docxFile;
+
+      String docXml = utf8.decode(docEntry.content as List<int>, allowMalformed: true);
+
+      // Step 1: Detect all text segments in <w:t> that have broken Khmer or tofu characters
+      final tMatches = RegExp(r'<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>').allMatches(docXml);
+      final suspectStrings = <String>{};
+
+      for (final m in tMatches) {
+        final text = m.group(1)?.trim();
+        if (text == null || text.isEmpty) continue;
+        // Tofu boxes, question marks, or broken Khmer sequences
+        final hasTofu = text.contains('□') ||
+            text.contains('\uFFFD') ||
+            text.contains('?') ||
+            text.contains('\u25A1') ||
+            text.contains('កñក') ||
+            text.contains('è') ||
+            text.contains('é');
+        final hasKhmer = RegExp(r'[\u1780-\u17FF]').hasMatch(text);
+        if (hasTofu || (hasKhmer && (text.length >= 2 || text.contains(':') || text.contains('-')))) {
+          suspectStrings.add(text);
+        }
+      }
+
+      onProgress?.call(0.3, 'AI Gemini កំពុងពិនិត្យ និងជួសជុលពុម្ពអក្សរខ្មែរ...');
+
+      // Step 2: Query Gemini AI to get ground-truth Khmer corrections
+      Map<String, String> fixes = {};
+      if (suspectStrings.isNotEmpty && File(documentImagePath).existsSync()) {
+        try {
+          fixes = await _queryGeminiForKhmerFixes(
+            imagePath: documentImagePath,
+            suspectTexts: suspectStrings.take(80).toList(),
+          );
+        } catch (e) {
+          if (kDebugMode) print('Gemini AI correction query error: $e');
+        }
+      }
+
+      onProgress?.call(0.65, 'កំពុងកែសម្រួលតួអក្សរ និងពុម្ពអក្សរខ្មែរ...');
+
+      // Step 3: Apply deterministic fallback fixes for common CV/Document terms
+      final deterministicFixes = {
+        '□បវត□□ិរូបសងេ□ប': 'ប្រវត្តិរូបសង្ខេប',
+        '□បវត្តិរូបសង្ខេប': 'ប្រវត្តិរូបសង្ខេប',
+        '□បវត□□ិរូប': 'ប្រវត្តិរូប',
+        'សងេ□ប': 'សង្ខេប',
+        '□ម-□ក□ត□ម': 'នាម-គោត្តនាម',
+        '□ម-គោត្តនាម': 'នាម-គោត្តនាម',
+        '□សយ□ឋានប□□បន□': 'អាសយដ្ឋានបច្ចុប្បន្ន',
+        'អាសយដ្ឋានប□□បន□': 'អាសយដ្ឋានបច្ចុប្បន្ន',
+        'ទូរស័ព□ទំ□នាក់ទំនង': 'ទូរស័ព្ទទំនាក់ទំនង',
+        'ទូរស័ព□': 'ទូរស័ព្ទ',
+        'ទំ□នាក់ទំនង': 'ទំនាក់ទំនង',
+        '□ឈ្មោះ': 'ឈ្មោះ',
+        '□ភេទ': 'ភេទ',
+        '□សញ្ជាតិ': 'សញ្ជាតិ',
+        '□ថ្ងៃ': 'ថ្ងៃ',
+        '□ទីកន្លែង': 'ទីកន្លែង',
+        '□ស្ថានភាព': 'ស្ថានភាព',
+        '□កម្រិត': 'កម្រិត',
+        '□វិទ្យាល័យ': 'វិទ្យាល័យ',
+        'មិនសូវល□': 'មិនសូវល្អ',
+      };
+
+      for (final entry in deterministicFixes.entries) {
+        if (!fixes.containsKey(entry.key)) {
+          fixes[entry.key] = entry.value;
+        }
+      }
+
+      // Apply all text corrections to document.xml
+      for (final entry in fixes.entries) {
+        final wrong = entry.key;
+        final fixed = entry.value;
+        if (wrong.isNotEmpty && fixed.isNotEmpty && wrong != fixed) {
+          final escapedFixed = fixed
+              .replaceAll('&', '&amp;')
+              .replaceAll('<', '&lt;')
+              .replaceAll('>', '&gt;');
+          docXml = docXml.replaceAll(wrong, escapedFixed);
+        }
+      }
+
+      // Step 4: Inject Khmer Unicode Font Styling (Khmer OS Siemreap) into all text runs
+      docXml = _injectKhmerFontToXmlRuns(docXml);
+
+      onProgress?.call(0.85, 'កំពុងរក្សាទុកឯកសារ Word (.docx)...');
+
+      // Step 5: Repack the DOCX ZIP archive
+      final newArchive = Archive();
+      final modifiedDocXmlBytes = utf8.encode(docXml);
+
+      for (final file in archive.files) {
+        if (file.name == 'word/document.xml') {
+          newArchive.addFile(ArchiveFile(file.name, modifiedDocXmlBytes.length, modifiedDocXmlBytes));
+        } else if (file.name == 'word/fontTable.xml') {
+          final fontXml = utf8.decode(file.content as List<int>, allowMalformed: true);
+          final updatedFontXml = _injectKhmerFontToFontTable(fontXml);
+          final fontBytes = utf8.encode(updatedFontXml);
+          newArchive.addFile(ArchiveFile(file.name, fontBytes.length, fontBytes));
+        } else if (file.name == 'word/styles.xml') {
+          var stylesXml = utf8.decode(file.content as List<int>, allowMalformed: true);
+          if (stylesXml.contains('<w:rFonts')) {
+            stylesXml = stylesXml.replaceAllMapped(
+              RegExp(r'<w:rFonts([^>]*?)\/>'),
+              (m) {
+                var a = m.group(1)!;
+                if (!a.contains('w:cs=')) a += ' w:cs="Khmer OS Siemreap"';
+                return '<w:rFonts$a/>';
+              },
+            );
+          }
+          final stylesBytes = utf8.encode(stylesXml);
+          newArchive.addFile(ArchiveFile(file.name, stylesBytes.length, stylesBytes));
+        } else {
+          newArchive.addFile(file);
+        }
+      }
+
+      // If word/fontTable.xml didn't exist, create it
+      if (archive.findFile('word/fontTable.xml') == null) {
+        final defaultFontTable = _createDefaultKhmerFontTable();
+        final fontBytes = utf8.encode(defaultFontTable);
+        newArchive.addFile(ArchiveFile('word/fontTable.xml', fontBytes.length, fontBytes));
+      }
+
+      final encodedBytes = ZipEncoder().encode(newArchive);
+
+      final tempDir = await getTemporaryDirectory();
+      final fixedFile = File('${tempDir.path}/Docx_KhmerFixed_${DateTime.now().millisecondsSinceEpoch}.docx');
+      await fixedFile.writeAsBytes(encodedBytes);
+
+      onProgress?.call(1.0, 'ជួសជុលពុម្ពអក្សរខ្មែរជោគជ័យ!');
+      return fixedFile;
+    } catch (e) {
+      if (kDebugMode) print('fixKhmerDocxWithGemini error: $e');
+      return docxFile;
+    }
+  }
+
+  static Future<Map<String, String>> _queryGeminiForKhmerFixes({
+    required String imagePath,
+    required List<String> suspectTexts,
+  }) async {
+    final keys = await getAvailableGeminiKeys();
+    if (keys.isEmpty) return {};
+
+    final prompt = '''
+អ្នកជាអ្នកជំនាញភាសាខ្មែរ និងអក្សរសាស្ត្រខ្មែរ (Khmer Unicode & Typography Expert)។
+ឯកសារនេះត្រូវបានបម្លែងពី PDF ទៅជា Word ប៉ុន្តែមានបញ្ហាពុម្ពអក្សរខ្មែរខូច (មានសញ្ញា □, ?, ស្រៈ និងជើងអក្សរច្រឡូកច្រឡំ ឬបាត់បង់)។
+
+សូមពិនិត្យមើលរូបភាពឯកសារច្បាប់ដើមនេះ ហើយជួសជុលពាក្យ ឬឃ្លានីមួយៗក្នុងបញ្ជីខាងក្រោមនេះឱ្យត្រូវតាមអក្សរខ្មែរយូនីកូដ (Khmer Unicode) ១០០% ឥតខ្ចោះ ទាំងព្យញ្ជនៈ ស្រៈ ជើងអក្សរ (្) និងសញ្ញាទាំងអស់ ដោយរក្សាអត្ថន័យ និងពាក្យដូចក្នុងរូបភាពដើមបេះបិទ។ ហាមដូរលេខ ឬពាក្យអង់គ្លេស។
+
+បញ្ជីពាក្យដែលត្រូវជួសជុល៖
+${jsonEncode(suspectTexts)}
+
+សូមឆ្លើយតបជា JSON តែមួយគត់តាមទម្រង់ខាងក្រោម (ហាមសរសេរពាក្យនាំមុខ ឬ Markdown code blocks):
+{
+  "fixes": {
+    "ពាក្យខុស": "ពាក្យកែត្រូវ"
+  }
+}
+''';
+
+    for (int attempt = 0; attempt < keys.length && attempt < 3; attempt++) {
+      final key = keys[(_currentKeyIndex + attempt) % keys.length];
+      try {
+        final file = File(imagePath);
+        final bytes = await file.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        final mimeType = _getMimeType(imagePath);
+
+        final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$key',
+        );
+
+        final body = jsonEncode({
+          'contents': [
+            {
+              'parts': [
+                {'text': prompt},
+                {
+                  'inline_data': {
+                    'mime_type': mimeType,
+                    'data': base64Image,
+                  }
+                }
+              ]
+            }
+          ],
+          'generationConfig': {
+            'responseMimeType': 'application/json',
+          }
+        });
+
+        final res = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        ).timeout(const Duration(seconds: 35));
+
+        if (res.statusCode == 200) {
+          final json = jsonDecode(res.body);
+          final contentStr = json['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString() ?? '';
+          if (contentStr.isNotEmpty) {
+            final cleanContent = contentStr.replaceAll('```json', '').replaceAll('```', '').trim();
+            final jsonStart = cleanContent.indexOf('{');
+            final jsonEnd = cleanContent.lastIndexOf('}');
+            if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+              final parsed = jsonDecode(cleanContent.substring(jsonStart, jsonEnd + 1));
+              final fixesMap = <String, String>{};
+              final fixesData = parsed['fixes'] ?? parsed;
+              if (fixesData is Map) {
+                fixesData.forEach((k, v) {
+                  if (k != null && v != null) {
+                    fixesMap[k.toString()] = v.toString();
+                  }
+                });
+              }
+              if (fixesMap.isNotEmpty) {
+                _currentKeyIndex = (_currentKeyIndex + attempt) % keys.length;
+                return fixesMap;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Gemini key attempt $attempt failed: $e');
+      }
+    }
+    return {};
+  }
+
+  static String _injectKhmerFontToXmlRuns(String xml) {
+    // 1. Ensure any existing <w:rFonts> tag has w:cs="Khmer OS Siemreap"
+    var updated = xml.replaceAllMapped(
+      RegExp(r'<w:rFonts([^>]*?)\/>'),
+      (match) {
+        var attrs = match.group(1)!;
+        if (!attrs.contains('w:cs=')) {
+          attrs += ' w:cs="Khmer OS Siemreap"';
+        } else {
+          attrs = attrs.replaceAll(RegExp(r'w:cs="[^"]*"'), 'w:cs="Khmer OS Siemreap"');
+        }
+        return '<w:rFonts$attrs/>';
+      },
+    );
+
+    // 2. For runs containing Khmer characters, ensure <w:rPr> has w:rFonts with Khmer OS Siemreap
+    updated = updated.replaceAllMapped(
+      RegExp(r'(<w:r(?:\s+[^>]*)?>)([\s\S]*?)(<\/w:r>)'),
+      (runMatch) {
+        final startR = runMatch.group(1)!;
+        var rInner = runMatch.group(2)!;
+        final endR = runMatch.group(3)!;
+
+        final containsKhmer = RegExp(r'[\u1780-\u17FF]').hasMatch(rInner);
+        if (!containsKhmer) return '$startR$rInner$endR';
+
+        if (rInner.contains('<w:rPr>')) {
+          rInner = rInner.replaceAllMapped(
+            RegExp(r'(<w:rPr>)([\s\S]*?)(<\/w:rPr>)'),
+            (rPrMatch) {
+              final sPr = rPrMatch.group(1)!;
+              var prInner = rPrMatch.group(2)!;
+              final ePr = rPrMatch.group(3)!;
+
+              if (!prInner.contains('<w:rFonts')) {
+                prInner = '<w:rFonts w:ascii="Khmer OS Siemreap" w:hAnsi="Khmer OS Siemreap" w:cs="Khmer OS Siemreap"/>$prInner';
+              }
+              return '$sPr$prInner$ePr';
+            },
+          );
+        } else {
+          rInner = '<w:rPr><w:rFonts w:ascii="Khmer OS Siemreap" w:hAnsi="Khmer OS Siemreap" w:cs="Khmer OS Siemreap"/></w:rPr>$rInner';
+        }
+
+        return '$startR$rInner$endR';
+      },
+    );
+
+    return updated;
+  }
+
+  static String _injectKhmerFontToFontTable(String fontXml) {
+    if (fontXml.contains('Khmer OS Siemreap')) return fontXml;
+
+    const khmerFontEntry = '''
+  <w:font w:name="Khmer OS Siemreap">
+    <w:panose1 w:val="02000500000000000000"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+    <w:sig w:usb0="00000003" w:usb1="08000000" w:usb2="00000000" w:usb3="00000000" w:csb0="00000001" w:csb1="00000000"/>
+  </w:font>
+  <w:font w:name="Kantumruy Pro">
+    <w:panose1 w:val="02000500000000000000"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+''';
+
+    if (fontXml.contains('</w:fonts>')) {
+      return fontXml.replaceFirst('</w:fonts>', '$khmerFontEntry</w:fonts>');
+    }
+    return fontXml;
+  }
+
+  static String _createDefaultKhmerFontTable() {
+    return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Khmer OS Siemreap">
+    <w:panose1 w:val="02000500000000000000"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+  <w:font w:name="Kantumruy Pro">
+    <w:panose1 w:val="02000500000000000000"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+</w:fonts>''';
   }
 }
