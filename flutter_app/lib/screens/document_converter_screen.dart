@@ -451,13 +451,24 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           }
         }
 
+        String updatedExtractedText = result.extractedText;
+        if (finalDocxFile.path != result.docxFile!.path) {
+          try {
+            final tempDir = await getTemporaryDirectory();
+            final reExtraction = await PdfToWordMicroservice.extractDocxData(finalDocxFile, tempDir);
+            if (reExtraction.text.isNotEmpty) {
+              updatedExtractedText = reExtraction.text;
+            }
+          } catch (_) {}
+        }
+
         if (mounted) {
           setState(() => _isProcessing = false);
           _showResultSheet(
             title: 'បម្លែងជា Word (.docx) ជោគជ័យ!',
             subtitle: 'CloudConvert រក្សាទម្រង់ដើម ១០០% & AI Gemini ជួសជុលអក្សរខ្មែរ (ទំព័រ: ${result.pages})',
             filePath: finalDocxFile.path,
-            extractedText: result.extractedText,
+            extractedText: updatedExtractedText,
             isDocx: true,
             detectedFormat: detectedFormat,
             multiImagePaths: previewImages,
@@ -1644,8 +1655,13 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
                                       docxFile: File(currentFilePath ?? genuineDocxPath!),
                                       documentImagePath: multiImagePaths.first,
                                     );
+                                    final tempDir = await getTemporaryDirectory();
+                                    final newExtraction = await PdfToWordMicroservice.extractDocxData(fixed, tempDir);
                                     setModalState(() {
                                       currentFilePath = fixed.path;
+                                      if (newExtraction.text.isNotEmpty) {
+                                        currentText = newExtraction.text;
+                                      }
                                     });
                                     _showToast('បានជួសជុលពុម្ពអក្សរខ្មែរជោគជ័យ!');
                                   } catch (e) {

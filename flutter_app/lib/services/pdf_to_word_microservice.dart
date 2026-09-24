@@ -188,7 +188,7 @@ class PdfToWordMicroservice {
       String extractedText = '';
       File? extractedPhoto;
       if (await localDocxFile.exists()) {
-        final extraction = await _extractDocxData(localDocxFile, tempDir);
+        final extraction = await extractDocxData(localDocxFile, tempDir);
         extractedText = extraction.text;
         extractedPhoto = extraction.photoFile;
       }
@@ -231,7 +231,7 @@ class PdfToWordMicroservice {
   }
 
   /// Extracts readable text and embedded photo from a .docx file by unzipping
-  static Future<({String text, File? photoFile})> _extractDocxData(File docxFile, Directory tempDir) async {
+  static Future<({String text, File? photoFile})> extractDocxData(File docxFile, Directory tempDir) async {
     try {
       final bytes = await docxFile.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
