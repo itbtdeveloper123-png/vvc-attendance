@@ -894,13 +894,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
-    // Health check (100% Cloud, NO local python required)
+    // Health check
+    $ccCreds = get_active_cloudconvert_credentials();
+    $caCreds = get_active_convertapi_credentials();
     $iloveCreds = get_active_ilovepdf_credentials();
     echo json_encode([
         'status' => 'online',
-        'service' => 'PDF to Word Microservice (Official iLovePDF Cloud Engine)',
-        'python_disabled' => true,
-        'ilovepdf_cloud_api_configured' => ($iloveCreds !== null),
+        'service' => 'PDF to Word Microservice (Multi-Engine Cloud)',
+        'cloudconvert_configured' => ($ccCreds !== null),
+        'convertapi_configured' => ($caCreds !== null),
+        'ilovepdf_configured' => ($iloveCreds !== null),
         'timestamp' => time(),
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
