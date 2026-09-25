@@ -19,6 +19,23 @@ $ROOT = dirname(__DIR__);
 $actionSource = $_POST['action'] ?? $_GET['action'] ?? $_POST['ajax_action'] ?? $_GET['ajax_action'] ?? '';
 $action = strtolower(trim($actionSource));
 
+if ($action === 'convert_pdf_word') {
+    while (ob_get_level() > 0) { ob_end_clean(); }
+    $convertScript = $ROOT . '/api/convert-pdf-word.php';
+    if (file_exists($convertScript)) {
+        require_once $convertScript;
+        exit;
+    }
+    if (file_exists(__DIR__ . '/api/convert-pdf-word.php')) {
+        require_once __DIR__ . '/api/convert-pdf-word.php';
+        exit;
+    }
+    http_response_code(500);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['status' => 'error', 'message' => 'convert-pdf-word.php backend not found'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($action === 'test' || $action === 'health') {
     while (ob_get_level() > 0) { ob_end_clean(); }
     http_response_code(200);

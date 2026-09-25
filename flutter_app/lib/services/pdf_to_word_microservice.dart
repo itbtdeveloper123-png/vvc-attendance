@@ -40,6 +40,8 @@ class PdfToWordMicroservice {
   static List<String> get _endpointCandidates {
     final base = ApiService.baseUrl;
     final list = <String>[];
+    final sep = base.contains('?') ? '&' : '?';
+    list.add('$base${sep}action=convert_pdf_word');
     list.add(base.replaceAll('api.php', 'api/convert-pdf-word.php'));
     if (base.contains('/flutter/')) {
       list.add(base.replaceAll('/flutter/api.php', '/api/convert-pdf-word.php'));
@@ -98,6 +100,7 @@ class PdfToWordMicroservice {
       for (final endpoint in _endpointCandidates) {
         try {
           final formData = FormData.fromMap({
+            'action': 'convert_pdf_word',
             'pdf_file': await MultipartFile.fromFile(
               pdfPath,
               filename: pdfPath.split(Platform.pathSeparator).last,

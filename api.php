@@ -24,6 +24,19 @@ if ($action === 'test' || $action === 'health') {
     exit;
 }
 
+if ($action === 'convert_pdf_word') {
+    while (ob_get_level() > 0) { ob_end_clean(); }
+    $convertScript = __DIR__ . '/api/convert-pdf-word.php';
+    if (file_exists($convertScript)) {
+        require_once $convertScript;
+        exit;
+    }
+    http_response_code(500);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['status' => 'error', 'message' => 'convert-pdf-word.php not found'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // Enable output compression (Gzip) for faster mobile network transfer
 if (!ini_get('zlib.output_compression') && extension_loaded('zlib')) {
     @ini_set('zlib.output_compression', 'On');
