@@ -544,13 +544,17 @@ function convert_with_convertapi(string $pdfPath, string $docxPath, string $secr
     }
 
     @unlink($docxPath);
+    return ['success' => false, 'error' => 'Failed to download converted DOCX from ConvertAPI (HTTP ' . $dlCode . ')'];
+}
+
 // -----------------------------------------------------------------------------
 // Post-Process Converted DOCX for Perfect Khmer Typography & Single-Page Layout
 // -----------------------------------------------------------------------------
 function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'Khmer OS Battambang'): void {
-    if (!class_exists('ZipArchive') || !file_exists($docxPath)) {
-        return;
-    }
+    try {
+        if (!class_exists('ZipArchive') || !file_exists($docxPath)) {
+            return;
+        }
 
     $zip = new ZipArchive();
     if ($zip->open($docxPath) !== true) {
@@ -656,8 +660,8 @@ function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'K
             $trimmed = trim($raw);
             if (isset($fixes[$trimmed])) {
                 $fixed = htmlspecialchars($fixes[$trimmed], ENT_QUOTES | ENT_XML1, 'UTF-8');
-                $prefix = (str_starts_with($raw, ' ')) ? ' ' : '';
-                $suffix = (str_ends_with($raw, ' ')) ? ' ' : '';
+                $prefix = (substr($raw, 0, 1) === ' ') ? ' ' : '';
+                $suffix = (substr($raw, -1) === ' ') ? ' ' : '';
                 return '<w:t xml:space="preserve">' . $prefix . $fixed . $suffix . '</w:t>';
             }
             $replaced = $raw;
@@ -717,7 +721,7 @@ function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'K
     // Update fontTable.xml
     $fontTableXml = $zip->getFromName('word/fontTable.xml');
     if ($fontTableXml) {
-        if (!str_contains($fontTableXml, 'Khmer OS Battambang')) {
+        if (strpos($fontTableXml, 'Khmer OS Battambang') === false) {
             $khmerEntries = '<w:font w:name="Khmer OS Battambang"><w:altName w:val="Khmer OS Battambang"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font><w:font w:name="Khmer OS Muol Light"><w:altName w:val="Khmer OS Muol Light"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>';
             $fontTableXml = str_replace('</w:fonts>', $khmerEntries . '</w:fonts>', $fontTableXml);
             $zip->addFromString('word/fontTable.xml', $fontTableXml);
@@ -725,6 +729,9 @@ function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'K
     }
 
     $zip->close();
+    } catch (\Throwable $e) {
+        // Fallback gracefully without breaking conversion
+    }
 }
 
 // -----------------------------------------------------------------------------

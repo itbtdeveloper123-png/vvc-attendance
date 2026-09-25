@@ -318,7 +318,7 @@ class GeminiOcrService {
 
   /// Extract using official google_generative_ai package
   static Future<String> _extractWithGeminiSdk(String imagePath, String apiKey) async {
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
     dynamic lastErr;
 
     for (final modelName in candidateModels) {
@@ -358,7 +358,7 @@ class GeminiOcrService {
     final base64Image = base64Encode(bytes);
     final mimeType = _getMimeType(imagePath);
 
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
     dynamic lastErr;
 
     for (final modelName in candidateModels) {
@@ -754,7 +754,7 @@ ${jsonEncode(suspectTexts)}
 }
 ''';
 
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
 
     for (int attempt = 0; attempt < keys.length && attempt < 3; attempt++) {
       final key = keys[(_currentKeyIndex + attempt) % keys.length];
