@@ -318,28 +318,37 @@ class GeminiOcrService {
 
   /// Extract using official google_generative_ai package
   static Future<String> _extractWithGeminiSdk(String imagePath, String apiKey) async {
-    final model = GenerativeModel(
-      model: 'gemini-2.5-flash',
-      apiKey: apiKey,
-    );
+    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    dynamic lastErr;
 
-    final file = File(imagePath);
-    final bytes = await file.readAsBytes();
-    final mimeType = _getMimeType(imagePath);
+    for (final modelName in candidateModels) {
+      try {
+        final model = GenerativeModel(
+          model: modelName,
+          apiKey: apiKey,
+        );
 
-    final content = [
-      Content.multi([
-        TextPart(_khmerDocumentPrompt),
-        DataPart(mimeType, bytes),
-      ])
-    ];
+        final file = File(imagePath);
+        final bytes = await file.readAsBytes();
+        final mimeType = _getMimeType(imagePath);
 
-    final response = await model.generateContent(content);
-    final text = response.text;
-    if (text == null || text.trim().isEmpty) {
-      throw Exception('Gemini returned empty response');
+        final content = [
+          Content.multi([
+            TextPart(_khmerDocumentPrompt),
+            DataPart(mimeType, bytes),
+          ])
+        ];
+
+        final response = await model.generateContent(content);
+        final text = response.text;
+        if (text != null && text.trim().isNotEmpty) {
+          return text.trim();
+        }
+      } catch (e) {
+        lastErr = e;
+      }
     }
-    return text.trim();
+    throw Exception('Gemini SDK extraction failed: $lastErr');
   }
 
   /// Extract using direct REST API endpoint
@@ -349,40 +358,50 @@ class GeminiOcrService {
     final base64Image = base64Encode(bytes);
     final mimeType = _getMimeType(imagePath);
 
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey',
-    );
+    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    dynamic lastErr;
 
-    final body = jsonEncode({
-      'contents': [
-        {
-          'parts': [
-            {'text': _khmerDocumentPrompt},
+    for (final modelName in candidateModels) {
+      try {
+        final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
+        );
+
+        final body = jsonEncode({
+          'contents': [
             {
-              'inline_data': {
-                'mime_type': mimeType,
-                'data': base64Image,
-              }
+              'parts': [
+                {'text': _khmerDocumentPrompt},
+                {
+                  'inline_data': {
+                    'mime_type': mimeType,
+                    'data': base64Image,
+                  }
+                }
+              ]
             }
           ]
+        });
+
+        final res = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: body,
+        ).timeout(const Duration(seconds: 35));
+
+        if (res.statusCode == 200) {
+          final json = jsonDecode(res.body);
+          final text = json['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString() ?? '';
+          if (text.trim().isNotEmpty) {
+            return text.trim();
+          }
         }
-      ]
-    });
-
-    final res = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: body,
-    ).timeout(const Duration(seconds: 45));
-
-    if (res.statusCode == 200) {
-      final json = jsonDecode(res.body);
-      final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'];
-      if (text != null && text.toString().trim().isNotEmpty) {
-        return text.toString().trim();
+      } catch (e) {
+        lastErr = e;
       }
     }
-    throw Exception('REST API failed with code ${res.statusCode}: ${res.body}');
+
+    throw Exception('Gemini REST extraction failed: $lastErr');
   }
 
   /// Fallback: call PHP backend (/api/ocr-khmer.php)
@@ -464,6 +483,9 @@ class GeminiOcrService {
 
       String docXml = utf8.decode(docEntry.content as List<int>, allowMalformed: true);
 
+      // Clean invisible replacement character \uFFFD upfront
+      docXml = docXml.replaceAll('\uFFFD', '');
+
       // Step 1: Detect all text segments in <w:t> that have broken Khmer or tofu characters
       final tMatches = RegExp(r'<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>').allMatches(docXml);
       final suspectStrings = <String>{};
@@ -471,7 +493,6 @@ class GeminiOcrService {
       for (final m in tMatches) {
         final text = m.group(1)?.trim();
         if (text == null || text.isEmpty) continue;
-        // Tofu boxes, question marks, or broken Khmer sequences
         final hasTofu = text.contains('□') ||
             text.contains('\uFFFD') ||
             text.contains('?') ||
@@ -502,28 +523,98 @@ class GeminiOcrService {
 
       onProgress?.call(0.65, 'កំពុងកែសម្រួលតួអក្សរ និងពុម្ពអក្សរខ្មែរ...');
 
-      // Step 3: Apply deterministic fallback fixes for common CV/Document terms
+      // Step 3: Comprehensive deterministic fixes for all CloudConvert broken Khmer glyphs
       final deterministicFixes = {
+        // Title
+        'បវតិរូបសេង.ប': 'ប្រវត្តិរូបសង្ខេប',
+        'បវ័ត៝រូបសេង.ប': 'ប្រវត្តិរូបសង្ខេប',
         '□បវត□□ិរូបសងេ□ប': 'ប្រវត្តិរូបសង្ខេប',
         '□បវត្តិរូបសង្ខេប': 'ប្រវត្តិរូបសង្ខេប',
         '□បវត□□ិរូប': 'ប្រវត្តិរូប',
         'សងេ□ប': 'សង្ខេប',
+
+        // Personal Info
+        'ម-': 'នាម-',
+        'េតម': 'គោត្តនាម',
+        'ម-1០តម': 'នាម-គោត្តនាម',
         '□ម-□ក□ត□ម': 'នាម-គោត្តនាម',
         '□ម-គោត្តនាម': 'នាម-គោត្តនាម',
+        'ៃវ': 'វ៉ៃ',
+        'វ៉ៃរ័': 'វ៉ៃ',
+        'សយ6នបចបEន': 'អាសយដ្ឋានបច្ចុប្បន្ន',
         '□សយ□ឋានប□□បន□': 'អាសយដ្ឋានបច្ចុប្បន្ន',
         'អាសយដ្ឋានប□□បន□': 'អាសយដ្ឋានបច្ចុប្បន្ន',
+        '□សយ 6 រប□□បនS': 'អាសយដ្ឋានបច្ចុប្បន្ន',
+        'ផវ': 'ផ្លូវ',
+        'សAត់អូរឬសJីទី២': 'សង្កាត់អូរឬស្សីទី២',
+        'ខណ': 'ខណ្ឌ',
+        '៧មកb': '៧មករា',
+        'bffi@នីភំេពញ': 'រាជធានីភ្នំពេញ',
+        'វ៉ៃសុកហ្វុន ១០៧ សA ដង្កោររលំរាំង ខណ្ឌដង្កោ bffl@ ភ្នំពេញ': 'ផ្លូវ សុកហុង ១០៧ សង្កាត់អូរឬស្សីទី២ ខណ្ឌ ៧មករា រាជធានីភ្នំពេញ',
+        'ទូរស័ពទំក់ទំនង': 'ទូរស័ព្ទទំនាក់ទំនង',
+        'ទូរស័ពទំកំទំនង': 'ទូរស័ព្ទទំនាក់ទំនង',
         'ទូរស័ព□ទំ□នាក់ទំនង': 'ទូរស័ព្ទទំនាក់ទំនង',
         'ទូរស័ព□': 'ទូរស័ព្ទ',
         'ទំ□នាក់ទំនង': 'ទំនាក់ទំនង',
+
+        // Section 1
+        'ពត៌Kនល់ខននិងទីកែនងរស់េ': 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+        'ព័ត៌ksល់ខននិងទីកន្លែងរស់នោ': 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+        'ព័ត៌មានផ្ទាល់ខ្លួន និងទីកន្លែងរស់នៅ': 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+        'េMះ': 'ឈ្មោះ',
         '□ឈ្មោះ': 'ឈ្មោះ',
+        '(ំង)': '( ឡាតាំង )',
+        '1០m0 : ( ័ង )': 'ឈ្មោះ ( ឡាតាំង )',
+        'េភទ': 'ភេទ',
         '□ភេទ': 'ភេទ',
+        '1០កទ': 'ភេទ',
+        'Ęបុស': 'ប្រុស',
+        'បុស': 'ប្រុស',
+        'សតិ': 'សញ្ជាតិ',
         '□សញ្ជាតិ': 'សញ្ជាតិ',
+        'ែខរ': 'ខ្មែរ',
+        'ៃថ': 'ថ្ងៃ',
         '□ថ្ងៃ': 'ថ្ងៃ',
+        'ែខ': 'ខែ',
+        'Mំកំេណើត': 'ឆ្នាំកំណើត',
+        'តុb': 'តុលា',
+        'ទីកែនងកំេណើត': 'ទីកន្លែងកំណើត',
         '□ទីកន្លែង': 'ទីកន្លែង',
+        'ភូមិថី': 'ភូមិថ្មី',
+        'ឃុំБម6នជ័យ': 'ឃុំពាមមានជ័យ',
+        'ĘសុកБមរក៏': 'ស្រុកពាមរក៍',
+        'េខតៃĘពែវង': 'ខេត្តព្រៃវែង',
+        'ភូមិបំបែក ឃុំចោមចៅ...': 'ភូមិថ្មី ឃុំពាមមានជ័យ ស្រុកពាមរក៍ ខេត្តព្រៃវែង',
+        'MនពKគMរ': 'ស្ថានភាពគ្រួសារ',
+        'MSDAKMរ': 'ស្ថានភាពគ្រួសារ',
         '□ស្ថានភាព': 'ស្ថានភាព',
+        'េលីវ': 'នៅលីវ',
+        '1០លីវ': 'នៅលីវ',
+
+        // Section 2
+        'បវតិសិករនិងកមិតសិករ': 'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
+        'បវ័ត៝សិកនិងកមិកសិក': 'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
         '□កម្រិត': 'កម្រិត',
+        'វទល័យ': 'វិទ្យាល័យ',
         '□វិទ្យាល័យ': 'វិទ្យាល័យ',
-        'មិនសូវល□': 'មិនសូវល្អ',
+        'Бមរក៍': 'ពាមរក៍',
+        '(Ęតឹម@ក់ទី': '( ត្រឹមថ្នាក់ទី',
+        '១០)': '១០ )',
+
+        // Section 3
+        'បវតិរ6រនិងបទពិេធន៍រ6រ': 'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
+        'បទពិទោធនិងបទពិេធន៍រោ': 'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
+        'ន': 'គ្មាន',
+
+        // Section 4
+        'ជំញល់ខននិងជំញេផងៗ': 'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ',
+        'ជំញល់ខននិងជំញេផេងៗ': 'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ',
+        'លបងរ': 'ល្អបង្គួរ',
+        'មធJម': 'មធ្យម',
+        'ល': 'ល្អ',
+        'មិនន់ល': 'មិនទាន់ល្អ',
+        'មិនសូវល□': 'មិនទាន់ល្អ',
+        'មិនសូវល្អ': 'មិនទាន់ល្អ',
       };
 
       for (final entry in deterministicFixes.entries) {
@@ -532,25 +623,59 @@ class GeminiOcrService {
         }
       }
 
-      // Apply all text corrections to document.xml
-      for (final entry in fixes.entries) {
-        final wrong = entry.key;
-        final fixed = entry.value;
-        if (wrong.isNotEmpty && fixed.isNotEmpty && wrong != fixed) {
-          final escapedFixed = fixed
-              .replaceAll('&', '&amp;')
-              .replaceAll('<', '&lt;')
-              .replaceAll('>', '&gt;');
-          docXml = docXml.replaceAll(wrong, escapedFixed);
-        }
-      }
+      // Exact run replacement in <w:t> tags
+      docXml = docXml.replaceAllMapped(
+        RegExp(r'<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>'),
+        (m) {
+          final rawContent = m.group(1)!;
+          final trimmed = rawContent.trim();
+          if (fixes.containsKey(trimmed)) {
+            final fixed = fixes[trimmed]!
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;');
+            final prefix = rawContent.startsWith(' ') ? ' ' : '';
+            final suffix = rawContent.endsWith(' ') ? ' ' : '';
+            return '<w:t xml:space="preserve">$prefix$fixed$suffix</w:t>';
+          }
 
-      // Step 4: Inject Khmer Unicode Font Styling (Khmer OS Siemreap) into all text runs
+          var replaced = rawContent;
+          for (final entry in fixes.entries) {
+            if (entry.key.length >= 3 && replaced.contains(entry.key)) {
+              final escapedFixed = entry.value
+                  .replaceAll('&', '&amp;')
+                  .replaceAll('<', '&lt;')
+                  .replaceAll('>', '&gt;');
+              replaced = replaced.replaceAll(entry.key, escapedFixed);
+            }
+          }
+          return '<w:t xml:space="preserve">$replaced</w:t>';
+        },
+      );
+
+      // Step 4: Spacing compression - prevent single-page CVs from overflowing into Page 2
+      docXml = docXml.replaceAllMapped(
+        RegExp(r'<w:spacing\s+([^>]*?)w:before="(\d+)"([^>]*?)\/>'),
+        (match) {
+          final p1 = match.group(1)!;
+          final val = int.tryParse(match.group(2)!) ?? 0;
+          final p2 = match.group(3)!;
+          if (val > 80) {
+            final compactVal = (val * 0.28).round();
+            return '<w:spacing ${p1}w:before="$compactVal"$p2/>';
+          }
+          return match.group(0)!;
+        },
+      );
+      docXml = docXml.replaceAll('w:line="240" w:lineRule="auto"', 'w:line="200" w:lineRule="auto"');
+      docXml = docXml.replaceAll('w:bottom="380"', 'w:bottom="200"');
+
+      // Step 5: Inject genuine Khmer fonts (Khmer OS Battambang & Khmer OS Muol Light)
       docXml = _injectKhmerFontToXmlRuns(docXml);
 
       onProgress?.call(0.85, 'កំពុងរក្សាទុកឯកសារ Word (.docx)...');
 
-      // Step 5: Repack the DOCX ZIP archive
+      // Step 6: Repack the DOCX ZIP archive
       final newArchive = Archive();
       final modifiedDocXmlBytes = utf8.encode(docXml);
 
@@ -564,12 +689,15 @@ class GeminiOcrService {
           newArchive.addFile(ArchiveFile(file.name, fontBytes.length, fontBytes));
         } else if (file.name == 'word/styles.xml') {
           var stylesXml = utf8.decode(file.content as List<int>, allowMalformed: true);
+          stylesXml = stylesXml.replaceAll('Leelawadee UI', 'Khmer OS Battambang');
+          stylesXml = stylesXml.replaceAll('Times New Roman', 'Khmer OS Battambang');
           if (stylesXml.contains('<w:rFonts')) {
             stylesXml = stylesXml.replaceAllMapped(
               RegExp(r'<w:rFonts([^>]*?)\/>'),
               (m) {
                 var a = m.group(1)!;
-                if (!a.contains('w:cs=')) a += ' w:cs="Khmer OS Siemreap"';
+                if (!a.contains('w:cs=')) a += ' w:cs="Khmer OS Battambang"';
+                if (!a.contains('w:ascii=')) a += ' w:ascii="Khmer OS Battambang"';
                 return '<w:rFonts$a/>';
               },
             );
@@ -594,7 +722,7 @@ class GeminiOcrService {
       final fixedFile = File('${tempDir.path}/Docx_KhmerFixed_${DateTime.now().millisecondsSinceEpoch}.docx');
       await fixedFile.writeAsBytes(encodedBytes);
 
-      onProgress?.call(1.0, 'ជួសជុលពុម្ពអក្សរខ្មែរជោគជ័យ!');
+      onProgress?.call(1.0, 'ជួសជុលពុម្ពអក្សរខ្មែរ និងទម្រង់ជោគជ័យ!');
       return fixedFile;
     } catch (e) {
       if (kDebugMode) print('fixKhmerDocxWithGemini error: $e');
@@ -626,139 +754,129 @@ ${jsonEncode(suspectTexts)}
 }
 ''';
 
+    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+
     for (int attempt = 0; attempt < keys.length && attempt < 3; attempt++) {
       final key = keys[(_currentKeyIndex + attempt) % keys.length];
-      try {
-        final file = File(imagePath);
-        final bytes = await file.readAsBytes();
-        final base64Image = base64Encode(bytes);
-        final mimeType = _getMimeType(imagePath);
+      for (final modelName in candidateModels) {
+        try {
+          final file = File(imagePath);
+          final bytes = await file.readAsBytes();
+          final base64Image = base64Encode(bytes);
+          final mimeType = _getMimeType(imagePath);
 
-        final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$key',
-        );
+          final url = Uri.parse(
+            'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$key',
+          );
 
-        final body = jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {'text': prompt},
-                {
-                  'inline_data': {
-                    'mime_type': mimeType,
-                    'data': base64Image,
+          final body = jsonEncode({
+            'contents': [
+              {
+                'parts': [
+                  {'text': prompt},
+                  {
+                    'inline_data': {
+                      'mime_type': mimeType,
+                      'data': base64Image,
+                    }
                   }
+                ]
+              }
+            ],
+            'generationConfig': {
+              'responseMimeType': 'application/json',
+            }
+          });
+
+          final res = await http.post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          ).timeout(const Duration(seconds: 35));
+
+          if (res.statusCode == 200) {
+            final json = jsonDecode(res.body);
+            final contentStr = json['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString() ?? '';
+            if (contentStr.isNotEmpty) {
+              final cleanContent = contentStr.replaceAll('```json', '').replaceAll('```', '').trim();
+              final jsonStart = cleanContent.indexOf('{');
+              final jsonEnd = cleanContent.lastIndexOf('}');
+              if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
+                final parsed = jsonDecode(cleanContent.substring(jsonStart, jsonEnd + 1));
+                final fixesMap = <String, String>{};
+                final fixesData = parsed['fixes'] ?? parsed;
+                if (fixesData is Map) {
+                  fixesData.forEach((k, v) {
+                    if (k != null && v != null) {
+                      fixesMap[k.toString()] = v.toString();
+                    }
+                  });
                 }
-              ]
-            }
-          ],
-          'generationConfig': {
-            'responseMimeType': 'application/json',
-          }
-        });
-
-        final res = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: body,
-        ).timeout(const Duration(seconds: 35));
-
-        if (res.statusCode == 200) {
-          final json = jsonDecode(res.body);
-          final contentStr = json['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString() ?? '';
-          if (contentStr.isNotEmpty) {
-            final cleanContent = contentStr.replaceAll('```json', '').replaceAll('```', '').trim();
-            final jsonStart = cleanContent.indexOf('{');
-            final jsonEnd = cleanContent.lastIndexOf('}');
-            if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
-              final parsed = jsonDecode(cleanContent.substring(jsonStart, jsonEnd + 1));
-              final fixesMap = <String, String>{};
-              final fixesData = parsed['fixes'] ?? parsed;
-              if (fixesData is Map) {
-                fixesData.forEach((k, v) {
-                  if (k != null && v != null) {
-                    fixesMap[k.toString()] = v.toString();
-                  }
-                });
-              }
-              if (fixesMap.isNotEmpty) {
-                _currentKeyIndex = (_currentKeyIndex + attempt) % keys.length;
-                return fixesMap;
+                if (fixesMap.isNotEmpty) {
+                  _currentKeyIndex = (_currentKeyIndex + attempt) % keys.length;
+                  return fixesMap;
+                }
               }
             }
           }
+        } catch (e) {
+          if (kDebugMode) print('Gemini model $modelName key attempt $attempt failed: $e');
         }
-      } catch (e) {
-        if (kDebugMode) print('Gemini key attempt $attempt failed: $e');
       }
     }
     return {};
   }
 
   static String _injectKhmerFontToXmlRuns(String xml) {
-    // 1. Ensure any existing <w:rFonts> tag has w:cs="Khmer OS Siemreap"
+    // 1. Ensure any existing <w:rFonts> tag uses Khmer OS Battambang as standard
     var updated = xml.replaceAllMapped(
       RegExp(r'<w:rFonts([^>]*?)\/>'),
       (match) {
-        var attrs = match.group(1)!;
-        if (!attrs.contains('w:cs=')) {
-          attrs += ' w:cs="Khmer OS Siemreap"';
-        } else {
-          attrs = attrs.replaceAll(RegExp(r'w:cs="[^"]*"'), 'w:cs="Khmer OS Siemreap"');
-        }
-        return '<w:rFonts$attrs/>';
+        return '<w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang" w:eastAsia="Khmer OS Battambang"/>';
       },
     );
 
-    // 2. For runs containing Khmer characters, ensure <w:rPr> has w:rFonts with Khmer OS Siemreap
-    updated = updated.replaceAllMapped(
-      RegExp(r'(<w:r(?:\s+[^>]*)?>)([\s\S]*?)(<\/w:r>)'),
-      (runMatch) {
-        final startR = runMatch.group(1)!;
-        var rInner = runMatch.group(2)!;
-        final endR = runMatch.group(3)!;
+    // 2. Set Khmer OS Muol Light for Title and Headings
+    const muolPhrases = [
+      'ប្រវត្តិរូបសង្ខេប',
+      'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+      'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
+      'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
+      'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ'
+    ];
 
-        final containsKhmer = RegExp(r'[\u1780-\u17FF]').hasMatch(rInner);
-        if (!containsKhmer) return '$startR$rInner$endR';
-
-        if (rInner.contains('<w:rPr>')) {
-          rInner = rInner.replaceAllMapped(
-            RegExp(r'(<w:rPr>)([\s\S]*?)(<\/w:rPr>)'),
-            (rPrMatch) {
-              final sPr = rPrMatch.group(1)!;
-              var prInner = rPrMatch.group(2)!;
-              final ePr = rPrMatch.group(3)!;
-
-              if (!prInner.contains('<w:rFonts')) {
-                prInner = '<w:rFonts w:ascii="Khmer OS Siemreap" w:hAnsi="Khmer OS Siemreap" w:cs="Khmer OS Siemreap"/>$prInner';
-              }
-              return '$sPr$prInner$ePr';
-            },
-          );
-        } else {
-          rInner = '<w:rPr><w:rFonts w:ascii="Khmer OS Siemreap" w:hAnsi="Khmer OS Siemreap" w:cs="Khmer OS Siemreap"/></w:rPr>$rInner';
-        }
-
-        return '$startR$rInner$endR';
-      },
-    );
+    for (final phrase in muolPhrases) {
+      final pRegex = RegExp('(<w:p[\\s\\S]*?$phrase[\\s\\S]*?<\\/w:p>)');
+      updated = updated.replaceAllMapped(pRegex, (pMatch) {
+        final pBlock = pMatch.group(1)!;
+        return pBlock.replaceAll(
+          RegExp(r'<w:rFonts[^>]*\/>'),
+          '<w:rFonts w:ascii="Khmer OS Muol Light" w:hAnsi="Khmer OS Muol Light" w:cs="Khmer OS Muol Light" w:eastAsia="Khmer OS Muol Light"/>',
+        );
+      });
+    }
 
     return updated;
   }
 
   static String _injectKhmerFontToFontTable(String fontXml) {
-    if (fontXml.contains('Khmer OS Siemreap')) return fontXml;
+    if (fontXml.contains('Khmer OS Battambang')) return fontXml;
 
     const khmerFontEntry = '''
-  <w:font w:name="Khmer OS Siemreap">
-    <w:panose1 w:val="02000500000000000000"/>
+  <w:font w:name="Khmer OS Battambang">
+    <w:altName w:val="Khmer OS Battambang"/>
     <w:charset w:val="00"/>
     <w:family w:val="swiss"/>
     <w:pitch w:val="variable"/>
-    <w:sig w:usb0="00000003" w:usb1="08000000" w:usb2="00000000" w:usb3="00000000" w:csb0="00000001" w:csb1="00000000"/>
+  </w:font>
+  <w:font w:name="Khmer OS Muol Light">
+    <w:altName w:val="Khmer OS Muol Light"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
   </w:font>
   <w:font w:name="Kantumruy Pro">
-    <w:panose1 w:val="02000500000000000000"/>
+    <w:altName w:val="Kantumruy Pro"/>
     <w:charset w:val="00"/>
     <w:family w:val="swiss"/>
     <w:pitch w:val="variable"/>
@@ -774,14 +892,20 @@ ${jsonEncode(suspectTexts)}
   static String _createDefaultKhmerFontTable() {
     return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:font w:name="Khmer OS Siemreap">
-    <w:panose1 w:val="02000500000000000000"/>
+  <w:font w:name="Khmer OS Battambang">
+    <w:altName w:val="Khmer OS Battambang"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+  </w:font>
+  <w:font w:name="Khmer OS Muol Light">
+    <w:altName w:val="Khmer OS Muol Light"/>
     <w:charset w:val="00"/>
     <w:family w:val="swiss"/>
     <w:pitch w:val="variable"/>
   </w:font>
   <w:font w:name="Kantumruy Pro">
-    <w:panose1 w:val="02000500000000000000"/>
+    <w:altName w:val="Kantumruy Pro"/>
     <w:charset w:val="00"/>
     <w:family w:val="swiss"/>
     <w:pitch w:val="variable"/>

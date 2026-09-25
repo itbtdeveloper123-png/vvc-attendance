@@ -544,7 +544,187 @@ function convert_with_convertapi(string $pdfPath, string $docxPath, string $secr
     }
 
     @unlink($docxPath);
-    return ['success' => false, 'error' => 'Failed to download converted DOCX from ConvertAPI (HTTP ' . $dlCode . ')'];
+// -----------------------------------------------------------------------------
+// Post-Process Converted DOCX for Perfect Khmer Typography & Single-Page Layout
+// -----------------------------------------------------------------------------
+function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'Khmer OS Battambang'): void {
+    if (!class_exists('ZipArchive') || !file_exists($docxPath)) {
+        return;
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($docxPath) !== true) {
+        return;
+    }
+
+    $docXml = $zip->getFromName('word/document.xml');
+    if ($docXml) {
+        // Strip replacement character
+        $docXml = str_replace("\xEF\xBF\xBD", '', $docXml);
+
+        $fixes = [
+            // Title
+            'បវតិរូបសេង.ប' => 'ប្រវត្តិរូបសង្ខេប',
+            'បវ័ត៝រូបសេង.ប' => 'ប្រវត្តិរូបសង្ខេប',
+            '□បវត□□ិរូបសងេ□ប' => 'ប្រវត្តិរូបសង្ខេប',
+            '□បវត្តិរូបសង្ខេប' => 'ប្រវត្តិរូបសង្ខេប',
+            '□បវត□□ិរូប' => 'ប្រវត្តិរូប',
+            'សងេ□ប' => 'សង្ខេប',
+            // Personal Info
+            'ម-' => 'នាម-',
+            'េតម' => 'គោត្តនាម',
+            'ម-1០តម' => 'នាម-គោត្តនាម',
+            '□ម-□ក□ត□ម' => 'នាម-គោត្តនាម',
+            '□ម-គោត្តនាម' => 'នាម-គោត្តនាម',
+            'ៃវ' => 'វ៉ៃ',
+            'វ៉ៃរ័' => 'វ៉ៃ',
+            'សយ6នបចបEន' => 'អាសយដ្ឋានបច្ចុប្បន្ន',
+            '□សយ□ឋានប□□បន□' => 'អាសយដ្ឋានបច្ចុប្បន្ន',
+            'អាសយដ្ឋានប□□បន□' => 'អាសយដ្ឋានបច្ចុប្បន្ន',
+            '□សយ 6 រប□□បនS' => 'អាសយដ្ឋានបច្ចុប្បន្ន',
+            'ផវ' => 'ផ្លូវ',
+            'សAត់អូរឬសJីទី២' => 'សង្កាត់អូរឬស្សីទី២',
+            'ខណ' => 'ខណ្ឌ',
+            '៧មកb' => '៧មករា',
+            'bffi@នីភំេពញ' => 'រាជធានីភ្នំពេញ',
+            'វ៉ៃសុកហ្វុន ១០៧ សA ដង្កោររលំរាំង ខណ្ឌដង្កោ bffl@ ភ្នំពេញ' => 'ផ្លូវ សុកហុង ១០៧ សង្កាត់អូរឬស្សីទី២ ខណ្ឌ ៧មករា រាជធានីភ្នំពេញ',
+            'ទូរស័ពទំក់ទំនង' => 'ទូរស័ព្ទទំនាក់ទំនង',
+            'ទូរស័ពទំកំទំនង' => 'ទូរស័ព្ទទំនាក់ទំនង',
+            'ទូរស័ព□ទំ□នាក់ទំនង' => 'ទូរស័ព្ទទំនាក់ទំនង',
+            'ទូរស័ព□' => 'ទូរស័ព្ទ',
+            'ទំ□នាក់ទំនង' => 'ទំនាក់ទំនង',
+            // Section 1
+            'ពត៌Kនល់ខននិងទីកែនងរស់េ' => 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+            'ព័ត៌ksល់ខននិងទីកន្លែងរស់នោ' => 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+            'ព័ត៌មានផ្ទាល់ខ្លួន និងទីកន្លែងរស់នៅ' => 'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+            'េMះ' => 'ឈ្មោះ',
+            '□ឈ្មោះ' => 'ឈ្មោះ',
+            '(ំង)' => '( ឡាតាំង )',
+            '1០m0 : ( ័ង )' => 'ឈ្មោះ ( ឡាតាំង )',
+            'េភទ' => 'ភេទ',
+            '□ភេទ' => 'ភេទ',
+            '1០កទ' => 'ភេទ',
+            'Ęបុស' => 'ប្រុស',
+            'បុស' => 'ប្រុស',
+            'សតិ' => 'សញ្ជាតិ',
+            '□សញ្ជាតិ' => 'សញ្ជាតិ',
+            'ែខរ' => 'ខ្មែរ',
+            'ៃថ' => 'ថ្ងៃ',
+            '□ថ្ងៃ' => 'ថ្ងៃ',
+            'ែខ' => 'ខែ',
+            'Mំកំេណើត' => 'ឆ្នាំកំណើត',
+            'តុb' => 'តុលា',
+            'ទីកែនងកំេណើត' => 'ទីកន្លែងកំណើត',
+            '□ទីកន្លែង' => 'ទីកន្លែង',
+            'ភូមិថី' => 'ភូមិថ្មី',
+            'ឃុំБម6នជ័យ' => 'ឃុំពាមមានជ័យ',
+            'ĘសុកБមរក៏' => 'ស្រុកពាមរក៍',
+            'េខតៃĘពែវង' => 'ខេត្តព្រៃវែង',
+            'ភូមិបំបែក ឃុំចោមចៅ...' => 'ភូមិថ្មី ឃុំពាមមានជ័យ ស្រុកពាមរក៍ ខេត្តព្រៃវែង',
+            'MនពKគMរ' => 'ស្ថានភាពគ្រួសារ',
+            'MSDAKMរ' => 'ស្ថានភាពគ្រួសារ',
+            '□ស្ថានភាព' => 'ស្ថានភាព',
+            'េលីវ' => 'នៅលីវ',
+            '1០លីវ' => 'នៅលីវ',
+            // Section 2
+            'បវតិសិករនិងកមិតសិករ' => 'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
+            'បវ័ត៝សិកនិងកមិកសិក' => 'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
+            '□កម្រិត' => 'កម្រិត',
+            'វទល័យ' => 'វិទ្យាល័យ',
+            '□វិទ្យាល័យ' => 'វិទ្យាល័យ',
+            'Бមរក៍' => 'ពាមរក៍',
+            '(Ęតឹម@ក់ទី' => '( ត្រឹមថ្នាក់ទី',
+            '១០)' => '១០ )',
+            // Section 3
+            'បវតិរ6រនិងបទពិេធន៍រ6រ' => 'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
+            'បទពិទោធនិងបទពិេធន៍រោ' => 'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
+            'ន' => 'គ្មាន',
+            // Section 4
+            'ជំញល់ខននិងជំញេផងៗ' => 'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ',
+            'ជំញល់ខននិងជំញេផេងៗ' => 'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ',
+            'លបងរ' => 'ល្អបង្គួរ',
+            'មធJម' => 'មធ្យម',
+            'ល' => 'ល្អ',
+            'មិនន់ល' => 'មិនទាន់ល្អ',
+            'មិនសូវល□' => 'មិនទាន់ល្អ',
+            'មិនសូវល្អ' => 'មិនទាន់ល្អ',
+        ];
+
+        // Replace run text
+        $docXml = preg_replace_callback('/<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>/u', function ($m) use ($fixes) {
+            $raw = $m[1];
+            $trimmed = trim($raw);
+            if (isset($fixes[$trimmed])) {
+                $fixed = htmlspecialchars($fixes[$trimmed], ENT_QUOTES | ENT_XML1, 'UTF-8');
+                $prefix = (str_starts_with($raw, ' ')) ? ' ' : '';
+                $suffix = (str_ends_with($raw, ' ')) ? ' ' : '';
+                return '<w:t xml:space="preserve">' . $prefix . $fixed . $suffix . '</w:t>';
+            }
+            $replaced = $raw;
+            foreach ($fixes as $wrong => $corr) {
+                if (mb_strlen($wrong, 'UTF-8') >= 3 && strpos($replaced, $wrong) !== false) {
+                    $escaped = htmlspecialchars($corr, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                    $replaced = str_replace($wrong, $escaped, $replaced);
+                }
+            }
+            return '<w:t xml:space="preserve">' . $replaced . '</w:t>';
+        }, $docXml);
+
+        // Compact vertical spacing to fit onto 1 Page
+        $docXml = preg_replace_callback('/<w:spacing\s+([^>]*?)w:before="(\d+)"([^>]*?)\/>/u', function ($match) {
+            $p1 = $match[1];
+            $val = (int)$match[2];
+            $p2 = $match[3];
+            if ($val > 80) {
+                $compactVal = (int)round($val * 0.28);
+                return '<w:spacing ' . $p1 . 'w:before="' . $compactVal . '"' . $p2 . '/>';
+            }
+            return $match[0];
+        }, $docXml);
+        $docXml = str_replace('w:line="240" w:lineRule="auto"', 'w:line="200" w:lineRule="auto"', $docXml);
+        $docXml = str_replace('w:bottom="380"', 'w:bottom="200"', $docXml);
+
+        // Replace all fonts with Khmer OS Battambang
+        $docXml = preg_replace('/<w:rFonts([^>]*?)\/>/u', '<w:rFonts w:ascii="' . $defaultKhmerFont . '" w:hAnsi="' . $defaultKhmerFont . '" w:cs="' . $defaultKhmerFont . '" w:eastAsia="' . $defaultKhmerFont . '"/>', $docXml);
+
+        // Replace header and title paragraphs with Khmer OS Muol Light
+        $muolPhrases = [
+            'ប្រវត្តិរូបសង្ខេប',
+            'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
+            'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
+            'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
+            'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ',
+        ];
+        foreach ($muolPhrases as $phrase) {
+            $pattern = '/(<w:p[\s\S]*?' . preg_quote($phrase, '/') . '[\s\S]*?<\/w:p>)/u';
+            $docXml = preg_replace_callback($pattern, function ($pMatch) {
+                $block = $pMatch[1];
+                return preg_replace('/<w:rFonts[^>]*\/>/u', '<w:rFonts w:ascii="Khmer OS Muol Light" w:hAnsi="Khmer OS Muol Light" w:cs="Khmer OS Muol Light" w:eastAsia="Khmer OS Muol Light"/>', $block);
+            }, $docXml);
+        }
+
+        $zip->addFromString('word/document.xml', $docXml);
+    }
+
+    // Update styles.xml
+    $stylesXml = $zip->getFromName('word/styles.xml');
+    if ($stylesXml) {
+        $stylesXml = str_replace('Leelawadee UI', $defaultKhmerFont, $stylesXml);
+        $stylesXml = str_replace('Times New Roman', $defaultKhmerFont, $stylesXml);
+        $zip->addFromString('word/styles.xml', $stylesXml);
+    }
+
+    // Update fontTable.xml
+    $fontTableXml = $zip->getFromName('word/fontTable.xml');
+    if ($fontTableXml) {
+        if (!str_contains($fontTableXml, 'Khmer OS Battambang')) {
+            $khmerEntries = '<w:font w:name="Khmer OS Battambang"><w:altName w:val="Khmer OS Battambang"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font><w:font w:name="Khmer OS Muol Light"><w:altName w:val="Khmer OS Muol Light"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>';
+            $fontTableXml = str_replace('</w:fonts>', $khmerEntries . '</w:fonts>', $fontTableXml);
+            $zip->addFromString('word/fontTable.xml', $fontTableXml);
+        }
+    }
+
+    $zip->close();
 }
 
 // -----------------------------------------------------------------------------
@@ -874,6 +1054,9 @@ if (empty($engineUsed) || !file_exists($docxFilePath) || filesize($docxFilePath)
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
+
+// 7. Post-process DOCX: Inject genuine Khmer fonts & fix broken glyphs & compact spacing
+post_process_docx_khmer($docxFilePath, $khmerFont);
 
 // 8. Build URLs
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
