@@ -124,9 +124,10 @@ function get_active_ilovepdf_credentials(): ?array {
 }
 
 // -----------------------------------------------------------------------------
-// Database Helper: Locate Active CloudConvert Credentials
+// Database Helper: Locate All Active CloudConvert Credentials (Pool with Failover)
 // -----------------------------------------------------------------------------
-function get_active_cloudconvert_credentials(): ?array {
+function get_all_active_cloudconvert_keys(): array {
+    $keys = [];
     $rootDir = dirname(__DIR__);
     if (file_exists($rootDir . '/config.php')) {
         @include_once $rootDir . '/config.php';
@@ -142,20 +143,29 @@ function get_active_cloudconvert_credentials(): ?array {
             $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
             if ($conn && !$conn->connect_error) {
                 $conn->set_charset('utf8mb4');
-                // 1. Check admin_api_keys table for service_name = 'cloudconvert'
-                $res = @$conn->query("SELECT id, api_key FROM admin_api_keys WHERE service_name = 'cloudconvert' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
-                if ($res && ($row = $res->fetch_assoc()) && !empty($row['api_key'])) {
-                    $keyId = (int)$row['id'];
-                    $key = trim($row['api_key']);
-                    $conn->close();
-                    return ['id' => $keyId, 'api_key' => $key];
+                // 1. Fetch all active CloudConvert keys ordered by priority
+                $res = @$conn->query("SELECT id, api_key, key_label, priority FROM admin_api_keys WHERE service_name = 'cloudconvert' AND is_active = 1 ORDER BY priority ASC, id ASC");
+                if ($res) {
+                    while ($row = $res->fetch_assoc()) {
+                        $k = trim((string)$row['api_key']);
+                        if (!empty($k)) {
+                            $keys[] = [
+                                'id' => (int)$row['id'],
+                                'api_key' => $k,
+                                'label' => !empty($row['key_label']) ? trim($row['key_label']) : ('CloudConvert Key #' . $row['id'])
+                            ];
+                        }
+                    }
                 }
                 // 2. Check app_settings fallback
-                $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'cloudconvert_api_key' LIMIT 1");
-                if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
-                    $val = trim($row['setting_value']);
-                    $conn->close();
-                    return ['id' => 0, 'api_key' => $val];
+                if (empty($keys)) {
+                    $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'cloudconvert_api_key' LIMIT 1");
+                    if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
+                        $val = trim((string)$row['setting_value']);
+                        if (!empty($val)) {
+                            $keys[] = ['id' => 0, 'api_key' => $val, 'label' => 'Settings Key'];
+                        }
+                    }
                 }
                 $conn->close();
             }
@@ -164,17 +174,23 @@ function get_active_cloudconvert_credentials(): ?array {
 
     // 3. Check environment variable override
     $envKey = getenv('CLOUDCONVERT_API_KEY');
-    if (!empty($envKey)) {
-        return ['id' => 0, 'api_key' => trim($envKey)];
+    if (!empty($envKey) && empty($keys)) {
+        $keys[] = ['id' => 0, 'api_key' => trim($envKey), 'label' => 'ENV Key'];
     }
 
-    return null;
+    return $keys;
+}
+
+function get_active_cloudconvert_credentials(): ?array {
+    $all = get_all_active_cloudconvert_keys();
+    return !empty($all) ? $all[0] : null;
 }
 
 // -----------------------------------------------------------------------------
-// Database Helper: Locate Active ConvertAPI Credentials
+// Database Helper: Locate All Active ConvertAPI Credentials (Failover Pool)
 // -----------------------------------------------------------------------------
-function get_active_convertapi_credentials(): ?array {
+function get_all_active_convertapi_keys(): array {
+    $keys = [];
     $rootDir = dirname(__DIR__);
     if (file_exists($rootDir . '/config.php')) {
         @include_once $rootDir . '/config.php';
@@ -190,33 +206,44 @@ function get_active_convertapi_credentials(): ?array {
             $conn = @new mysqli($dbServer, $dbUser, $dbPass, $dbName);
             if ($conn && !$conn->connect_error) {
                 $conn->set_charset('utf8mb4');
-                // 1. Check admin_api_keys table for service_name = 'convertapi' and active
-                $res = @$conn->query("SELECT id, api_key FROM admin_api_keys WHERE service_name = 'convertapi' AND is_active = 1 ORDER BY priority ASC, id ASC LIMIT 1");
-                if ($res && ($row = $res->fetch_assoc()) && !empty($row['api_key'])) {
-                    $keyId = (int)$row['id'];
-                    $key = trim($row['api_key']);
-                    $conn->close();
-                    return ['id' => $keyId, 'api_key' => $key];
+                $res = @$conn->query("SELECT id, api_key, key_label, priority FROM admin_api_keys WHERE service_name = 'convertapi' AND is_active = 1 ORDER BY priority ASC, id ASC");
+                if ($res) {
+                    while ($row = $res->fetch_assoc()) {
+                        $k = trim((string)$row['api_key']);
+                        if (!empty($k)) {
+                            $keys[] = [
+                                'id' => (int)$row['id'],
+                                'api_key' => $k,
+                                'label' => !empty($row['key_label']) ? trim($row['key_label']) : ('ConvertAPI Key #' . $row['id'])
+                            ];
+                        }
+                    }
                 }
-                // 2. Check app_settings fallback
-                $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'convertapi_secret' LIMIT 1");
-                if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
-                    $val = trim($row['setting_value']);
-                    $conn->close();
-                    return ['id' => 0, 'api_key' => $val];
+                if (empty($keys)) {
+                    $res = @$conn->query("SELECT setting_value FROM app_settings WHERE setting_key = 'convertapi_secret' LIMIT 1");
+                    if ($res && ($row = $res->fetch_assoc()) && !empty($row['setting_value'])) {
+                        $val = trim((string)$row['setting_value']);
+                        if (!empty($val)) {
+                            $keys[] = ['id' => 0, 'api_key' => $val, 'label' => 'Settings Secret'];
+                        }
+                    }
                 }
                 $conn->close();
             }
         }
     } catch (\Throwable $e) {}
 
-    // 3. Check environment variable override
     $envKey = getenv('CONVERTAPI_SECRET');
-    if (!empty($envKey)) {
-        return ['id' => 0, 'api_key' => trim($envKey)];
+    if (!empty($envKey) && empty($keys)) {
+        $keys[] = ['id' => 0, 'api_key' => trim($envKey), 'label' => 'ENV Secret'];
     }
 
-    return null;
+    return $keys;
+}
+
+function get_active_convertapi_credentials(): ?array {
+    $all = get_all_active_convertapi_keys();
+    return !empty($all) ? $all[0] : null;
 }
 
 function record_convertapi_usage(int $keyId, string $apiKey): void {
@@ -996,39 +1023,42 @@ $engineUsed = '';
 $conversionErrors = [];
 
 // -----------------------------------------------------------------------------
-// Priority 1: CloudConvert API v2 (Official Vector Engine for PDF to DOCX)
+// Priority 1: CloudConvert API v2 Multi-Key Pool (Auto-Failover to next key on credit depletion)
 // -----------------------------------------------------------------------------
-$ccCreds = get_active_cloudconvert_credentials();
-$ccRes = null;
-if (!empty($ccCreds['api_key'])) {
+$allCcKeys = get_all_active_cloudconvert_keys();
+foreach ($allCcKeys as $idx => $ccCreds) {
+    $keyLabel = $ccCreds['label'] ?? ('Key #' . ($idx + 1));
     $ccRes = convert_with_cloudconvert($pdfFilePath, $docxFilePath, $ccCreds['api_key']);
     if (!empty($ccRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
         @unlink($pdfFilePath);
-        $engineUsed = 'CloudConvert API v2 (Official Vector Engine)';
+        $engineUsed = 'CloudConvert API v2 (' . $keyLabel . ')';
         if (!empty($ccCreds['id'])) {
             record_cloudconvert_usage((int)$ccCreds['id'], $ccCreds['api_key']);
         }
+        break; // Success! Break out of key loop
     } else {
-        $conversionErrors[] = 'CloudConvert: ' . ($ccRes['error'] ?? 'បរាជ័យ');
+        $conversionErrors[] = 'CloudConvert (' . $keyLabel . '): ' . ($ccRes['error'] ?? 'បរាជ័យ');
+        // Credits depleted or failed: Loop continues to the next active CloudConvert key!
     }
 }
 
 // -----------------------------------------------------------------------------
-// Priority 2: ConvertAPI Cloud Engine (Auto-Failover when CloudConvert depleted / error)
+// Priority 2: ConvertAPI Cloud Engine (Auto-Failover when all CloudConvert keys depleted)
 // -----------------------------------------------------------------------------
 if (empty($engineUsed)) {
-    $caCreds = get_active_convertapi_credentials();
-    $caRes = null;
-    if (!empty($caCreds['api_key'])) {
+    $allCaKeys = get_all_active_convertapi_keys();
+    foreach ($allCaKeys as $idx => $caCreds) {
+        $keyLabel = $caCreds['label'] ?? ('Key #' . ($idx + 1));
         $caRes = convert_with_convertapi($pdfFilePath, $docxFilePath, $caCreds['api_key']);
         if (!empty($caRes['success']) && file_exists($docxFilePath) && filesize($docxFilePath) > 0) {
             @unlink($pdfFilePath);
-            $engineUsed = 'ConvertAPI Cloud Engine v2 (Auto-Failover)';
+            $engineUsed = 'ConvertAPI Cloud Engine v2 (' . $keyLabel . ')';
             if (!empty($caCreds['id'])) {
                 record_convertapi_usage((int)$caCreds['id'], $caCreds['api_key']);
             }
+            break;
         } else {
-            $conversionErrors[] = 'ConvertAPI: ' . ($caRes['error'] ?? 'បរាជ័យ');
+            $conversionErrors[] = 'ConvertAPI (' . $keyLabel . '): ' . ($caRes['error'] ?? 'បរាជ័យ');
         }
     }
 }

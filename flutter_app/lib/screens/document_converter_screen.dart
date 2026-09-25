@@ -182,15 +182,9 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
           } catch (_) {}
         }
 
-        // Clean fallback to native OpenXML Word generation if CloudConvert is unavailable
+        // CloudConvert API v2 is required exclusively — no DocxGeneratorService fallback
         if (docxFile == null) {
-          final docxPath = '${tempDir.path}/Doc_${result.documentTitle ?? "Khmer"}_$timeStamp.docx';
-          docxFile = await GeminiOcrService.exportToDocx(
-            result: result,
-            outputPath: docxPath,
-            pageSize: initialFormat.paperSize,
-            orientation: initialFormat.orientation,
-          );
+          throw Exception('CloudConvert API v2 មិនអាចបម្លែងបានឡើយ។ សូមពិនិត្យ API Keys ឬ Credits ក្នុង Admin Panel');
         }
 
         // Auto extract photo for CV if not extracted from docx
