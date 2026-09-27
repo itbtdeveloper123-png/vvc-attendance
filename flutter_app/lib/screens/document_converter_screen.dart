@@ -376,10 +376,6 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
     try {
       final detectedFormat = await DocumentConversionService.detectPdfPageFormat(pdfPath);
 
-      if (!PdfToWordMicroservice.isServerEnabled) {
-        await _convertPdfWithGeminiOcr(pdfPath);
-        return;
-      }
 
       final result = await PdfToWordMicroservice.convertPdfToDocx(
         pdfPath: pdfPath,
@@ -473,112 +469,18 @@ class _DocumentConverterScreenState extends State<DocumentConverterScreen> {
         return;
       }
 
-      // Secondary Fallback: Only for pure scanned image PDFs where vector extraction fails
-      if (mounted) {
-        setState(() {
-          _progressMessage = 'ឯកសារស្កេនរូបភាព៖ កំពុងដំណើរការ AI Gemini OCR អានអក្សរ...';
-          _progressValue = 0.4;
-        });
-      }
-      await _convertPdfWithGeminiOcr(pdfPath);
-    } catch (_) {
-      // Graceful fallback to Gemini OCR if service is unavailable
-      if (mounted) {
-        setState(() {
-          _progressMessage = 'កំពុងដំណើរការ AI Gemini OCR អានអក្សរ...';
-          _progressValue = 0.4;
-        });
-      }
-      await _convertPdfWithGeminiOcr(pdfPath);
-    }
-  }
-
-  /// Convert PDF using AI Gemini OCR (for scanned images / copy papers)
-  Future<void> _convertPdfWithGeminiOcr(String pdfPath) async {
-    setState(() {
-      _isProcessing = true;
-      _progressMessage = 'កំពុងបម្លែងទំព័រ PDF ទៅជារូបភាពដើម្បីដំណើរការ AI...';
-      _progressValue = 0.2;
-    });
-
-    try {
-      final detectedFormat = await DocumentConversionService.detectPdfPageFormat(pdfPath);
-
-      final tempDir = await getTemporaryDirectory();
-      final outputDir = Directory('${tempDir.path}/pdf_pages_${DateTime.now().millisecondsSinceEpoch}');
-      await outputDir.create(recursive: true);
-
-      final imagePaths = await DocumentConversionService.convertPdfToImages(
-        pdfPath: pdfPath,
-        outputDir: outputDir.path,
-      );
-
-      if (imagePaths.isEmpty) {
-        throw Exception('មិនមានទំព័រក្នុងឯកសារ PDF ឡើយ');
-      }
-
-      setState(() {
-        _progressMessage = 'AI Gemini កំពុងស្រង់ទម្រង់ឯកសារ និងអក្សរខ្មែរ (${detectedFormat.summaryLabel})...';
-        _progressValue = 0.5;
-      });
-
-      final ocrResult = await GeminiOcrService.processKhmerDocument(
-        imagePaths: imagePaths,
-        onProgress: (cur, total) {
-          if (mounted) {
-            setState(() {
-              _progressMessage = 'AI Gemini កំពុងអានទំព័រ $cur/$total...';
-              _progressValue = 0.5 + (cur / total) * 0.4;
-            });
-          }
-        },
-      );
-
-      if (!ocrResult.success || ocrResult.fullText.trim().isEmpty) {
-        throw Exception(ocrResult.errorMessage ?? 'មិនអាចស្រង់អត្ថបទពីឯកសារ PDF បានឡើយ។');
-      }
-
-      // Check if document is a CV or contains a photo placeholder to automatically extract candidate photo
-      File? candidatePhoto;
-      final isCvDoc = ocrResult.fullText.contains('ប្រវត្តិរូប') ||
-          ocrResult.fullText.toUpperCase().contains('CURRICULUM VITAE') ||
-          ocrResult.fullText.toUpperCase().contains('RESUME') ||
-          ocrResult.fullText.contains('[PHOTO]');
-      if (isCvDoc && imagePaths.isNotEmpty) {
-        try {
-          candidatePhoto = await _tryExtractPhotoFromPage(imagePaths.first);
-        } catch (_) {}
-      }
-
-      final timeStamp = DateTime.now().millisecondsSinceEpoch;
-      final docxPath = '${tempDir.path}/PDF_to_Word_$timeStamp.docx';
-      final docxFile = await GeminiOcrService.exportToDocx(
-        result: ocrResult,
-        outputPath: docxPath,
-        photoFile: candidatePhoto,
-        pageSize: detectedFormat.paperSize,
-        orientation: detectedFormat.orientation,
-        margin: isCvDoc ? DocxPageMargin.narrow : DocxPageMargin.normal,
-      );
-
+      // If CloudConvert failed or did not return a valid docx file
       if (mounted) {
         setState(() => _isProcessing = false);
-        _showResultSheet(
-          title: 'បម្លែង PDF ទៅជា Word ជោគជ័យ!',
-          subtitle: 'ឯកសារ Word (.docx) ត្រូវតាមទំហំដើម (${detectedFormat.summaryLabel}) និងអក្សរខ្មែរយ៉ាងពេញលេញ',
-          filePath: docxFile.path,
-          extractedText: ocrResult.fullText,
-          isDocx: true,
-          detectedFormat: detectedFormat,
-          multiImagePaths: imagePaths,
-          sourcePdfPath: pdfPath,
-          initialPhotoFile: candidatePhoto,
+        _showToast(
+          result.errorMessage ?? 'ការបម្លែងតាម CloudConvert API v2 មិនជោគជ័យឡើយ។ សូមពិនិត្យ API Key ឬ Credits ក្នុង Admin Panel!',
+          isError: true,
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        _showToast('កំហុសបម្លែង PDF to Word: $e', isError: true);
+        _showToast('កំហុស CloudConvert: $e', isError: true);
       }
     }
   }
