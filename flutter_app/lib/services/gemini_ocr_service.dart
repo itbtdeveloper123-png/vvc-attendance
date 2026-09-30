@@ -691,17 +691,10 @@ class GeminiOcrService {
           var stylesXml = utf8.decode(file.content as List<int>, allowMalformed: true);
           stylesXml = stylesXml.replaceAll('Leelawadee UI', 'Khmer OS Battambang');
           stylesXml = stylesXml.replaceAll('Times New Roman', 'Khmer OS Battambang');
-          if (stylesXml.contains('<w:rFonts')) {
-            stylesXml = stylesXml.replaceAllMapped(
-              RegExp(r'<w:rFonts([^>]*?)\/>'),
-              (m) {
-                var a = m.group(1)!;
-                if (!a.contains('w:cs=')) a += ' w:cs="Khmer OS Battambang"';
-                if (!a.contains('w:ascii=')) a += ' w:ascii="Khmer OS Battambang"';
-                return '<w:rFonts$a/>';
-              },
-            );
-          }
+          stylesXml = stylesXml.replaceAll(RegExp(r'w:ascii="[^"]*"'), 'w:ascii="Khmer OS Battambang"');
+          stylesXml = stylesXml.replaceAll(RegExp(r'w:hAnsi="[^"]*"'), 'w:hAnsi="Khmer OS Battambang"');
+          stylesXml = stylesXml.replaceAll(RegExp(r'w:cs="[^"]*"'), 'w:cs="Khmer OS Battambang"');
+          stylesXml = stylesXml.replaceAll(RegExp(r'w:eastAsia="[^"]*"'), 'w:eastAsia="Khmer OS Battambang"');
           final stylesBytes = utf8.encode(stylesXml);
           newArchive.addFile(ArchiveFile(file.name, stylesBytes.length, stylesBytes));
         } else {
@@ -828,65 +821,98 @@ ${jsonEncode(suspectTexts)}
   }
 
   static String _injectKhmerFontToXmlRuns(String xml) {
-    // 1. Ensure any existing <w:rFonts> tag uses Khmer OS Battambang as standard
-    var updated = xml.replaceAllMapped(
-      RegExp(r'<w:rFonts([^>]*?)\/>'),
-      (match) {
-        return '<w:rFonts w:ascii="Khmer OS Battambang" w:hAnsi="Khmer OS Battambang" w:cs="Khmer OS Battambang" w:eastAsia="Khmer OS Battambang"/>';
-      },
-    );
+    // 1. Remove character squishing and stretching that distorts Khmer Unicode
+    var updated = xml.replaceAll(RegExp(r'<w:spacing\s+w:val="-\d+"\s*\/>'), '');
+    updated = updated.replaceAll(RegExp(r'<w:w\s+w:val="\d+"\s*\/>'), '');
 
-    // 2. Set Khmer OS Muol Light for Title and Headings
+    // 2. Fix common spacing errors
+    updated = updated.replaceAll('( ឡាតាំង )', '(ឡាតាំង)');
+    updated = updated.replaceAll('( ត្រឹមថ្នាក់ទី', '(ត្រឹមថ្នាក់ទី');
+    updated = updated.replaceAll('១០ )', '១០)');
+
+    // 3. Phrases that must use Khmer OS Muol Light (headings and banners)
     const muolPhrases = [
       'ប្រវត្តិរូបសង្ខេប',
-      'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
-      'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
-      'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
-      'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ'
+      'ព័ត៌មានផ្ទាល់ខ្លួន',
+      'ប្រវត្តិសិក្សា',
+      'ប្រវត្តិការងារ',
+      'ជំនាញផ្ទាល់ខ្លួន',
     ];
 
-    for (final phrase in muolPhrases) {
-      final pRegex = RegExp('(<w:p[\\s\\S]*?$phrase[\\s\\S]*?<\\/w:p>)');
-      updated = updated.replaceAllMapped(pRegex, (pMatch) {
-        final pBlock = pMatch.group(1)!;
-        return pBlock.replaceAll(
-          RegExp(r'<w:rFonts[^>]*\/>'),
-          '<w:rFonts w:ascii="Khmer OS Muol Light" w:hAnsi="Khmer OS Muol Light" w:cs="Khmer OS Muol Light" w:eastAsia="Khmer OS Muol Light"/>',
-        );
-      });
-    }
+    // 4. Process each <w:r> individually to avoid regex crossing paragraphs
+    updated = updated.replaceAllMapped(
+      RegExp(r'<w:r(?:\s+[^>]*)?>([\s\S]*?)<\/w:r>'),
+      (rMatch) {
+        final rContent = rMatch.group(1)!;
+
+        // Extract text inside this run
+        final tMatch = RegExp(r'<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>').firstMatch(rContent);
+        final runText = tMatch?.group(1) ?? '';
+
+        final isMuolText = muolPhrases.any((phrase) => runText.contains(phrase));
+        final isWhiteBanner = rContent.contains('w:val="FFFFFF"') || rContent.contains('w:val="ffffff"');
+        final targetFont = (isMuolText || isWhiteBanner) ? 'Khmer OS Muol Light' : 'Khmer OS Battambang';
+
+        final fontTag = '<w:rFonts w:ascii="$targetFont" w:hAnsi="$targetFont" w:cs="$targetFont" w:eastAsia="$targetFont"/>';
+
+        if (rContent.contains('<w:rPr>') || rContent.contains('<w:rPr ')) {
+          var rPrUpdated = rContent.replaceAllMapped(
+            RegExp(r'<w:rPr(\s+[^>]*)?>([\s\S]*?)<\/w:rPr>'),
+            (prMatch) {
+              final prAttrs = prMatch.group(1) ?? '';
+              var prInner = prMatch.group(2)!;
+
+              if (prInner.contains('<w:rFonts')) {
+                prInner = prInner.replaceAll(RegExp(r'<w:rFonts[^>]*\/>'), fontTag);
+              } else {
+                prInner = '$fontTag$prInner';
+              }
+
+              if (!prInner.contains('<w:cs/>') && !prInner.contains('<w:cs ')) {
+                prInner = '$prInner<w:cs/>';
+              }
+              if (!prInner.contains('<w:noProof/>') && !prInner.contains('<w:noProof ')) {
+                prInner = '$prInner<w:noProof/>';
+              }
+
+              return '<w:rPr$prAttrs>$prInner</w:rPr>';
+            },
+          );
+          return '<w:r>$rPrUpdated</w:r>';
+        } else {
+          return '<w:r><w:rPr>$fontTag<w:cs/><w:noProof/></w:rPr>$rContent</w:r>';
+        }
+      },
+    );
 
     return updated;
   }
 
   static String _injectKhmerFontToFontTable(String fontXml) {
-    if (fontXml.contains('Khmer OS Battambang')) return fontXml;
+    var updated = fontXml;
+    const khmerFontList = [
+      'Khmer OS Battambang',
+      'Khmer OS Muol Light',
+      'Khmer OS Muol',
+      'Khmer OS Siemreap',
+      'Kantumruy Pro',
+    ];
 
-    const khmerFontEntry = '''
-  <w:font w:name="Khmer OS Battambang">
-    <w:altName w:val="Khmer OS Battambang"/>
+    for (final kf in khmerFontList) {
+      if (!updated.contains('w:name="$kf"')) {
+        final kfEntry = '''
+  <w:font w:name="$kf">
+    <w:altName w:val="$kf"/>
     <w:charset w:val="00"/>
     <w:family w:val="swiss"/>
     <w:pitch w:val="variable"/>
-  </w:font>
-  <w:font w:name="Khmer OS Muol Light">
-    <w:altName w:val="Khmer OS Muol Light"/>
-    <w:charset w:val="00"/>
-    <w:family w:val="swiss"/>
-    <w:pitch w:val="variable"/>
-  </w:font>
-  <w:font w:name="Kantumruy Pro">
-    <w:altName w:val="Kantumruy Pro"/>
-    <w:charset w:val="00"/>
-    <w:family w:val="swiss"/>
-    <w:pitch w:val="variable"/>
-  </w:font>
-''';
-
-    if (fontXml.contains('</w:fonts>')) {
-      return fontXml.replaceFirst('</w:fonts>', '$khmerFontEntry</w:fonts>');
+  </w:font>''';
+        if (updated.contains('</w:fonts>')) {
+          updated = updated.replaceFirst('</w:fonts>', '$kfEntry\n</w:fonts>');
+        }
+      }
     }
-    return fontXml;
+    return updated;
   }
 
   static String _createDefaultKhmerFontTable() {

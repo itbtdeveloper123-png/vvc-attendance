@@ -715,24 +715,72 @@ function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'K
         $docXml = str_replace('w:line="240" w:lineRule="auto"', 'w:line="200" w:lineRule="auto"', $docXml);
         $docXml = str_replace('w:bottom="380"', 'w:bottom="200"', $docXml);
 
-        // Replace all fonts with Khmer OS Battambang
-        $docXml = preg_replace('/<w:rFonts([^>]*?)\/>/u', '<w:rFonts w:ascii="' . $defaultKhmerFont . '" w:hAnsi="' . $defaultKhmerFont . '" w:cs="' . $defaultKhmerFont . '" w:eastAsia="' . $defaultKhmerFont . '"/>', $docXml);
+        // 1. Remove character squishing and stretching that distorts Khmer Unicode
+        $docXml = preg_replace('/<w:spacing\s+w:val="-\d+"\s*\/>/u', '', $docXml);
+        $docXml = preg_replace('/<w:w\s+w:val="\d+"\s*\/>/u', '', $docXml);
 
-        // Replace header and title paragraphs with Khmer OS Muol Light
+        // 2. Fix common spacing errors
+        $docXml = str_replace('( ឡាតាំង )', '(ឡាតាំង)', $docXml);
+        $docXml = str_replace('( ត្រឹមថ្នាក់ទី', '(ត្រឹមថ្នាក់ទី', $docXml);
+        $docXml = str_replace('១០ )', '១០)', $docXml);
+
+        // 3. Process every <w:r> individually to assign Khmer OS Muol Light for headings/banners, and Khmer OS Battambang for body
         $muolPhrases = [
             'ប្រវត្តិរូបសង្ខេប',
-            'ព័ត៌មានផ្ទាល់ខ្លួននិងទីកន្លែងរស់នៅ',
-            'ប្រវត្តិសិក្សានិងកម្រិតសិក្សា',
-            'ប្រវត្តិការងារនិងបទពិសោធន៍ការងារ',
-            'ជំនាញផ្ទាល់ខ្លួននិងជំនាញផ្សេងៗ',
+            'ព័ត៌មានផ្ទាល់ខ្លួន',
+            'ប្រវត្តិសិក្សា',
+            'ប្រវត្តិការងារ',
+            'ជំនាញផ្ទាល់ខ្លួន',
         ];
-        foreach ($muolPhrases as $phrase) {
-            $pattern = '/(<w:p[\s\S]*?' . preg_quote($phrase, '/') . '[\s\S]*?<\/w:p>)/u';
-            $docXml = preg_replace_callback($pattern, function ($pMatch) {
-                $block = $pMatch[1];
-                return preg_replace('/<w:rFonts[^>]*\/>/u', '<w:rFonts w:ascii="Khmer OS Muol Light" w:hAnsi="Khmer OS Muol Light" w:cs="Khmer OS Muol Light" w:eastAsia="Khmer OS Muol Light"/>', $block);
-            }, $docXml);
-        }
+
+        $docXml = preg_replace_callback('/<w:r(?:\s+[^>]*)?>([\s\S]*?)<\/w:r>/u', function ($rMatch) use ($defaultKhmerFont, $muolPhrases) {
+            $rContent = $rMatch[1];
+
+            // Extract text inside this run
+            $runText = '';
+            if (preg_match('/<w:t(?:\s+[^>]*)?>([\s\S]*?)<\/w:t>/u', $rContent, $tMatch)) {
+                $runText = $tMatch[1];
+            }
+
+            $isMuol = false;
+            foreach ($muolPhrases as $mp) {
+                if (strpos($runText, $mp) !== false) {
+                    $isMuol = true;
+                    break;
+                }
+            }
+            if (!$isMuol && (strpos($rContent, 'w:val="FFFFFF"') !== false || strpos($rContent, 'w:val="ffffff"') !== false)) {
+                $isMuol = true;
+            }
+
+            $targetFont = $isMuol ? 'Khmer OS Muol Light' : $defaultKhmerFont;
+            $fontTag = '<w:rFonts w:ascii="' . $targetFont . '" w:hAnsi="' . $targetFont . '" w:cs="' . $targetFont . '" w:eastAsia="' . $targetFont . '"/>';
+
+            if (strpos($rContent, '<w:rPr>') !== false || strpos($rContent, '<w:rPr ') !== false) {
+                $rContent = preg_replace_callback('/<w:rPr(\s+[^>]*)?>([\s\S]*?)<\/w:rPr>/u', function ($prMatch) use ($fontTag) {
+                    $prAttrs = $prMatch[1];
+                    $prInner = $prMatch[2];
+
+                    if (strpos($prInner, '<w:rFonts') !== false) {
+                        $prInner = preg_replace('/<w:rFonts[^>]*\/>/u', $fontTag, $prInner);
+                    } else {
+                        $prInner = $fontTag . $prInner;
+                    }
+
+                    if (strpos($prInner, '<w:cs/>') === false && strpos($prInner, '<w:cs ') === false) {
+                        $prInner .= '<w:cs/>';
+                    }
+                    if (strpos($prInner, '<w:noProof/>') === false && strpos($prInner, '<w:noProof ') === false) {
+                        $prInner .= '<w:noProof/>';
+                    }
+
+                    return '<w:rPr' . $prAttrs . '>' . $prInner . '</w:rPr>';
+                }, $rContent);
+                return '<w:r>' . $rContent . '</w:r>';
+            } else {
+                return '<w:r><w:rPr>' . $fontTag . '<w:cs/><w:noProof/></w:rPr>' . $rContent . '</w:r>';
+            }
+        }, $docXml);
 
         $zip->addFromString('word/document.xml', $docXml);
     }
@@ -742,17 +790,24 @@ function post_process_docx_khmer(string $docxPath, string $defaultKhmerFont = 'K
     if ($stylesXml) {
         $stylesXml = str_replace('Leelawadee UI', $defaultKhmerFont, $stylesXml);
         $stylesXml = str_replace('Times New Roman', $defaultKhmerFont, $stylesXml);
+        $stylesXml = preg_replace('/w:ascii="[^"]*"/u', 'w:ascii="' . $defaultKhmerFont . '"', $stylesXml);
+        $stylesXml = preg_replace('/w:hAnsi="[^"]*"/u', 'w:hAnsi="' . $defaultKhmerFont . '"', $stylesXml);
+        $stylesXml = preg_replace('/w:cs="[^"]*"/u', 'w:cs="' . $defaultKhmerFont . '"', $stylesXml);
+        $stylesXml = preg_replace('/w:eastAsia="[^"]*"/u', 'w:eastAsia="' . $defaultKhmerFont . '"', $stylesXml);
         $zip->addFromString('word/styles.xml', $stylesXml);
     }
 
     // Update fontTable.xml
     $fontTableXml = $zip->getFromName('word/fontTable.xml');
     if ($fontTableXml) {
-        if (strpos($fontTableXml, 'Khmer OS Battambang') === false) {
-            $khmerEntries = '<w:font w:name="Khmer OS Battambang"><w:altName w:val="Khmer OS Battambang"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font><w:font w:name="Khmer OS Muol Light"><w:altName w:val="Khmer OS Muol Light"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>';
-            $fontTableXml = str_replace('</w:fonts>', $khmerEntries . '</w:fonts>', $fontTableXml);
-            $zip->addFromString('word/fontTable.xml', $fontTableXml);
+        $khmerFontList = ['Khmer OS Battambang', 'Khmer OS Muol Light', 'Khmer OS Muol', 'Khmer OS Siemreap', 'Kantumruy Pro'];
+        foreach ($khmerFontList as $kf) {
+            if (strpos($fontTableXml, $kf) === false) {
+                $kfEntry = '<w:font w:name="' . $kf . '"><w:altName w:val="' . $kf . '"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>';
+                $fontTableXml = str_replace('</w:fonts>', $kfEntry . '</w:fonts>', $fontTableXml);
+            }
         }
+        $zip->addFromString('word/fontTable.xml', $fontTableXml);
     }
 
     $zip->close();
