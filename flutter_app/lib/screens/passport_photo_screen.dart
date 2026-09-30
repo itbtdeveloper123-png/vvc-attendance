@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +13,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../services/cutout_pro_service.dart';
+import '../services/gemini_ocr_service.dart';
 import '../services/remove_bg_service.dart';
 import '../services/subject_segmentation_service.dart';
 import '../widgets/app_widgets.dart';
@@ -223,14 +226,14 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           _faceWNorm = (box.width / decoded.width).clamp(0.15, 0.65);
           _faceHNorm = (box.height / decoded.height).clamp(0.15, 0.65);
 
-          // 1. Natural broad shoulder width calculation (~2.65x face width)
-          _suitScale = (_faceWNorm * 2.65 / 0.95).clamp(1.05, 1.65);
+          // 1. Natural broad shoulder width calculation (~3.15x face width to fully cover any shirt underneath)
+          _suitScale = (_faceWNorm * 3.15 / 0.95).clamp(1.20, 1.85);
 
           // 2. Horizontal centering directly beneath chin
           _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-30.0, 30.0);
 
-          // 3. Vertical neckline placement (Collar sits right at base of neck below chin: chin + ~8% face height)
-          final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.08);
+          // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~26% face height)
+          final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.26);
 
           // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
           final double ratio = _selectedPreset.ratio;
@@ -238,12 +241,65 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
           _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-40.0, 40.0);
 
+          // 4. Try Gemini AI Vision Tailor for advanced landmark refinement if keys available
+          try {
+            await _refineSuitWithGeminiAi(imageBytes);
+          } catch (_) {}
+
           _hasAutoFittedSuit = true;
           if (mounted) setState(() {});
         }
       }
     } catch (e) {
       debugPrint('Face detection auto-fit error: $e');
+    }
+  }
+
+  /// Optional Gemini AI Vision Smart Tailor: analyzes chin & neck base for fine-tuning
+  Future<void> _refineSuitWithGeminiAi(Uint8List imageBytes) async {
+    final keys = await GeminiOcrService.getAvailableGeminiKeys();
+    if (keys.isEmpty) return;
+
+    final key = keys.first;
+    final b64 = base64Encode(imageBytes);
+    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$key');
+
+    final requestBody = jsonEncode({
+      'contents': [
+        {
+          'parts': [
+            {
+              'text': 'You are an AI Master Tailor for ID / Passport studio photos. Analyze this portrait image to find the exact chin tip and base of the neck / collarbone. Return ONLY a valid JSON object without markdown or formatting: {"chin_y_ratio": <float 0..1>, "collarbone_y_ratio": <float 0..1>, "suggested_suit_scale": <float 1.15..1.65>, "suggested_suit_offset_y": <float -25..15>}'
+            },
+            {
+              'inline_data': {
+                'mime_type': 'image/jpeg',
+                'data': b64,
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    final res = await http.post(url, headers: {'Content-Type': 'application/json'}, body: requestBody).timeout(const Duration(seconds: 8));
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final text = data['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString().trim();
+      if (text != null && text.isNotEmpty) {
+        final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
+        final parsed = jsonDecode(cleanJson);
+        if (parsed is Map) {
+          final scale = (parsed['suggested_suit_scale'] as num?)?.toDouble();
+          final offY = (parsed['suggested_suit_offset_y'] as num?)?.toDouble();
+          if (scale != null && scale >= 1.1 && scale <= 1.8) {
+            _suitScale = scale;
+          }
+          if (offY != null && offY >= -35.0 && offY <= 30.0) {
+            _suitOffsetY = offY;
+          }
+        }
+      }
     }
   }
 
