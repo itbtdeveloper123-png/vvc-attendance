@@ -740,29 +740,20 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                         clipBehavior: Clip.hardEdge,
                                         alignment: Alignment.center,
                                         children: [
-                                          // Layer 1: Person Cutout Foreground with Smart Neckline Masking (Instant 0ms update)
-                                          ClipPath(
-                                            clipper: PersonNeckClipper(
-                                              chinX: _faceChinXNorm,
-                                              chinY: _faceChinYNorm,
-                                              faceW: _faceWNorm,
-                                              faceH: _faceHNorm,
-                                              isSuitActive: (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey)),
-                                            ),
-                                            child: _cutoutForegroundBytes != null
-                                                ? Transform.scale(
-                                                    scaleX: _isFlipped ? -1.0 : 1.0,
-                                                    scaleY: 1.0,
-                                                    child: Image.memory(
-                                                      _cutoutForegroundBytes!,
-                                                      fit: BoxFit.cover,
-                                                      gaplessPlayback: true,
-                                                    ),
-                                                  )
-                                                : (_imagePath != null
-                                                    ? Image.file(File(_imagePath!), fit: BoxFit.cover)
-                                                    : const SizedBox.shrink()),
-                                          ),
+                                          // Layer 1: Person Cutout Foreground (Clean & natural, no jagged or square cuts)
+                                          _cutoutForegroundBytes != null
+                                              ? Transform.scale(
+                                                  scaleX: _isFlipped ? -1.0 : 1.0,
+                                                  scaleY: 1.0,
+                                                  child: Image.memory(
+                                                    _cutoutForegroundBytes!,
+                                                    fit: BoxFit.cover,
+                                                    gaplessPlayback: true,
+                                                  ),
+                                                )
+                                              : (_imagePath != null
+                                                  ? Image.file(File(_imagePath!), fit: BoxFit.cover)
+                                                  : const SizedBox.shrink()),
 
                                           // Layer 2: Live GPU Virtual Suit Overlay (Direct child of Stack)
                                           if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey))
@@ -1605,48 +1596,13 @@ class PersonNeckClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
+    // Preserve full natural person outline without cutting jaw/neck/chest
     final path = Path();
-    if (!isSuitActive) {
-      path.addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-      return path;
-    }
-
-    final double w = size.width;
-    final double h = size.height;
-
-    final double cx = w * chinX.clamp(0.2, 0.8);
-    final double cy = h * chinY.clamp(0.2, 0.7);
-    final double fw = w * faceW.clamp(0.15, 0.6);
-    final double fh = h * faceH.clamp(0.15, 0.6);
-
-    // Neck opening boundary (Real human neck width ~42% of face width)
-    final double neckHalfW = (fw * 0.42).clamp(18.0, 85.0);
-    final double neckTopY = (cy - (fh * 0.04)).clamp(0.0, h);
-    final double neckBottomY = (cy + (fh * 0.35)).clamp(0.0, h);
-    final double neckVChestY = (cy + (fh * 0.55)).clamp(0.0, h);
-
-    // Build path: keep entire top head/hair/ears/face, but clip old shirt shoulders
-    path.moveTo(0, 0);
-    path.lineTo(w, 0);
-    path.lineTo(w, neckTopY);
-    path.lineTo(cx + neckHalfW, neckTopY);
-    path.lineTo(cx + neckHalfW, neckBottomY);
-    path.lineTo(cx, neckVChestY);
-    path.lineTo(cx - neckHalfW, neckBottomY);
-    path.lineTo(cx - neckHalfW, neckTopY);
-    path.lineTo(0, neckTopY);
-    path.close();
-
+    path.addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     return path;
   }
 
   @override
-  bool shouldReclip(PersonNeckClipper oldClipper) {
-    return oldClipper.chinX != chinX ||
-        oldClipper.chinY != chinY ||
-        oldClipper.faceW != faceW ||
-        oldClipper.faceH != faceH ||
-        oldClipper.isSuitActive != isSuitActive;
-  }
+  bool shouldReclip(PersonNeckClipper oldClipper) => false;
 }
 

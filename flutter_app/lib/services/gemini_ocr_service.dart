@@ -499,7 +499,21 @@ class GeminiOcrService {
             text.contains('\u25A1') ||
             text.contains('កñក') ||
             text.contains('è') ||
-            text.contains('é');
+            text.contains('é') ||
+            text.contains('¿') ||
+            text.contains('§') ||
+            text.contains('•') ||
+            text.contains('»') ||
+            text.contains('harus') ||
+            text.contains('sqpia') ||
+            text.contains('aqpia') ||
+            text.contains('mLon') ||
+            text.contains('tr0') ||
+            text.contains('iiTia') ||
+            text.contains('tidied') ||
+            text.contains('Forgor') ||
+            text.contains('cJoJsu') ||
+            text.contains('yutWo');
         final hasKhmer = RegExp(r'[\u1780-\u17FF]').hasMatch(text);
         if (hasTofu || (hasKhmer && (text.length >= 2 || text.contains(':') || text.contains('-')))) {
           suspectStrings.add(text);
@@ -525,6 +539,52 @@ class GeminiOcrService {
 
       // Step 3: Comprehensive deterministic fixes for all CloudConvert broken Khmer glyphs
       final deterministicFixes = {
+        // Request Form / Leave Types
+        'aqpia¿uutgl (Annual Leavej': 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
+        'sqpiazuutgl (Annual Leave)': 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)',
+        'aqpia¿uutgl': 'សម្រាកប្រចាំឆ្នាំ',
+        'sqpiazuutgl': 'សម្រាកប្រចាំឆ្នាំ',
+        '(Annual Leavej': '(Annual Leave)',
+        'mLon\\T Lufiñ (Sick Leave)': 'សម្រាកដោយជំងឺ (Sick Leave)',
+        'mLon\'T Luli\'t (Sick Leave)': 'សម្រាកដោយជំងឺ (Sick Leave)',
+        'mLon\\T Lufiñ': 'សម្រាកដោយជំងឺ',
+        'mLon\'T Luli\'t': 'សម្រាកដោយជំងឺ',
+        'tr0\\ms\\utu Forgor FP)': 'ភ្លេចស្គែន (Forgot FP)',
+        'tr\'0ms\'utu Forgor FP)': 'ភ្លេចស្គែន (Forgot FP)',
+        'tr0\\ms\\utu': 'ភ្លេចស្គែន',
+        'tr\'0ms\'utu': 'ភ្លេចស្គែន',
+        'Forgor FP)': 'Forgot FP)',
+        'Min nrMLna n> n (Maternity Leave)': 'សម្រាកពេលមានកូន (Maternity Leave)',
+        'Min nrMLna n> n': 'សម្រាកពេលមានកូន',
+        'iGutd fl (OT)': 'ធ្វើការលើសម៉ោង (OT)',
+        '\\0 m@ c\\â d (Early)': 'ចេញមុនម៉ោង (Early)',
+        '\\0 m@ c\\â d': 'ចេញមុនម៉ោង',
+        'v IG J¿a n (Chan ging day off rule n fitruru (Special Leave)snuJn (Late)': 'ប្តូរថ្ងៃឈប់សម្រាក (Changing day off)   សម្រាកពិសេស (Special Leave)   មកយឺត (Late)',
+        'v IG J¿a n (Chan ging day off': 'ប្តូរថ្ងៃឈប់សម្រាក (Changing day off)',
+        'v IG J¿a n': 'ប្តូរថ្ងៃឈប់សម្រាក',
+        '(Special Leave)': 'សម្រាកពិសេស (Special Leave)',
+        'snuJn (Late)': 'មកយឺត (Late)',
+        'snuJn': 'មកយឺត',
+        'ñssig/»yutWoñ:': 'ចំនួនថ្ងៃ/ច្បាប់នៅសល់ៈ',
+        'fissig/-yutWorl:': 'ចំនួនថ្ងៃ/ច្បាប់នៅសល់ៈ',
+        '0.5ig': '0.5 ថ្ងៃ',
+        '4 t§': '4 ថ្ងៃ',
+        'tt harus’13:00': 'ម៉ោងចូលៈ 13:00',
+        '11 harus \'13:00': 'ម៉ោងចូលៈ 13:00',
+        'ថ្ងៃសរុប17:00': 'ម៉ោងចេញៈ 17:00',
+        'iiTia cJju•.4h': 'ម៉ោងសរុបៈ 4h',
+        '11Tla cJoJsu. 4h': 'ម៉ោងសរុបៈ 4h',
+        'tidiedruelm•. N/A': 'ម៉ោងចូលសងៈ N/A',
+        'ថ្ងៃ toF\\j elm•. N/A': 'ម៉ោងចេញសងៈ N/A',
+        'iiTia cJJcJsu•. N/A': 'ម៉ោងសងសរុបៈ N/A',
+        '125095843818inn: (Name)w ntrum (Signature)': 'ឈ្មោះ: (Name)          ហត្ថលេខា (Signature)',
+        '125095843818inn: (Name)': 'ឈ្មោះ: (Name)',
+        'w ntrum (Signature)': 'ហត្ថលេខា (Signature)',
+        'tGtam (Date)': 'ថ្ងៃខែឆ្នាំ (Date)',
+        'ប្រចាំឆ្នាំ a/tef{j  ss': 'ចំនួនម៉ោងយឺត/ចេញមុនៈ',
+        'ប្រចាំឆ្នាំ a/tef{j ss': 'ចំនួនម៉ោងយឺត/ចេញមុនៈ',
+        'សំណើសុំច្បាប់ឈប់សម្រាក': 'សំណើសុំច្បាប់ឈប់សម្រាក',
+
         // Title
         'បវតិរូបសេង.ប': 'ប្រវត្តិរូបសង្ខេប',
         'បវ័ត៝រូបសេង.ប': 'ប្រវត្តិរូបសង្ខេប',
@@ -653,7 +713,14 @@ class GeminiOcrService {
         },
       );
 
-      // Step 4: Spacing compression - prevent single-page CVs from overflowing into Page 2
+      // Step 4: Spacing compression - prevent single-page forms/CVs from overflowing into Page 2
+      // Remove accidental 2-column layout that CloudConvert injects
+      docXml = docXml.replaceAll(RegExp(r'<w:cols[^>]*w:num="[2-9]"[^>]*>[\s\S]*?<\/w:cols>'), '<w:cols w:space="708"/>');
+      docXml = docXml.replaceAll(RegExp(r'<w:cols[^>]*w:num="[2-9]"[^>]*\/>'), '<w:cols w:space="708"/>');
+
+      // Remove redundant empty spacer paragraphs that split 1-page documents
+      docXml = docXml.replaceAll(RegExp(r'<w:p>\s*<w:pPr>\s*<w:pStyle\s+w:val="(?:BodyText|Normal)"\s*\/>\s*(?:<w:spacing[^>]*\/>)?\s*<w:rPr>[\s\S]*?<\/w:rPr>\s*<\/w:pPr>\s*<\/w:p>'), '');
+
       docXml = docXml.replaceAllMapped(
         RegExp(r'<w:spacing\s+([^>]*?)w:before="(\d+)"([^>]*?)\/>'),
         (match) {
