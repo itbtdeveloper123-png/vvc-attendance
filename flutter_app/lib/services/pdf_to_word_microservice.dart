@@ -43,6 +43,7 @@ class PdfToWordMicroservice {
     final sep = base.contains('?') ? '&' : '?';
     list.add('$base${sep}action=convert_pdf_word');
     list.add(base.replaceAll('api.php', 'api/convert-pdf-word.php'));
+    list.add(base.replaceAll('api.php', 'convert-pdf-word.php'));
     if (base.contains('/flutter/')) {
       list.add(base.replaceAll('/flutter/api.php', '/api/convert-pdf-word.php'));
     }
@@ -95,6 +96,7 @@ class PdfToWordMicroservice {
       ));
 
       Response? response;
+      String? usedEndpoint;
       dynamic lastDioError;
 
       for (final endpoint in _endpointCandidates) {
@@ -123,6 +125,7 @@ class PdfToWordMicroservice {
 
           if (res.statusCode == 200 && res.data != null && res.data['status'] == 'success') {
             response = res;
+            usedEndpoint = endpoint;
             break;
           }
           response = res;
@@ -159,7 +162,7 @@ class PdfToWordMicroservice {
       onProgress?.call(0.75, 'កំពុងទាញយកឯកសារ Word (.docx) ដែលបម្លែងរួច...');
 
       final docxUrl = data['docx_url']?.toString() ?? '';
-      final downloadUrl = data['download_url']?.toString() ?? docxUrl;
+      final rawDownloadUrl = data['download_url']?.toString() ?? docxUrl;
       final serverFileName = data['file_name']?.toString() ?? 'document.docx';
       final totalPages = (data['pages'] as num?)?.toInt() ?? 1;
       final elapsed = (data['elapsed_seconds'] as num?)?.toDouble() ?? 0.0;
@@ -171,18 +174,94 @@ class PdfToWordMicroservice {
       final localDocxPath = '${tempDir.path}/$serverFileName';
       final localDocxFile = File(localDocxPath);
 
-      if (downloadUrl.isNotEmpty) {
-        await dio.download(
-          downloadUrl,
-          localDocxPath,
-          onReceiveProgress: (received, total) {
-            if (total > 0) {
-              final dlFraction = received / total;
-              final pct = 0.75 + (dlFraction * 0.2);
-              onProgress?.call(pct, 'កំពុងទាញយក Word (${(dlFraction * 100).toInt()}%)...');
+      // Build fallback download URLs to protect against 404 or misrouted gateways
+      final downloadCandidates = <String>[];
+
+      // 1. The endpoint that just successfully processed the conversion
+      if (usedEndpoint != null && usedEndpoint.isNotEmpty) {
+        final sep = usedEndpoint.contains('?') ? '&' : '?';
+        downloadCandidates.add('$usedEndpoint${sep}download=1&file=${Uri.encodeComponent(serverFileName)}');
+      }
+
+      // 2. Gateway rewrite if the server returned /flutter/convert-pdf-word.php
+      if (rawDownloadUrl.isNotEmpty) {
+        if (rawDownloadUrl.contains('/flutter/convert-pdf-word.php')) {
+          downloadCandidates.add(rawDownloadUrl.replaceAll(
+            '/flutter/convert-pdf-word.php',
+            '/flutter/api.php?action=convert_pdf_word&',
+          ));
+          downloadCandidates.add(rawDownloadUrl.replaceAll(
+            '/flutter/convert-pdf-word.php',
+            '/flutter/api/convert-pdf-word.php?',
+          ));
+        }
+        downloadCandidates.add(rawDownloadUrl);
+      }
+
+      // 3. Fallback via ApiService.baseUrl with convert_pdf_word action
+      final apiBase = ApiService.baseUrl;
+      final apiSep = apiBase.contains('?') ? '&' : '?';
+      downloadCandidates.add('$apiBase${apiSep}action=convert_pdf_word&download=1&file=${Uri.encodeComponent(serverFileName)}');
+
+      // 4. Fallback via api/convert-pdf-word.php directly
+      if (apiBase.contains('api.php')) {
+        downloadCandidates.add(apiBase.replaceAll(
+          'api.php',
+          'api/convert-pdf-word.php?download=1&file=${Uri.encodeComponent(serverFileName)}',
+        ));
+      }
+
+      // 5. Direct docxUrl if provided
+      if (docxUrl.isNotEmpty && !downloadCandidates.contains(docxUrl)) {
+        downloadCandidates.add(docxUrl);
+      }
+
+      bool downloadSuccess = false;
+      dynamic lastDownloadError;
+
+      for (final dlUrl in downloadCandidates.toSet()) {
+        try {
+          if (await localDocxFile.exists()) {
+            try {
+              await localDocxFile.delete();
+            } catch (_) {}
+          }
+
+          final dlRes = await dio.download(
+            dlUrl,
+            localDocxPath,
+            onReceiveProgress: (received, total) {
+              if (total > 0) {
+                final dlFraction = received / total;
+                final pct = 0.75 + (dlFraction * 0.2);
+                onProgress?.call(pct, 'កំពុងទាញយក Word (${(dlFraction * 100).toInt()}%)...');
+              }
+            },
+          );
+
+          if (dlRes.statusCode == 200 && await localDocxFile.exists() && await localDocxFile.length() > 500) {
+            // Verify valid PK zip header for .docx format
+            final bytes = await localDocxFile.openRead(0, 4).first;
+            if (bytes.length >= 2 && bytes[0] == 0x50 && bytes[1] == 0x4B) {
+              downloadSuccess = true;
+              break;
             }
-          },
-        );
+          }
+        } catch (e) {
+          lastDownloadError = e;
+          if (await localDocxFile.exists()) {
+            try {
+              await localDocxFile.delete();
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (!downloadSuccess) {
+        if (lastDownloadError != null && lastDownloadError is DioException) {
+          throw lastDownloadError;
+        }
+        throw Exception('មិនអាចទាញយកឯកសារ Word ពី Server បានឡើយ');
       }
 
       onProgress?.call(0.95, 'កំពុងស្រង់អត្ថបទ និងរូបថតសម្រាប់បង្ហាញ Preview...');
@@ -216,6 +295,8 @@ class PdfToWordMicroservice {
         msg += 'ផុតកំណត់ការភ្ជាប់ (Connection Timeout)';
       } else if (dioErr.type == DioExceptionType.receiveTimeout) {
         msg += 'Server ត្រូវការពេលយូរជាងការរំពឹងទុក (Receive Timeout)';
+      } else if (dioErr.response?.statusCode == 404) {
+        msg += 'មិនអាចស្វែងរកទីតាំងឯកសារ ឬ Server Endpoint បានឡើយ (HTTP 404: Not Found)';
       } else if (dioErr.response?.data != null && dioErr.response?.data is Map) {
         msg += dioErr.response?.data['message']?.toString() ?? dioErr.message.toString();
       } else {

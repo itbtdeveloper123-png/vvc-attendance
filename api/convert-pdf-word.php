@@ -907,6 +907,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $filePath = $uploadDir . '/' . $safeFileName;
 
         if (file_exists($filePath) && strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) === 'docx') {
+            while (ob_get_level() > 0) { ob_end_clean(); }
             header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
             header('Content-Disposition: attachment; filename="' . $safeFileName . '"');
             header('Content-Length: ' . filesize($filePath));
@@ -916,6 +917,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             exit;
         } else {
             http_response_code(404);
+            header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['status' => 'error', 'message' => 'File not found or expired'], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -1101,10 +1103,15 @@ post_process_docx_khmer($docxFilePath, $khmerFont);
 // 8. Build URLs
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-$siteBase = rtrim(dirname($scriptDir), '/\\');
-$downloadUrl = $protocol . '://' . $host . $scriptDir . '/convert-pdf-word.php?download=1&file=' . urlencode($docxFileName);
-$fileUrl = $protocol . '://' . $host . $siteBase . '/uploads/pdf_conversions/' . urlencode($docxFileName);
+$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+
+// Check if called via api.php router (e.g. /flutter/api.php or /api.php)
+if (basename($scriptName) === 'api.php' || !empty($_REQUEST['action'])) {
+    $downloadUrl = $protocol . '://' . $host . $scriptName . '?action=convert_pdf_word&download=1&file=' . urlencode($docxFileName);
+} else {
+    $downloadUrl = $protocol . '://' . $host . $scriptName . '?download=1&file=' . urlencode($docxFileName);
+}
+$fileUrl = $protocol . '://' . $host . '/uploads/pdf_conversions/' . urlencode($docxFileName);
 
 // 9. Return Success JSON
 echo json_encode([
