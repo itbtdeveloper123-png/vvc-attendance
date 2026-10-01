@@ -53,8 +53,13 @@ echo "Sanitizing frameworks for Sideloadly / AltStore signing..."
 if [ -d "$APP_BUNDLE/Frameworks" ]; then
   find "$APP_BUNDLE/Frameworks" -type f | while read -r file; do
     if file "$file" | grep -q "Mach-O"; then
+      archs=$(lipo -archs "$file" 2>/dev/null || echo "")
+      if echo "$archs" | grep -q "arm64"; then
+        lipo -thin arm64 "$file" -output "$file.thin" 2>/dev/null && mv "$file.thin" "$file" || true
+      fi
       xcrun bitcode_strip -r "$file" -o "$file" 2>/dev/null || true
       strip -x "$file" 2>/dev/null || true
+      codesign --force --sign - "$file" 2>/dev/null || true
     fi
   done
 fi
@@ -66,8 +71,9 @@ cp -R "$APP_BUNDLE" "$PAYLOAD_DIR/"
 
 (
   cd "$IPA_DIR"
-  /usr/bin/zip -qry "$IPA_NAME" Payload
-  find Payload -name "Info.plist" | /usr/bin/zip -q -0 -u -y "$IPA_NAME" -@ 2>/dev/null || true
+  rm -f "$IPA_NAME"
+  /usr/bin/zip -qry "$IPA_NAME" Payload -x "*/Info.plist"
+  /usr/bin/zip -qry -0 "$IPA_NAME" Payload -i "*/Info.plist"
 )
 
 echo "Built: $IPA_PATH"

@@ -155,8 +155,16 @@ jobs:
             find "$APP_PATH/Frameworks" -type f | while read -r file; do
               if file "$file" | grep -q "Mach-O"; then
                 echo "Sanitizing Mach-O binary: $file"
+                # Thin to arm64 if multiple archs exist (Sideloadly fails on fat binaries)
+                archs=$(lipo -archs "$file" 2>/dev/null || echo "")
+                if echo "$archs" | grep -q "arm64"; then
+                  echo "Thinning $file ($archs) to arm64..."
+                  lipo -thin arm64 "$file" -output "$file.thin" 2>/dev/null && mv "$file.thin" "$file" || true
+                fi
                 xcrun bitcode_strip -r "$file" -o "$file" 2>/dev/null || true
                 strip -x "$file" 2>/dev/null || true
+                # Pre-sign ad-hoc on macOS so Mach-O header space is allocated
+                codesign --force --sign - "$file" 2>/dev/null || true
               fi
             done
           fi
@@ -166,11 +174,12 @@ jobs:
           cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
 
           cd build/ios/iphoneos
-          # -y is CRITICAL to preserve framework symlinks (prevents Mach-O signing errors in Sideloadly)
-          zip -qry Runner-unsigned.ipa Payload
-
-          # Sideloadly 0.70+ workaround: store Info.plist uncompressed (-0) to avoid hashing bug
-          find Payload -name "Info.plist" | zip -q -0 -u -y Runner-unsigned.ipa -@ 2>/dev/null || true
+          rm -f Runner-unsigned.ipa
+          # Two-pass packaging:
+          # 1) Pack everything EXCEPT Info.plist with standard zip compression & symlink preservation (-y)
+          zip -qry Runner-unsigned.ipa Payload -x "*/Info.plist"
+          # 2) Pack all Info.plist files UNCOMPRESSED (-0) to bypass Sideloadly 0.70+ hashing regression
+          zip -qry -0 Runner-unsigned.ipa Payload -i "*/Info.plist"
 
           rm -rf Payload
           cd ../../..
