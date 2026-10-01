@@ -63,8 +63,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   // Virtual Suit State (Percentage normalized for 100% responsiveness)
   SuitCategory _selectedSuitCategory = SuitCategory.all;
   String? _selectedSuitKey;
-  double _suitScale = 1.0;
-  double _suitOffsetY = 0.0; // percentage (-50% to +50%)
+  double _suitScale = 1.35; // Default 135% to naturally cover adult shoulders
+  double _suitOffsetY = -13.0; // Default -13% down so collar sits naturally below chin on collarbone
   double _suitOffsetX = 0.0; // percentage (-50% to +50%)
   bool _hasAutoFittedSuit = false;
 
@@ -226,20 +226,20 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           _faceWNorm = (box.width / decoded.width).clamp(0.15, 0.65);
           _faceHNorm = (box.height / decoded.height).clamp(0.15, 0.65);
 
-          // 1. Natural broad shoulder width calculation (~3.15x face width to fully cover any shirt underneath)
-          _suitScale = (_faceWNorm * 3.15 / 0.95).clamp(1.20, 1.85);
+          // 1. Natural broad shoulder width calculation (~3.6x face width to fully cover any shirt underneath)
+          _suitScale = (_faceWNorm * 3.6 / 0.95).clamp(1.30, 1.95);
 
           // 2. Horizontal centering directly beneath chin
           _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-30.0, 30.0);
 
-          // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~26% face height)
-          final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.26);
+          // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~40% face height)
+          final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.40);
 
           // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
           final double ratio = _selectedPreset.ratio;
           final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
 
-          _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-40.0, 40.0);
+          _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-45.0, 25.0);
 
           // 4. Try Gemini AI Vision Tailor for advanced landmark refinement if keys available
           try {
@@ -247,7 +247,30 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           } catch (_) {}
 
           _hasAutoFittedSuit = true;
-          if (mounted) setState(() {});
+          if (mounted) {
+            setState(() {});
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: Color(0xFF14B8A6), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'AI បានតម្រឹមកអាវ និងស្មាស្វ័យប្រវត្តិតាមទម្រង់ក!',
+                        style: GoogleFonts.kantumruyPro(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF1E293B),
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -255,49 +278,72 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
-  /// Optional Gemini AI Vision Smart Tailor: analyzes chin & neck base for fine-tuning
+  /// Automated Gemini AI Vision Smart Tailor: analyzes chin & neck base for 100% natural fitting
   Future<void> _refineSuitWithGeminiAi(Uint8List imageBytes) async {
     final keys = await GeminiOcrService.getAvailableGeminiKeys();
     if (keys.isEmpty) return;
 
-    final key = keys.first;
     final b64 = base64Encode(imageBytes);
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$key');
+    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
 
-    final requestBody = jsonEncode({
-      'contents': [
-        {
-          'parts': [
-            {
-              'text': 'You are an AI Master Tailor for ID / Passport studio photos. Analyze this portrait image to find the exact chin tip and base of the neck / collarbone. Return ONLY a valid JSON object without markdown or formatting: {"chin_y_ratio": <float 0..1>, "collarbone_y_ratio": <float 0..1>, "suggested_suit_scale": <float 1.15..1.65>, "suggested_suit_offset_y": <float -25..15>}'
-            },
-            {
-              'inline_data': {
-                'mime_type': 'image/jpeg',
-                'data': b64,
+    for (final key in keys.take(3)) {
+      for (final model in candidateModels) {
+        try {
+          final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key');
+          final requestBody = jsonEncode({
+            'contents': [
+              {
+                'parts': [
+                  {
+                    'text': 'You are an AI Master Studio Tailor for passport/ID portrait photos. Analyze this portrait to find the exact chin line and base of neck/collarbone. The suit collar must sit naturally around the collarbone, well below the chin, with shoulders wide enough to completely cover clothing underneath. Return ONLY valid JSON without markdown: {"collar_y_ratio": <float 0.45..0.65>, "suggested_suit_scale": <float 1.30..1.55>, "suggested_suit_offset_y": <float -22.0..-8.0>, "suggested_suit_offset_x": <float -5.0..5.0>}'
+                  },
+                  {
+                    'inline_data': {
+                      'mime_type': 'image/jpeg',
+                      'data': b64,
+                    }
+                  }
+                ]
+              }
+            ],
+            'generationConfig': {
+              'temperature': 0.1,
+            }
+          });
+
+          final res = await http.post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: requestBody,
+          ).timeout(const Duration(seconds: 8));
+
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body);
+            final text = data['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString().trim();
+            if (text != null && text.isNotEmpty) {
+              final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
+              final parsed = jsonDecode(cleanJson);
+              if (parsed is Map) {
+                final scale = (parsed['suggested_suit_scale'] as num?)?.toDouble();
+                final offY = (parsed['suggested_suit_offset_y'] as num?)?.toDouble();
+                final offX = (parsed['suggested_suit_offset_x'] as num?)?.toDouble();
+
+                if (scale != null && scale >= 1.25 && scale <= 1.70) {
+                  _suitScale = scale;
+                }
+                if (offY != null && offY >= -35.0 && offY <= 0.0) {
+                  _suitOffsetY = offY;
+                }
+                if (offX != null && offX >= -15.0 && offX <= 15.0) {
+                  _suitOffsetX = offX;
+                }
+                if (mounted) setState(() {});
+                return; // Succeeded!
               }
             }
-          ]
-        }
-      ]
-    });
-
-    final res = await http.post(url, headers: {'Content-Type': 'application/json'}, body: requestBody).timeout(const Duration(seconds: 8));
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      final text = data['candidates']?[0]?['content']?['parts']?[0]?['text']?.toString().trim();
-      if (text != null && text.isNotEmpty) {
-        final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
-        final parsed = jsonDecode(cleanJson);
-        if (parsed is Map) {
-          final scale = (parsed['suggested_suit_scale'] as num?)?.toDouble();
-          final offY = (parsed['suggested_suit_offset_y'] as num?)?.toDouble();
-          if (scale != null && scale >= 1.1 && scale <= 1.8) {
-            _suitScale = scale;
           }
-          if (offY != null && offY >= -35.0 && offY <= 30.0) {
-            _suitOffsetY = offY;
-          }
+        } catch (_) {
+          continue;
         }
       }
     }
@@ -811,8 +857,21 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                                   ? Image.file(File(_imagePath!), fit: BoxFit.cover)
                                                   : const SizedBox.shrink()),
 
-                                          // Layer 2: Live GPU Virtual Suit Overlay (Direct child of Stack)
-                                          if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey))
+                                          // Layer 2: Live GPU Virtual Suit Overlay with Natural 3D Collar Depth
+                                          if (_selectedSuitKey != null && _suitPresets.containsKey(_selectedSuitKey)) ...[
+                                            // Soft natural shadow under collar and lapels
+                                            Positioned(
+                                              left: left,
+                                              bottom: bottom - 2.0,
+                                              width: suitW,
+                                              child: Image.asset(
+                                                _suitPresets[_selectedSuitKey]!.assetPath,
+                                                fit: BoxFit.contain,
+                                                color: Colors.black.withValues(alpha: 0.20),
+                                                colorBlendMode: BlendMode.srcIn,
+                                              ),
+                                            ),
+                                            // Foreground Clean Suit
                                             Positioned(
                                               left: left,
                                               bottom: bottom,
@@ -823,6 +882,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                                                 gaplessPlayback: true,
                                               ),
                                             ),
+                                          ],
                                         ],
                                       ),
                                     );
@@ -1318,9 +1378,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         setState(() {
           _selectedSuitKey = key;
         });
-        if (!_hasAutoFittedSuit) {
-          _detectFaceAndAutoFitSuit();
-        }
+        _detectFaceAndAutoFitSuit();
       },
       child: Container(
         width: 76,
