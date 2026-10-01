@@ -150,12 +150,28 @@ jobs:
 
           echo "Found Runner.app at: $APP_PATH (size: $(du -sh "$APP_PATH" | cut -f1))"
 
+          echo "2.5) Sanitizing frameworks for Sideloadly / AltStore signing..."
+          if [ -d "$APP_PATH/Frameworks" ]; then
+            find "$APP_PATH/Frameworks" -type f | while read -r file; do
+              if file "$file" | grep -q "Mach-O"; then
+                echo "Sanitizing Mach-O binary: $file"
+                xcrun bitcode_strip -r "$file" -o "$file" 2>/dev/null || true
+                strip -x "$file" 2>/dev/null || true
+              fi
+            done
+          fi
+
           echo "3) Packaging into unsigned IPA..."
           mkdir -p build/ios/iphoneos/Payload
           cp -R "$APP_PATH" build/ios/iphoneos/Payload/Runner.app
 
           cd build/ios/iphoneos
-          zip -r -q Runner-unsigned.ipa Payload
+          # -y is CRITICAL to preserve framework symlinks (prevents Mach-O signing errors in Sideloadly)
+          zip -qry Runner-unsigned.ipa Payload
+
+          # Sideloadly 0.70+ workaround: store Info.plist uncompressed (-0) to avoid hashing bug
+          find Payload -name "Info.plist" | zip -q -0 -u -y Runner-unsigned.ipa -@ 2>/dev/null || true
+
           rm -rf Payload
           cd ../../..
 

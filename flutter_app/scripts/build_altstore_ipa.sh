@@ -49,7 +49,17 @@ if [[ ! -d "$APP_BUNDLE" ]]; then
   exit 1
 fi
 
-echo "Packaging IPA for AltStore..."
+echo "Sanitizing frameworks for Sideloadly / AltStore signing..."
+if [ -d "$APP_BUNDLE/Frameworks" ]; then
+  find "$APP_BUNDLE/Frameworks" -type f | while read -r file; do
+    if file "$file" | grep -q "Mach-O"; then
+      xcrun bitcode_strip -r "$file" -o "$file" 2>/dev/null || true
+      strip -x "$file" 2>/dev/null || true
+    fi
+  done
+fi
+
+echo "Packaging IPA for AltStore / Sideloadly..."
 rm -rf "$PAYLOAD_DIR" "$IPA_PATH"
 mkdir -p "$PAYLOAD_DIR"
 cp -R "$APP_BUNDLE" "$PAYLOAD_DIR/"
@@ -57,6 +67,7 @@ cp -R "$APP_BUNDLE" "$PAYLOAD_DIR/"
 (
   cd "$IPA_DIR"
   /usr/bin/zip -qry "$IPA_NAME" Payload
+  find Payload -name "Info.plist" | /usr/bin/zip -q -0 -u -y "$IPA_NAME" -@ 2>/dev/null || true
 )
 
 echo "Built: $IPA_PATH"
