@@ -12,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:gal/gal.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/cutout_pro_service.dart';
 import '../services/gemini_ocr_service.dart';
 import '../services/remove_bg_service.dart';
@@ -645,6 +647,99 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
     }
   }
 
+  /// Save Single High-Res Passport Photo directly to Phone Gallery
+  Future<void> _saveSinglePhotoToGallery() async {
+    if (_imagePath == null) return;
+
+    setState(() {
+      _isProcessing = true;
+      _statusText = 'កំពុងរក្សាទុករូបថតចូលក្នុង Gallery...';
+    });
+
+    try {
+      final highResFile = await _generateHighResComposite();
+      if (highResFile == null) return;
+
+      try {
+        await Gal.putImage(highResFile.path, album: 'VVC Passport');
+      } catch (_) {
+        await Gal.putImage(highResFile.path);
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'បានរក្សាទុករូបថត 4x6 / 3x4 ចូលក្នុង Gallery ជោគជ័យ!',
+                  style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('មិនអាចរក្សាទុករូបថតបានទេ៖ $e', style: GoogleFonts.kantumruyPro()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+      }
+    }
+  }
+
+  /// Share Single High-Res Passport Photo
+  Future<void> _shareSinglePhoto() async {
+    if (_imagePath == null) return;
+
+    setState(() {
+      _isProcessing = true;
+      _statusText = 'កំពុងរៀបចំចែករំលែករូបថត...';
+    });
+
+    try {
+      final highResFile = await _generateHighResComposite();
+      if (highResFile == null) return;
+
+      await Share.shareXFiles(
+        [XFile(highResFile.path)],
+        text: 'រូបថត 4x6 / 3x4 Studio - ${_selectedPreset.label}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('មិនអាចចែករំលែករូបថតបានទេ៖ $e', style: GoogleFonts.kantumruyPro()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+      }
+    }
+  }
+
   /// AI Cutout.pro Photo Enhancer HD
   Future<void> _enhancePhotoWithCutoutPro() async {
     if (_imagePath == null) return;
@@ -759,6 +854,16 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
               icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFA855F7), size: 22),
               tooltip: 'ទាញរូបថតឱ្យច្បាស់ HD (AI Enhancer)',
               onPressed: _enhancePhotoWithCutoutPro,
+            ),
+            IconButton(
+              icon: const Icon(Icons.download_rounded, color: Color(0xFF38BDF8), size: 22),
+              tooltip: 'រក្សាទុករូបថតចូលក្នុង Gallery',
+              onPressed: _saveSinglePhotoToGallery,
+            ),
+            IconButton(
+              icon: const Icon(Icons.share_rounded, color: Colors.white70, size: 21),
+              tooltip: 'ចែករំលែករូបថត',
+              onPressed: _shareSinglePhoto,
             ),
             IconButton(
               icon: Icon(
