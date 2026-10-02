@@ -71,6 +71,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   double _suitOffsetX = 0.0; // percentage (-50% to +50%)
   bool _hasAutoFittedSuit = false;
   bool _isAutoFittingSuit = false;
+  bool _isGeneratingAiMerge = false;
 
   // Gesture baselines for smooth drag & pinch
   double _baseScale = 1.0;
@@ -454,6 +455,230 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       }
     }
     return false;
+  }
+
+  /// Full Generative AI Fusion: Merges Person + Selected Suit into a seamless photorealistic studio photo
+  Future<void> _generateAiMergedPhotoWithGemini() async {
+    if (_imagePath == null || _selectedSuitKey == null) return;
+    if (_isGeneratingAiMerge) return;
+
+    final keys = await GeminiOcrService.getAvailableGeminiKeys();
+    if (keys.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'សូមកំណត់ Gemini API Key នៅក្នុង Settings ឬ Admin Panel ជាមុនសិន!',
+              style: GoogleFonts.kantumruyPro(),
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isGeneratingAiMerge = true;
+      _isProcessing = true;
+      _statusText = 'Gemini AI កំពុងកាត់តបញ្ចូលអាវទៅក្នុងរូបថត...';
+    });
+
+    try {
+      // 1. Prepare Person Image (< 900px for fast upload)
+      final rawPersonBytes = await File(_imagePath!).readAsBytes();
+      img.Image? decodedPerson = img.decodeImage(rawPersonBytes);
+      if (decodedPerson != null) {
+        decodedPerson = img.bakeOrientation(decodedPerson);
+        if (decodedPerson.width > 900) {
+          decodedPerson = img.copyResize(decodedPerson, width: 900);
+        }
+      }
+      final personJpg = decodedPerson != null ? img.encodeJpg(decodedPerson, quality: 85) : rawPersonBytes;
+      final personBase64 = base64Encode(personJpg);
+
+      // 2. Prepare Suit Template Image
+      final suitPreset = _suitPresets[_selectedSuitKey]!;
+      final ByteData suitByteData = await rootBundle.load(suitPreset.assetPath);
+      final Uint8List rawSuitBytes = suitByteData.buffer.asUint8List();
+      final suitBase64 = base64Encode(rawSuitBytes);
+
+      // 3. Models supporting multimodal generation & editing
+      const candidateModels = [
+        'gemini-2.5-flash-image',
+        'gemini-3-pro-image-preview',
+        'gemini-2.0-flash-exp',
+        'imagen-3.0-generate-002',
+      ];
+
+      Uint8List? generatedImageBytes;
+
+      for (final key in keys) {
+        for (final model in candidateModels) {
+          try {
+            final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key');
+            final requestBody = jsonEncode({
+              'contents': [
+                {
+                  'parts': [
+                    {
+                      'text': 'You are an expert master studio photographer and AI photo editor. Merge these two images to generate a formal studio ID/passport photo. Image 1 is the person. Image 2 is the formal suit/shirt template. The person from Image 1 must naturally wear the suit from Image 2. Maintain the person\'s exact face, facial features, hair, skin tone, ears, and identity with 100% fidelity. Seamlessly fit the suit collar around the person\'s neck and collarbone with realistic lighting and soft shadows. Use a clean formal passport studio background. Return the final composite photo as an image.',
+                    },
+                    {
+                      'inline_data': {
+                        'mime_type': 'image/jpeg',
+                        'data': personBase64,
+                      },
+                    },
+                    {
+                      'inline_data': {
+                        'mime_type': 'image/png',
+                        'data': suitBase64,
+                      },
+                    },
+                  ],
+                },
+              ],
+              'generationConfig': {
+                'responseModalities': ['IMAGE'],
+              },
+            });
+
+            final res = await http.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: requestBody,
+            ).timeout(const Duration(seconds: 45));
+
+            if (res.statusCode == 200) {
+              final data = jsonDecode(res.body);
+              final candidates = data['candidates'] as List?;
+              if (candidates != null && candidates.isNotEmpty) {
+                final parts = candidates[0]['content']?['parts'] as List?;
+                if (parts != null) {
+                  for (final p in parts) {
+                    if (p['inlineData'] != null && p['inlineData']['data'] != null) {
+                      final b64 = p['inlineData']['data'].toString().trim();
+                      generatedImageBytes = base64Decode(b64);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (generatedImageBytes != null && generatedImageBytes.isNotEmpty) {
+                break;
+              }
+            } else {
+              debugPrint('Model $model HTTP ${res.statusCode}: ${res.body}');
+            }
+          } catch (e) {
+            debugPrint('Error with $model: $e');
+          }
+        }
+        if (generatedImageBytes != null && generatedImageBytes.isNotEmpty) {
+          break;
+        }
+      }
+
+      if (generatedImageBytes != null && generatedImageBytes.isNotEmpty) {
+        final tempDir = await getTemporaryDirectory();
+        final outPath = '${tempDir.path}/gemini_fusion_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final outFile = File(outPath);
+        await outFile.writeAsBytes(generatedImageBytes);
+
+        if (!mounted) return;
+
+        setState(() {
+          _imagePath = outFile.path;
+          _cutoutForegroundBytes = null;
+          _selectedSuitKey = null; // Suit is now permanently integrated into photo!
+          _isProcessing = false;
+          _statusText = null;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '✨ Gemini AI បានកាត់តបញ្ចូលអាវទៅក្នុងរូបថតជោគជ័យ ១០០%!',
+                    style: GoogleFonts.kantumruyPro(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFF38BDF8)),
+                const SizedBox(width: 8),
+                Text(
+                  'ព័ត៌មាន Gemini AI Fusion',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'មុខងារកាត់តបញ្ចូលគ្នាតាម Gemini Image Generation ត្រូវការ Gemini API Key ដែលមានភ្ជាប់ Billing (Paid Project)។',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '💡 ដើម្បីទទួលបានរូបភាពស្អាតភ្លាមៗ៖',
+                  style: GoogleFonts.kantumruyPro(color: const Color(0xFF14B8A6), fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '• ប្រើមុខងារ "តម្រឹម AI" (អាវនឹងតម្រឹមកញ្ចឹងក និងស្មាស្វ័យប្រវត្តិ)\n• ឬប្រើម្រាមដៃអូស/ពង្រីកតម្រឹមកអាវតាមចិត្តចង់បានដោយផ្ទាល់។',
+                  style: GoogleFonts.kantumruyPro(color: Colors.white60, fontSize: 12),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('យល់ព្រម', style: GoogleFonts.kantumruyPro(color: const Color(0xFF14B8A6), fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('AI Fusion error: $e');
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _statusText = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingAiMerge = false);
+      }
+    }
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -1398,7 +1623,41 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 ),
               ),
             ),
-            if (_selectedSuitKey != null)
+            if (_selectedSuitKey != null) ...[
+              GestureDetector(
+                onTap: (_isGeneratingAiMerge || _isAutoFittingSuit)
+                    ? null
+                    : () => _generateAiMergedPhotoWithGemini(),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(color: const Color(0xFF6366F1).withValues(alpha: 0.35), blurRadius: 6),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isGeneratingAiMerge)
+                        const SizedBox(
+                          width: 11,
+                          height: 11,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      else
+                        const Icon(Icons.auto_fix_high_rounded, size: 12, color: Colors.white),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isGeneratingAiMerge ? 'កំពុងកាត់ត...' : 'AI Fusion',
+                        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               GestureDetector(
                 onTap: () {
                   setState(() {
@@ -1428,6 +1687,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                   ),
                 ),
               ),
+            ],
           ],
         ),
         const SizedBox(height: 7),
