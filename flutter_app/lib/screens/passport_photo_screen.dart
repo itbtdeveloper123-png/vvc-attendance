@@ -66,8 +66,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   // Virtual Suit State (Percentage normalized for 100% responsiveness)
   SuitCategory _selectedSuitCategory = SuitCategory.all;
   String? _selectedSuitKey;
-  double _suitScale = 1.35; // Default 135% to naturally cover adult shoulders
-  double _suitOffsetY = -13.0; // Default -13% down so collar sits naturally below chin on collarbone
+  double _suitScale = 1.45; // Default 145% to naturally cover adult shoulders
+  double _suitOffsetY = -32.0; // Default -32% down so collar sits naturally at base of neck/collarbone
   double _suitOffsetX = 0.0; // percentage (-50% to +50%)
   bool _hasAutoFittedSuit = false;
   bool _isAutoFittingSuit = false;
@@ -272,24 +272,24 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         final double imgH = decoded.height.toDouble();
 
         _faceChinXNorm = (chinX / imgW).clamp(0.2, 0.8);
-        _faceChinYNorm = (chinY / imgH).clamp(0.25, 0.65);
-        _faceWNorm = (box.width / imgW).clamp(0.20, 0.65);
-        _faceHNorm = (box.height / imgH).clamp(0.18, 0.60);
+        _faceChinYNorm = (chinY / imgH).clamp(0.25, 0.55);
+        _faceWNorm = (box.width / imgW).clamp(0.20, 0.60);
+        _faceHNorm = (box.height / imgH).clamp(0.18, 0.55);
 
         // 1. Natural broad shoulder width calculation (~3.4x face width to fully cover any shirt underneath)
-        _suitScale = (_faceWNorm * 3.4 / 0.95).clamp(1.30, 1.85);
+        _suitScale = (_faceWNorm * 3.4 / 0.95).clamp(1.35, 1.75);
 
         // 2. Horizontal centering directly beneath chin
-        _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-25.0, 25.0);
+        _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-20.0, 20.0);
 
-        // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~38% face height)
-        final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.38);
+        // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~52% face height)
+        final double targetCollarYNorm = (_faceChinYNorm + (_faceHNorm * 0.52)).clamp(0.52, 0.65);
 
         // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
         final double ratio = _selectedPreset.ratio;
         final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
 
-        _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-45.0, 15.0);
+        _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-45.0, -26.0);
         fittedSuccessfully = true;
       }
 
@@ -305,8 +305,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
       // If neither ML Kit nor Gemini detected, apply Studio Standard Proportions
       if (!fittedSuccessfully) {
-        _suitScale = 1.38;
-        _suitOffsetY = -22.0;
+        _suitScale = 1.45;
+        _suitOffsetY = -32.0;
         _suitOffsetX = 0.0;
         fittedSuccessfully = true;
       }
@@ -342,8 +342,8 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       debugPrint('Face detection auto-fit error: $e');
       if (mounted) {
         setState(() {
-          _suitScale = 1.38;
-          _suitOffsetY = -22.0;
+          _suitScale = 1.45;
+          _suitOffsetY = -32.0;
           _suitOffsetX = 0.0;
           _hasAutoFittedSuit = true;
         });
@@ -390,7 +390,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
               {
                 'parts': [
                   {
-                    'text': 'You are an AI Master Studio Tailor for passport/ID portrait photos. Analyze this portrait to find the exact chin line and base of neck/collarbone. The suit collar must sit naturally around the collarbone, well below the chin, with shoulders wide enough to completely cover clothing underneath. Return ONLY valid JSON without markdown: {"suggested_suit_scale": <float 1.30..1.60>, "suggested_suit_offset_y": <float -30.0..-10.0>, "suggested_suit_offset_x": <float -8.0..8.0>}'
+                    'text': 'You are an AI Master Studio Tailor for passport/ID portrait photos. Analyze this portrait to find the exact chin line and base of neck/collarbone. The suit collar must sit naturally around the collarbone, well below the chin, with shoulders wide enough to completely cover clothing underneath. Return ONLY valid JSON without markdown: {"chin_tip_y_ratio": <float 0.35..0.55>, "neck_base_y_ratio": <float 0.52..0.68>, "face_center_x_ratio": <float 0.35..0.65>, "face_width_ratio": <float 0.20..0.45>}'
                   },
                   {
                     'inline_data': {
@@ -419,19 +419,30 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
               final cleanJson = text.replaceAll('```json', '').replaceAll('```', '').trim();
               final parsed = jsonDecode(cleanJson);
               if (parsed is Map) {
-                final scale = (parsed['suggested_suit_scale'] as num?)?.toDouble();
-                final offY = (parsed['suggested_suit_offset_y'] as num?)?.toDouble();
-                final offX = (parsed['suggested_suit_offset_x'] as num?)?.toDouble();
+                final chinY = (parsed['chin_tip_y_ratio'] as num?)?.toDouble() ?? _faceChinYNorm;
+                final neckY = (parsed['neck_base_y_ratio'] as num?)?.toDouble() ?? (_faceChinYNorm + 0.15);
+                final faceW = (parsed['face_width_ratio'] as num?)?.toDouble() ?? _faceWNorm;
+                final centerX = (parsed['face_center_x_ratio'] as num?)?.toDouble() ?? _faceChinXNorm;
 
-                if (scale != null && scale >= 1.25 && scale <= 1.85) {
-                  _suitScale = scale;
+                // 1. Broad shoulder scale: ~3.4x face width
+                _suitScale = (faceW * 3.4 / 0.95).clamp(1.35, 1.75);
+
+                // 2. Horizontal centering directly beneath chin
+                _suitOffsetX = ((centerX - 0.5) * 100.0).clamp(-20.0, 20.0);
+
+                // 3. Collarbone placement: collar must sit at neck base, with clear neck distance below chin
+                double collarY = neckY;
+                if (collarY < chinY + 0.12) {
+                  collarY = chinY + 0.14; // Enforce natural adult neck visible length
                 }
-                if (offY != null && offY >= -40.0 && offY <= -5.0) {
-                  _suitOffsetY = offY;
-                }
-                if (offX != null && offX >= -18.0 && offX <= 18.0) {
-                  _suitOffsetX = offX;
-                }
+                collarY = collarY.clamp(0.52, 0.65);
+
+                final double ratio = _selectedPreset.ratio;
+                final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
+
+                // Formula: topNorm = 1.0 - (offsetY / 100.0 + suitHNorm) = collarY
+                _suitOffsetY = ((1.0 - collarY - suitHNorm) * 100.0).clamp(-45.0, -26.0);
+
                 if (mounted) setState(() {});
                 return true; // Succeeded!
               }
@@ -1392,9 +1403,9 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 onTap: () {
                   setState(() {
                     _selectedSuitKey = null;
-                    _suitScale = 1.0;
+                    _suitScale = 1.45;
                     _suitOffsetX = 0.0;
-                    _suitOffsetY = 0.0;
+                    _suitOffsetY = -32.0;
                   });
                 },
                 child: Container(
