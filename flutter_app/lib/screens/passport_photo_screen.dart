@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -69,6 +70,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   double _suitOffsetY = -13.0; // Default -13% down so collar sits naturally below chin on collarbone
   double _suitOffsetX = 0.0; // percentage (-50% to +50%)
   bool _hasAutoFittedSuit = false;
+  bool _isAutoFittingSuit = false;
 
   // Gesture baselines for smooth drag & pinch
   double _baseScale = 1.0;
@@ -184,109 +186,200 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   }
 
   /// Accurate face detection, auto-straighten & natural neckline auto-alignment
-  Future<void> _detectFaceAndAutoFitSuit() async {
+  Future<void> _detectFaceAndAutoFitSuit({bool showFeedback = false}) async {
     if (_imagePath == null) return;
+    if (_isAutoFittingSuit) return;
+
+    if (mounted) setState(() => _isAutoFittingSuit = true);
+
     try {
       final inputImage = InputImage.fromFilePath(_imagePath!);
-      final options = FaceDetectorOptions(
-        performanceMode: FaceDetectorMode.accurate,
-        enableLandmarks: true,
-        enableContours: true,
-      );
-      final faceDetector = FaceDetector(options: options);
-      final faces = await faceDetector.processImage(inputImage);
-      faceDetector.close();
+      Face? detectedFace;
+      FaceDetector? faceDetector;
 
-      if (faces.isNotEmpty) {
-        final face = faces.first;
-        final box = face.boundingBox;
+      // Pass 1: Try Accurate mode with landmarks (safe: no contours to avoid ML Kit crash)
+      try {
+        final options = FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
+          enableLandmarks: true,
+        );
+        faceDetector = FaceDetector(options: options);
+        final faces = await faceDetector.processImage(inputImage);
+        if (faces.isNotEmpty) {
+          detectedFace = faces.first;
+        }
+      } catch (e) {
+        debugPrint('ML Kit accurate face detection error: $e');
+      } finally {
+        faceDetector?.close();
+      }
 
-        final imageBytes = await File(_imagePath!).readAsBytes();
-        final decoded = img.decodeImage(imageBytes);
-        if (decoded != null) {
-          double chinY = box.bottom;
-          double chinX = box.left + (box.width / 2.0);
+      // Pass 2: Fallback to Fast mode with contours if no face found yet
+      if (detectedFace == null) {
+        try {
+          final fastOptions = FaceDetectorOptions(
+            performanceMode: FaceDetectorMode.fast,
+            enableContours: true,
+          );
+          faceDetector = FaceDetector(options: fastOptions);
+          final faces = await faceDetector.processImage(inputImage);
+          if (faces.isNotEmpty) {
+            detectedFace = faces.first;
+          }
+        } catch (e) {
+          debugPrint('ML Kit fast face detection error: $e');
+        } finally {
+          faceDetector?.close();
+        }
+      }
 
-          final faceContour = face.contours[FaceContourType.face]?.points;
-          if (faceContour != null && faceContour.isNotEmpty) {
-            double maxContourY = -1;
-            int chinIndex = -1;
-            for (int i = 0; i < faceContour.length; i++) {
-              if (faceContour[i].y.toDouble() > maxContourY) {
-                maxContourY = faceContour[i].y.toDouble();
-                chinIndex = i;
-              }
-            }
-            if (chinIndex != -1) {
-              chinY = maxContourY;
-              chinX = faceContour[chinIndex].x.toDouble();
+      final imageBytes = await File(_imagePath!).readAsBytes();
+      img.Image? decoded = img.decodeImage(imageBytes);
+      if (decoded != null) {
+        decoded = img.bakeOrientation(decoded);
+      }
+
+      bool fittedSuccessfully = false;
+
+      if (detectedFace != null && decoded != null) {
+        final box = detectedFace.boundingBox;
+        double chinY = box.bottom;
+        double chinX = box.left + (box.width / 2.0);
+
+        // Check contours if available
+        final faceContour = detectedFace.contours[FaceContourType.face]?.points;
+        if (faceContour != null && faceContour.isNotEmpty) {
+          double maxContourY = -1;
+          int chinIndex = -1;
+          for (int i = 0; i < faceContour.length; i++) {
+            if (faceContour[i].y.toDouble() > maxContourY) {
+              maxContourY = faceContour[i].y.toDouble();
+              chinIndex = i;
             }
           }
+          if (chinIndex != -1) {
+            chinY = maxContourY;
+            chinX = faceContour[chinIndex].x.toDouble();
+          }
+        } else if (detectedFace.landmarks[FaceLandmarkType.bottomMouth] != null) {
+          final mouthY = detectedFace.landmarks[FaceLandmarkType.bottomMouth]!.position.y.toDouble();
+          if (mouthY > chinY - (box.height * 0.15)) {
+            chinY = mouthY + (box.height * 0.18);
+          }
+        }
 
-          _faceChinXNorm = (chinX / decoded.width).clamp(0.2, 0.8);
-          _faceChinYNorm = (chinY / decoded.height).clamp(0.2, 0.7);
-          _faceWNorm = (box.width / decoded.width).clamp(0.15, 0.65);
-          _faceHNorm = (box.height / decoded.height).clamp(0.15, 0.65);
+        final double imgW = decoded.width.toDouble();
+        final double imgH = decoded.height.toDouble();
 
-          // 1. Natural broad shoulder width calculation (~3.6x face width to fully cover any shirt underneath)
-          _suitScale = (_faceWNorm * 3.6 / 0.95).clamp(1.30, 1.95);
+        _faceChinXNorm = (chinX / imgW).clamp(0.2, 0.8);
+        _faceChinYNorm = (chinY / imgH).clamp(0.25, 0.65);
+        _faceWNorm = (box.width / imgW).clamp(0.20, 0.65);
+        _faceHNorm = (box.height / imgH).clamp(0.18, 0.60);
 
-          // 2. Horizontal centering directly beneath chin
-          _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-30.0, 30.0);
+        // 1. Natural broad shoulder width calculation (~3.4x face width to fully cover any shirt underneath)
+        _suitScale = (_faceWNorm * 3.4 / 0.95).clamp(1.30, 1.85);
 
-          // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~40% face height)
-          final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.40);
+        // 2. Horizontal centering directly beneath chin
+        _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-25.0, 25.0);
 
-          // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
-          final double ratio = _selectedPreset.ratio;
-          final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
+        // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~38% face height)
+        final double targetCollarYNorm = _faceChinYNorm + (_faceHNorm * 0.38);
 
-          _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-45.0, 25.0);
+        // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
+        final double ratio = _selectedPreset.ratio;
+        final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
 
-          // 4. Try Gemini AI Vision Tailor for advanced landmark refinement if keys available
-          try {
-            await _refineSuitWithGeminiAi(imageBytes);
-          } catch (_) {}
+        _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-45.0, 15.0);
+        fittedSuccessfully = true;
+      }
 
-          _hasAutoFittedSuit = true;
-          if (mounted) {
-            setState(() {});
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.auto_awesome, color: Color(0xFF14B8A6), size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'AI បានតម្រឹមកអាវ និងស្មាស្វ័យប្រវត្តិតាមទម្រង់ក!',
-                        style: GoogleFonts.kantumruyPro(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
+      // Try Gemini AI Vision Tailor (Refinement or Fallback if ML Kit failed)
+      try {
+        final geminiOk = await _refineSuitWithGeminiAi(imageBytes, decoded: decoded);
+        if (geminiOk) {
+          fittedSuccessfully = true;
+        }
+      } catch (e) {
+        debugPrint('Gemini tailor error: $e');
+      }
+
+      // If neither ML Kit nor Gemini detected, apply Studio Standard Proportions
+      if (!fittedSuccessfully) {
+        _suitScale = 1.38;
+        _suitOffsetY = -22.0;
+        _suitOffsetX = 0.0;
+        fittedSuccessfully = true;
+      }
+
+      _hasAutoFittedSuit = true;
+      if (mounted) {
+        setState(() {});
+        if (showFeedback) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: Color(0xFF14B8A6), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '✨ AI បានតម្រឹមកអាវ និងស្មាស្វ័យប្រវត្តិតាមទម្រង់ក!',
+                      style: GoogleFonts.kantumruyPro(fontSize: 12, fontWeight: FontWeight.bold),
                     ),
-                  ],
-                ),
-                backgroundColor: const Color(0xFF1E293B),
-                duration: const Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ],
               ),
-            );
-          }
+              backgroundColor: const Color(0xFF1E293B),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
         }
       }
     } catch (e) {
       debugPrint('Face detection auto-fit error: $e');
+      if (mounted) {
+        setState(() {
+          _suitScale = 1.38;
+          _suitOffsetY = -22.0;
+          _suitOffsetX = 0.0;
+          _hasAutoFittedSuit = true;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAutoFittingSuit = false);
+      }
     }
   }
 
   /// Automated Gemini AI Vision Smart Tailor: analyzes chin & neck base for 100% natural fitting
-  Future<void> _refineSuitWithGeminiAi(Uint8List imageBytes) async {
+  Future<bool> _refineSuitWithGeminiAi(Uint8List imageBytes, {img.Image? decoded}) async {
     final keys = await GeminiOcrService.getAvailableGeminiKeys();
-    if (keys.isEmpty) return;
+    if (keys.isEmpty) return false;
 
-    final b64 = base64Encode(imageBytes);
-    const candidateModels = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-flash-latest'];
+    // High performance compression for mobile 4G/5G (< 50KB payload)
+    Uint8List compressedBytes = imageBytes;
+    try {
+      img.Image? im = decoded ?? img.decodeImage(imageBytes);
+      if (im != null) {
+        im = img.bakeOrientation(im);
+        if (im.width > 600) {
+          im = img.copyResize(im, width: 600);
+        }
+        compressedBytes = Uint8List.fromList(img.encodeJpg(im, quality: 80));
+      }
+    } catch (_) {}
+
+    final b64 = base64Encode(compressedBytes);
+    const candidateModels = [
+      'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-flash-latest',
+    ];
 
     for (final key in keys.take(3)) {
       for (final model in candidateModels) {
@@ -297,7 +390,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
               {
                 'parts': [
                   {
-                    'text': 'You are an AI Master Studio Tailor for passport/ID portrait photos. Analyze this portrait to find the exact chin line and base of neck/collarbone. The suit collar must sit naturally around the collarbone, well below the chin, with shoulders wide enough to completely cover clothing underneath. Return ONLY valid JSON without markdown: {"collar_y_ratio": <float 0.45..0.65>, "suggested_suit_scale": <float 1.30..1.55>, "suggested_suit_offset_y": <float -22.0..-8.0>, "suggested_suit_offset_x": <float -5.0..5.0>}'
+                    'text': 'You are an AI Master Studio Tailor for passport/ID portrait photos. Analyze this portrait to find the exact chin line and base of neck/collarbone. The suit collar must sit naturally around the collarbone, well below the chin, with shoulders wide enough to completely cover clothing underneath. Return ONLY valid JSON without markdown: {"suggested_suit_scale": <float 1.30..1.60>, "suggested_suit_offset_y": <float -30.0..-10.0>, "suggested_suit_offset_x": <float -8.0..8.0>}'
                   },
                   {
                     'inline_data': {
@@ -317,7 +410,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
             url,
             headers: {'Content-Type': 'application/json'},
             body: requestBody,
-          ).timeout(const Duration(seconds: 8));
+          ).timeout(const Duration(seconds: 7));
 
           if (res.statusCode == 200) {
             final data = jsonDecode(res.body);
@@ -330,17 +423,17 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 final offY = (parsed['suggested_suit_offset_y'] as num?)?.toDouble();
                 final offX = (parsed['suggested_suit_offset_x'] as num?)?.toDouble();
 
-                if (scale != null && scale >= 1.25 && scale <= 1.70) {
+                if (scale != null && scale >= 1.25 && scale <= 1.85) {
                   _suitScale = scale;
                 }
-                if (offY != null && offY >= -35.0 && offY <= 0.0) {
+                if (offY != null && offY >= -40.0 && offY <= -5.0) {
                   _suitOffsetY = offY;
                 }
-                if (offX != null && offX >= -15.0 && offX <= 15.0) {
+                if (offX != null && offX >= -18.0 && offX <= 18.0) {
                   _suitOffsetX = offX;
                 }
                 if (mounted) setState(() {});
-                return; // Succeeded!
+                return true; // Succeeded!
               }
             }
           }
@@ -349,6 +442,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         }
       }
     }
+    return false;
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -425,7 +519,26 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
 
     try {
       final imageFile = File(_imagePath!);
-      final imageBytes = await imageFile.readAsBytes();
+      Uint8List imageBytes = await imageFile.readAsBytes();
+
+      // Optimize image size (< 1200px) for fast and reliable cloud AI processing
+      try {
+        img.Image? decoded = img.decodeImage(imageBytes);
+        if (decoded != null) {
+          decoded = img.bakeOrientation(decoded);
+          if (decoded.width > 1200 || decoded.height > 1200) {
+            decoded = img.copyResize(
+              decoded,
+              width: decoded.width > decoded.height ? 1200 : null,
+              height: decoded.height >= decoded.width ? 1200 : null,
+            );
+            imageBytes = Uint8List.fromList(img.encodeJpg(decoded, quality: 90));
+          }
+        }
+      } catch (e) {
+        debugPrint('Image downsampling error: $e');
+      }
+
       Uint8List? resultBytes;
       String engineUsed = 'Remove.bg';
 
@@ -477,7 +590,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         });
 
         // Run auto-fit once in background
-        _detectFaceAndAutoFitSuit();
+        _detectFaceAndAutoFitSuit(showFeedback: false);
 
         if (showToast && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -506,12 +619,18 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
             _isProcessing = false;
             _statusText = null;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('មិនអាចកាត់ Background បានទេ សូមពិនិត្យ Internet ឬ API Keys', style: GoogleFonts.kantumruyPro()),
-              backgroundColor: Colors.orange,
-            ),
-          );
+
+          // Always ensure suit auto-fit runs even if background removal fails
+          _detectFaceAndAutoFitSuit(showFeedback: false);
+
+          if (showToast) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('មិនអាចកាត់ Background បានទេ នឹងប្រើប្រាស់រូបភាពដើម។', style: GoogleFonts.kantumruyPro()),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -520,6 +639,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           _isProcessing = false;
           _statusText = null;
         });
+        _detectFaceAndAutoFitSuit(showFeedback: false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('កំហុស៖ $e', style: GoogleFonts.kantumruyPro()), backgroundColor: Colors.red),
         );
@@ -1330,10 +1450,12 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
               children: [
                 // Auto-Fit AI Button
                 InkWell(
-                  onTap: () async {
-                    _hasAutoFittedSuit = false;
-                    await _detectFaceAndAutoFitSuit();
-                  },
+                  onTap: _isAutoFittingSuit
+                      ? null
+                      : () async {
+                          _hasAutoFittedSuit = false;
+                          await _detectFaceAndAutoFitSuit(showFeedback: true);
+                        },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -1344,10 +1466,17 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.auto_awesome, color: Colors.white, size: 13),
+                        if (_isAutoFittingSuit)
+                          const SizedBox(
+                            width: 13,
+                            height: 13,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        else
+                          const Icon(Icons.auto_awesome, color: Colors.white, size: 13),
                         const SizedBox(width: 4),
                         Text(
-                          'តម្រឹម AI',
+                          _isAutoFittingSuit ? 'កំពុងតម្រឹម...' : 'តម្រឹម AI',
                           style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -1483,7 +1612,9 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         setState(() {
           _selectedSuitKey = key;
         });
-        _detectFaceAndAutoFitSuit();
+        if (!_hasAutoFittedSuit || _suitOffsetY == 0.0 || _suitScale == 1.0) {
+          _detectFaceAndAutoFitSuit(showFeedback: false);
+        }
       },
       child: Container(
         width: 76,
@@ -1695,6 +1826,9 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           child: GestureDetector(
             onTap: () {
               setState(() => _selectedPreset = preset);
+              if (_selectedSuitKey != null) {
+                _detectFaceAndAutoFitSuit(showFeedback: false);
+              }
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
