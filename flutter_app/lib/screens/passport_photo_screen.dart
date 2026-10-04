@@ -67,7 +67,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
   SuitCategory _selectedSuitCategory = SuitCategory.all;
   String? _selectedSuitKey;
   double _suitScale = 1.45; // Default 145% to naturally cover adult shoulders
-  double _suitOffsetY = -32.0; // Default -32% down so collar sits naturally at base of neck/collarbone
+  double _suitOffsetY = -12.0; // Naturally hugs the base of neck/collarbone
   double _suitOffsetX = 0.0; // percentage (-50% to +50%)
   bool _hasAutoFittedSuit = false;
   bool _isAutoFittingSuit = false;
@@ -277,20 +277,20 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         _faceWNorm = (box.width / imgW).clamp(0.20, 0.60);
         _faceHNorm = (box.height / imgH).clamp(0.18, 0.55);
 
-        // 1. Natural broad shoulder width calculation (~3.4x face width to fully cover any shirt underneath)
-        _suitScale = (_faceWNorm * 3.4 / 0.95).clamp(1.35, 1.75);
+        // 1. Natural broad shoulder width calculation (~3.3x face width to fully cover any shirt underneath)
+        _suitScale = (_faceWNorm * 3.3 / 0.95).clamp(1.30, 1.70);
 
         // 2. Horizontal centering directly beneath chin
         _suitOffsetX = ((_faceChinXNorm - 0.5) * 100.0).clamp(-20.0, 20.0);
 
-        // 3. Vertical neckline placement (Collar sits naturally at base of neck/collarbone: chin + ~52% face height)
-        final double targetCollarYNorm = (_faceChinYNorm + (_faceHNorm * 0.52)).clamp(0.52, 0.65);
+        // 3. Vertical neckline placement: collar wraps closely below chin (~3-5% of image height) to conceal old shirt
+        final double targetCollarYNorm = (_faceChinYNorm + (_faceHNorm * 0.12)).clamp(0.35, 0.55);
 
         // Calculate suit height ratio relative to canvas (aspect ratio 4:6 = 0.6667)
         final double ratio = _selectedPreset.ratio;
         final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
 
-        _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-45.0, -26.0);
+        _suitOffsetY = ((1.0 - targetCollarYNorm - suitHNorm) * 100.0).clamp(-25.0, 10.0);
         fittedSuccessfully = true;
       }
 
@@ -307,7 +307,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       // If neither ML Kit nor Gemini detected, apply Studio Standard Proportions
       if (!fittedSuccessfully) {
         _suitScale = 1.45;
-        _suitOffsetY = -32.0;
+        _suitOffsetY = -12.0;
         _suitOffsetX = 0.0;
         fittedSuccessfully = true;
       }
@@ -344,7 +344,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
       if (mounted) {
         setState(() {
           _suitScale = 1.45;
-          _suitOffsetY = -32.0;
+          _suitOffsetY = -12.0;
           _suitOffsetX = 0.0;
           _hasAutoFittedSuit = true;
         });
@@ -425,24 +425,24 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                 final faceW = (parsed['face_width_ratio'] as num?)?.toDouble() ?? _faceWNorm;
                 final centerX = (parsed['face_center_x_ratio'] as num?)?.toDouble() ?? _faceChinXNorm;
 
-                // 1. Broad shoulder scale: ~3.4x face width
-                _suitScale = (faceW * 3.4 / 0.95).clamp(1.35, 1.75);
+                // 1. Broad shoulder scale: ~3.3x face width
+                _suitScale = (faceW * 3.3 / 0.95).clamp(1.30, 1.70);
 
                 // 2. Horizontal centering directly beneath chin
                 _suitOffsetX = ((centerX - 0.5) * 100.0).clamp(-20.0, 20.0);
 
-                // 3. Collarbone placement: collar must sit at neck base, with clear neck distance below chin
-                double collarY = neckY;
-                if (collarY < chinY + 0.12) {
-                  collarY = chinY + 0.14; // Enforce natural adult neck visible length
+                // 3. Collar placement: collar sits closely below chin to cleanly conceal old clothes
+                double collarY = chinY + 0.04;
+                if (neckY > chinY && neckY < chinY + 0.10) {
+                  collarY = neckY * 0.85 + (chinY + 0.04) * 0.15;
                 }
-                collarY = collarY.clamp(0.52, 0.65);
+                collarY = collarY.clamp(0.35, 0.55);
 
                 final double ratio = _selectedPreset.ratio;
                 final double suitHNorm = ratio * 0.95 * _suitScale * (600.0 / 740.0);
 
                 // Formula: topNorm = 1.0 - (offsetY / 100.0 + suitHNorm) = collarY
-                _suitOffsetY = ((1.0 - collarY - suitHNorm) * 100.0).clamp(-45.0, -26.0);
+                _suitOffsetY = ((1.0 - collarY - suitHNorm) * 100.0).clamp(-25.0, 10.0);
 
                 if (mounted) setState(() {});
                 return true; // Succeeded!
@@ -1664,7 +1664,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
                     _selectedSuitKey = null;
                     _suitScale = 1.45;
                     _suitOffsetX = 0.0;
-                    _suitOffsetY = -32.0;
+                    _suitOffsetY = -12.0;
                   });
                 },
                 child: Container(
@@ -1883,7 +1883,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
         setState(() {
           _selectedSuitKey = key;
         });
-        if (!_hasAutoFittedSuit || _suitOffsetY == 0.0 || _suitScale == 1.0) {
+        if (!_hasAutoFittedSuit || _suitOffsetY == -12.0 || _suitOffsetY <= -26.0) {
           _detectFaceAndAutoFitSuit(showFeedback: false);
         }
       },
@@ -1962,7 +1962,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white70, size: 15),
           onPressed: () {
-            setState(() => _suitOffsetX -= 1.0);
+            setState(() => _suitOffsetX -= 2.0);
           },
           tooltip: 'រំកិលឆ្វេង',
         ),
@@ -1971,7 +1971,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white70, size: 15),
           onPressed: () {
-            setState(() => _suitOffsetX += 1.0);
+            setState(() => _suitOffsetX += 2.0);
           },
           tooltip: 'រំកិលស្តាំ',
         ),
@@ -1980,7 +1980,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           icon: const Icon(Icons.arrow_upward_rounded, color: Colors.white70, size: 15),
           onPressed: () {
-            setState(() => _suitOffsetY += 1.0);
+            setState(() => _suitOffsetY += 2.0);
           },
           tooltip: 'លើកឡើងលើ',
         ),
@@ -1989,7 +1989,7 @@ class _PassportPhotoScreenState extends State<PassportPhotoScreen> {
           constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           icon: const Icon(Icons.arrow_downward_rounded, color: Colors.white70, size: 15),
           onPressed: () {
-            setState(() => _suitOffsetY -= 1.0);
+            setState(() => _suitOffsetY -= 2.0);
           },
           tooltip: 'ទម្លាក់ចុះក្រោម',
         ),
