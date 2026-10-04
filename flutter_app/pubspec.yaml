@@ -83,6 +83,7 @@ dependencies:
   tflite_flutter: ^0.11.0
   gal: ^2.3.3
   archive: ^4.0.9
+  device_info_plus: ^12.4.0
 
 dev_dependencies:
   flutter_test:
@@ -123,6 +124,22 @@ flutter:
         - asset: assets/fonts/KantumruyPro-Bold.ttf
           weight: 700
 
+    - family: KantumruyPro
+      fonts:
+        - asset: assets/fonts/KantumruyPro-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/KantumruyPro-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/KantumruyPro-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/KantumruyPro-Bold.ttf
+          weight: 700
+
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Variable.ttf
+
     - family: Tacteing
       fonts:
         - asset: assets/fonts/Tacteing.ttf
+

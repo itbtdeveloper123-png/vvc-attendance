@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_theme.dart';
+import '../utils/app_palette.dart';
+import '../utils/perf_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. GLASS ORB BACKGROUND (Ambient Optical Refraction Canvas)
@@ -57,17 +59,19 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.baseColor ?? AppTheme.bgDark;
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = widget.baseColor ?? palette.background;
     final goldColor = widget.primaryOrbColor ?? AppTheme.primary;
     final blueColor = widget.secondaryOrbColor ?? const Color(0xFF2563EB);
     final purpleColor = widget.accentOrbColor ?? const Color(0xFF8B5CF6);
 
-    final bool isLight = bg.computeLuminance() > 0.4;
+    final bool isLight = !isDark;
     final List<Color> bgColors = isLight
-        ? const [
-            Color(0xFFF8FAFC),
-            Color(0xFFF1F5F9),
-            Color(0xFFEFF6FF),
+        ? [
+            palette.background,
+            palette.cardSurface,
+            const Color(0xFFEFF6FF),
           ]
         : [
             bg,
@@ -75,10 +79,12 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
             Color.lerp(bg, const Color(0xFF020617), 0.9) ?? bg,
           ];
 
-    final double topGoldAlpha = isLight ? 0.18 : widget.orbOpacity;
-    final double midSkyAlpha = isLight ? 0.09 : widget.orbOpacity * 0.9;
-    final double warmAccentAlpha = isLight ? 0.11 : widget.orbOpacity * 0.85;
-    final double bottomAccentAlpha = isLight ? 0.08 : widget.orbOpacity * 0.75;
+    final double topGoldAlpha = isLight ? 0.14 : widget.orbOpacity;
+    final double midSkyAlpha = isLight ? 0.08 : widget.orbOpacity * 0.9;
+    final double warmAccentAlpha = isLight ? 0.09 : widget.orbOpacity * 0.85;
+    final double bottomAccentAlpha = isLight ? 0.06 : widget.orbOpacity * 0.75;
+
+    final shouldAnimate = widget.animate && !PerfConfig.isLowEndDevice;
 
     return Scaffold(
       backgroundColor: bg,
@@ -96,8 +102,8 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
             ),
           ),
 
-          // Dynamic Ambient Glowing Orbs
-          if (widget.animate)
+          // Dynamic Ambient Glowing Orbs (Static on low-end devices to eliminate jank)
+          if (shouldAnimate)
             AnimatedBuilder(
               animation: _controller,
               builder: (context, _) {
@@ -114,7 +120,7 @@ class _GlassOrbBackgroundState extends State<GlassOrbBackground>
                         opacity: topGoldAlpha,
                       ),
                     ),
-                    // Top-Left Soft Sky Glow Orb (for iOS acrylic optical depth)
+                    // Top-Left Soft Sky Glow Orb
                     Positioned(
                       top: 140 - (progress * 35),
                       left: -80 + (progress * 25),
@@ -255,11 +261,14 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTint = tintColor ?? Colors.white;
-    final bool isDark = baseTint.computeLuminance() < 0.2;
-    final double effOpacity = isDark ? (opacity < 0.3 ? opacity : 0.20) : opacity;
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseTint = tintColor ?? palette.card;
+    final double effOpacity = isDark
+        ? (opacity < 0.3 ? opacity : 0.22)
+        : (opacity > 0.85 ? 0.95 : (opacity < 0.3 ? 0.88 : opacity));
 
-    // Clean, natural border: uses uniform borderColor if provided, or smooth specular gradient
+    // Clean, natural border: uses uniform borderColor if provided, or high-contrast palette border
     final effectiveBorderGrad = borderGradient ??
         (borderColor != null
             ? LinearGradient(
@@ -268,12 +277,19 @@ class GlassCard extends StatelessWidget {
             : LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: isDark ? 0.25 : 0.90),
-                  Colors.white.withValues(alpha: isDark ? 0.15 : 0.50),
-                  Colors.white.withValues(alpha: isDark ? 0.08 : 0.25),
-                  Colors.white.withValues(alpha: isDark ? 0.18 : 0.65),
-                ],
+                colors: isDark
+                    ? [
+                        Colors.white.withValues(alpha: 0.18),
+                        Colors.white.withValues(alpha: 0.10),
+                        Colors.white.withValues(alpha: 0.05),
+                        Colors.white.withValues(alpha: 0.12),
+                      ]
+                    : [
+                        palette.border.withValues(alpha: 0.90),
+                        palette.border.withValues(alpha: 0.60),
+                        palette.border.withValues(alpha: 0.40),
+                        palette.border.withValues(alpha: 0.80),
+                      ],
                 stops: const [0.0, 0.4, 0.75, 1.0],
               ));
 
@@ -281,11 +297,17 @@ class GlassCard extends StatelessWidget {
     final innerSurfaceGrad = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        baseTint.withValues(alpha: (effOpacity * 1.05).clamp(0.0, 0.96)),
-        baseTint.withValues(alpha: effOpacity.clamp(0.0, 0.92)),
-        baseTint.withValues(alpha: (effOpacity * 0.90).clamp(0.0, 0.88)),
-      ],
+      colors: isDark
+          ? [
+              baseTint.withValues(alpha: (effOpacity * 1.05).clamp(0.0, 0.96)),
+              baseTint.withValues(alpha: effOpacity.clamp(0.0, 0.92)),
+              baseTint.withValues(alpha: (effOpacity * 0.90).clamp(0.0, 0.88)),
+            ]
+          : [
+              baseTint.withValues(alpha: 0.98),
+              baseTint.withValues(alpha: 0.94),
+              baseTint.withValues(alpha: 0.92),
+            ],
       stops: const [0.0, 0.5, 1.0],
     );
 
@@ -299,6 +321,24 @@ class GlassCard extends StatelessWidget {
       child: child,
     );
 
+    final bool enableBlur = PerfConfig.shouldEnableBlur(context);
+
+    Widget frostedCore = CustomPaint(
+      painter: _GlassBorderPainter(
+        borderRadius: borderRadius,
+        borderWidth: borderWidth,
+        gradient: effectiveBorderGrad,
+      ),
+      child: cardContent,
+    );
+
+    Widget surface = enableBlur
+        ? BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: frostedCore,
+          )
+        : frostedCore;
+
     Widget cardBody = Container(
       margin: margin,
       decoration: BoxDecoration(
@@ -306,9 +346,11 @@ class GlassCard extends StatelessWidget {
         boxShadow: [
           // Ambient depth shadow
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: isDark
+                ? const Color(0xFF0F172A).withValues(alpha: 0.25)
+                : const Color(0xFF64748B).withValues(alpha: 0.08),
+            blurRadius: isDark ? 16 : 10,
+            offset: const Offset(0, 3),
           ),
           // Glow shadow if configured
           if (glowColor != null)
@@ -321,17 +363,7 @@ class GlassCard extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: CustomPaint(
-            painter: _GlassBorderPainter(
-              borderRadius: borderRadius,
-              borderWidth: borderWidth,
-              gradient: effectiveBorderGrad,
-            ),
-            child: cardContent,
-          ),
-        ),
+        child: surface,
       ),
     );
 
@@ -429,8 +461,68 @@ class _GlassButtonState extends State<GlassButton> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeColor = widget.color ?? AppTheme.primary;
-    final textCol = widget.textColor ?? Colors.white;
+    final textCol = widget.textColor ??
+        (widget.color != null
+            ? (themeColor.computeLuminance() > 0.5 ? const Color(0xFF0F172A) : Colors.white)
+            : (isDark ? Colors.white : palette.textPrimary));
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
+
+    Widget innerBtn = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? [
+                  themeColor.withValues(alpha: 0.35),
+                  themeColor.withValues(alpha: 0.18),
+                ]
+              : [
+                  themeColor.withValues(alpha: 0.15),
+                  themeColor.withValues(alpha: 0.08),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        border: Border.all(
+          color: themeColor.withValues(alpha: isDark ? 0.45 : 0.35),
+          width: 1.2,
+        ),
+      ),
+      child: Center(
+        child: widget.isLoading
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  valueColor: AlwaysStoppedAnimation<Color>(textCol),
+                ),
+              )
+            : widget.child ??
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (widget.icon != null) ...[
+                      Icon(widget.icon, color: textCol, size: 18),
+                      const SizedBox(width: 8),
+                    ],
+                    if (widget.label != null)
+                      Text(
+                        widget.label!,
+                        style: GoogleFonts.kantumruyPro(
+                          color: textCol,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
+      ),
+    );
 
     return AnimatedScale(
       scale: _isPressed ? 0.96 : 1.0,
@@ -466,7 +558,7 @@ class _GlassButtonState extends State<GlassButton> {
             boxShadow: widget.glow
                 ? [
                     BoxShadow(
-                      color: themeColor.withValues(alpha: 0.28),
+                      color: themeColor.withValues(alpha: isDark ? 0.28 : 0.15),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -475,57 +567,12 @@ class _GlassButtonState extends State<GlassButton> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(widget.borderRadius),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      themeColor.withValues(alpha: 0.32),
-                      themeColor.withValues(alpha: 0.18),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(widget.borderRadius),
-                  border: Border.all(
-                    color: themeColor.withValues(alpha: 0.45),
-                    width: 1.2,
-                  ),
-                ),
-                child: Center(
-                  child: widget.isLoading
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            valueColor: AlwaysStoppedAnimation<Color>(textCol),
-                          ),
-                        )
-                      : widget.child ??
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (widget.icon != null) ...[
-                                Icon(widget.icon, color: textCol, size: 18),
-                                const SizedBox(width: 8),
-                              ],
-                              if (widget.label != null)
-                                Text(
-                                  widget.label!,
-                                  style: GoogleFonts.kantumruyPro(
-                                    color: textCol,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                            ],
-                          ),
-                ),
-              ),
-            ),
+            child: enableBlur
+                ? BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: innerBtn,
+                  )
+                : innerBtn,
           ),
         ),
       ),
@@ -559,42 +606,53 @@ class GlassChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = color ?? Colors.white;
-    final textCol = textColor ?? (color ?? AppTheme.textPrimary);
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = color ?? (isDark ? Colors.white : palette.card);
+    final textCol = textColor ?? (color ?? palette.textPrimary);
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
+
+    Widget chipCore = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: isDark
+            ? baseColor.withValues(alpha: 0.12)
+            : (color != null ? color!.withValues(alpha: 0.12) : palette.cardSurface),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: isDark
+              ? baseColor.withValues(alpha: 0.28)
+              : (color != null ? color!.withValues(alpha: 0.35) : palette.border),
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            icon!,
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: GoogleFonts.kantumruyPro(
+              color: textCol,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
 
     Widget chip = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: baseColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: baseColor.withValues(alpha: 0.28),
-              width: 1.0,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                icon!,
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: GoogleFonts.kantumruyPro(
-                  color: textCol,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: enableBlur
+          ? BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+              child: chipCore,
+            )
+          : chipCore,
     );
 
     if (onTap != null) {
@@ -639,28 +697,41 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = color ?? Colors.white;
+    final palette = context.palette;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = color ?? (isDark ? Colors.white : palette.card);
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
+
+    Widget innerContainer = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: isDark
+            ? baseColor.withValues(alpha: 0.08)
+            : palette.card.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: borderColor ??
+              (isDark
+                  ? baseColor.withValues(alpha: 0.18)
+                  : palette.border),
+          width: 1.0,
+        ),
+      ),
+      child: child,
+    );
+
     return Container(
       width: width,
       height: height,
       margin: margin,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: baseColor.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(
-                color: borderColor ?? baseColor.withValues(alpha: 0.18),
-                width: 1.0,
-              ),
-            ),
-            child: child,
-          ),
-        ),
+        child: enableBlur
+            ? BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                child: innerContainer,
+              )
+            : innerContainer,
       ),
     );
   }

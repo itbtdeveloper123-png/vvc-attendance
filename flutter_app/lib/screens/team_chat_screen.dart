@@ -486,20 +486,24 @@ class _TeamChatScreenState extends State<TeamChatScreen>
   }
 
   Widget _buildBackground() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Positioned.fill(
       child: Container(
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0.6, -0.8),
-            radius: 1.4,
-            colors: [
-              const Color(0xFF1a2744).withValues(alpha: 0.9),
-              AppTheme.bgSurface,
-            ],
-          ),
+          color: isDark ? null : const Color(0xFFF8FAFC),
+          gradient: isDark
+              ? RadialGradient(
+                  center: const Alignment(0.6, -0.8),
+                  radius: 1.4,
+                  colors: [
+                    const Color(0xFF1a2744).withValues(alpha: 0.9),
+                    AppTheme.bgSurface,
+                  ],
+                )
+              : null,
         ),
         child: CustomPaint(
-          painter: _ChatBackgroundPainter(),
+          painter: _ChatBackgroundPainter(isDark: isDark),
         ),
       ),
     );
@@ -1266,14 +1270,15 @@ class _TeamChatScreenState extends State<TeamChatScreen>
   }
 
   Widget _buildInputArea() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       constraints: const BoxConstraints(minHeight: 65),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.96),
+        color: isDark ? const Color(0xFF0F172A).withValues(alpha: 0.96) : Colors.white,
         border: Border(
           top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
             width: 0.5,
           ),
         ),
@@ -1500,17 +1505,17 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                             maxHeight: 120,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                             borderRadius: BorderRadius.circular(22),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFCBD5E1),
                               width: 0.8,
                             ),
                           ),
                           child: TextField(
                             controller: _msgController,
                             style: GoogleFonts.kantumruyPro(
-                              color: Colors.white,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
                               fontSize: 14.5,
                             ),
                             maxLines: 5,
@@ -1524,7 +1529,7 @@ class _TeamChatScreenState extends State<TeamChatScreen>
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
                               hintStyle: GoogleFonts.kantumruyPro(
-                                color: Colors.white38,
+                                color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                                 fontSize: 14,
                               ),
                               isDense: true,
@@ -2539,10 +2544,13 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
 }
 
 class _ChatBackgroundPainter extends CustomPainter {
+  final bool isDark;
+  const _ChatBackgroundPainter({this.isDark = true});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.015)
+      ..color = (isDark ? Colors.white : const Color(0xFF64748B)).withValues(alpha: isDark ? 0.015 : 0.04)
       ..strokeWidth = 1.0;
 
     const step = 32.0;
@@ -2554,6 +2562,6 @@ class _ChatBackgroundPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ChatBackgroundPainter oldDelegate) => oldDelegate.isDark != isDark;
 }
 

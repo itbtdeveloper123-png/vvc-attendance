@@ -12,12 +12,15 @@ import '../services/api_service.dart';
 import '../services/r2_storage_service.dart';
 
 class _GSDark {
-  static const Color bg = Color(0xFF0F172A);
-  static const Color card = Color(0xFF1E293B);
-  static const Color textMuted = Color(0xFF94A3B8);
-  static const Color accent = Color(0xFFD4AF37);
+  static bool isDark = true;
+  static Color get bg => isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+  static Color get card => isDark ? const Color(0xFF1E293B) : Colors.white;
+  static Color get textPrimary => isDark ? Colors.white : const Color(0xFF0F172A);
+  static Color get textMuted => isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color get accent => isDark ? const Color(0xFFD4AF37) : const Color(0xFFC08207);
   static const Color danger = Color(0xFFEF4444);
-  static const Color divider = Color(0x1AFFFFFF);
+  static Color get divider => isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
+  static Color get iconColor => isDark ? Colors.white : const Color(0xFF0F172A);
 }
 
 class GroupSettingsScreen extends StatefulWidget {
@@ -103,13 +106,14 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _GSDark.isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: _GSDark.bg,
       body: StreamBuilder<DocumentSnapshot>(
         stream: _groupStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: _GSDark.accent));
+            return Center(child: CircularProgressIndicator(color: _GSDark.accent));
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -146,7 +150,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     child: Container(
                       decoration: BoxDecoration(
                         color: _GSDark.bg.withValues(alpha: 0.82),
-                        border: const Border(
+                        border: Border(
                           bottom: BorderSide(
                             color: _GSDark.divider,
                             width: 0.8,
@@ -162,8 +166,12 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     onTap: () => Navigator.pop(context),
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      decoration: const BoxDecoration(color: _GSDark.card, shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                      decoration: BoxDecoration(
+                        color: _GSDark.card,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _GSDark.divider, width: 0.8),
+                      ),
+                      child: Icon(Icons.arrow_back_ios_new_rounded, color: _GSDark.iconColor, size: 18),
                     ),
                   ),
                 ),
@@ -177,9 +185,12 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _GSDark.card,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(color: _GSDark.divider, width: 0.8),
+                        ),
                       ),
-                      child: Text('Edit', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text('Edit', style: GoogleFonts.inter(color: _GSDark.textPrimary, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -254,7 +265,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       const SizedBox(height: 12),
                       Text(
                         name,
-                        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -310,10 +321,10 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           child: Column(
                             children: [
                               ListTile(
-                                leading: const Icon(Icons.link_rounded, color: _GSDark.accent),
-                                title: Text('តំណភ្ជាប់អញ្ជើញ (Group Invite Link)', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14.5)),
+                                leading: Icon(Icons.link_rounded, color: _GSDark.accent),
+                                title: Text('តំណភ្ជាប់អញ្ជើញ (Group Invite Link)', style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontSize: 14.5)),
                                 subtitle: Text('t.me/vvc_group_${widget.groupId.substring(0, widget.groupId.length > 6 ? 6 : widget.groupId.length)}', style: GoogleFonts.inter(color: _GSDark.textMuted, fontSize: 12)),
-                                trailing: const Icon(Icons.copy_rounded, color: Colors.white54, size: 18),
+                                trailing: Icon(Icons.copy_rounded, color: _GSDark.textMuted, size: 18),
                                 onTap: () {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(content: Text('បានចម្លង Invite Link រួចរាល់!', style: GoogleFonts.kantumruyPro())),
@@ -321,7 +332,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                 },
                               ),
                               if (isOwner) ...[
-                                const Divider(height: 1, color: _GSDark.divider, indent: 50),
+                                Divider(height: 1, color: _GSDark.divider, indent: 50),
                                 ListTile(
                                   leading: const Icon(Icons.delete_forever_rounded, color: _GSDark.danger),
                                   title: Text('លុបក្រុមចោល (Delete Group)', style: GoogleFonts.kantumruyPro(color: _GSDark.danger, fontWeight: FontWeight.bold, fontSize: 14.5)),
@@ -330,8 +341,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                       context: context,
                                       builder: (ctx) => AlertDialog(
                                         backgroundColor: _GSDark.card,
-                                        title: Text('លុបក្រុម', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
-                                        content: Text('តើអ្នកពិតជាចង់លុបក្រុមនេះចោលទាំងស្រុងមែនទេ?', style: GoogleFonts.kantumruyPro(color: Colors.white70)),
+                                        title: Text('លុបក្រុម', style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontWeight: FontWeight.bold)),
+                                        content: Text('តើអ្នកពិតជាចង់លុបក្រុមនេះចោលទាំងស្រុងមែនទេ?', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted)),
                                         actions: [
                                           TextButton(onPressed: () => Navigator.pop(ctx), child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted))),
                                           ElevatedButton(
@@ -447,15 +458,15 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 12),
-          Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
+          Container(width: 36, height: 4, decoration: BoxDecoration(color: _GSDark.divider, borderRadius: BorderRadius.circular(10))),
           ListTile(
-            leading: const Icon(Icons.link_rounded, color: Colors.white),
-            title: Text('ចម្លង Invite Link', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+            leading: Icon(Icons.link_rounded, color: _GSDark.iconColor),
+            title: Text('ចម្លង Invite Link', style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary)),
             onTap: () => Navigator.pop(ctx),
           ),
           ListTile(
-            leading: const Icon(Icons.cleaning_services_rounded, color: Colors.white),
-            title: Text('សម្អាតសារក្នុងក្រុម', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+            leading: Icon(Icons.cleaning_services_rounded, color: _GSDark.iconColor),
+            title: Text('សម្អាតសារក្នុងក្រុម', style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary)),
             onTap: () => Navigator.pop(ctx),
           ),
           ListTile(
@@ -489,7 +500,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('បន្ថែមសមាជិកចូលក្រុម', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text('បន្ថែមសមាជិកចូលក្រុម', style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: _GSDark.accent),
                         onPressed: selectedNew.isEmpty
@@ -499,7 +510,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                 await _firestore.collection('groups').doc(widget.groupId).update({'participantIds': updated});
                                 if (ctx.mounted) Navigator.pop(ctx);
                               },
-                        child: Text('រក្សាទុក (${selectedNew.length})', style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                        child: Text('រក្សាទុក (${selectedNew.length})', style: GoogleFonts.kantumruyPro(color: _GSDark.isDark ? const Color(0xFF0F172A) : Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -509,7 +520,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       stream: _firestore.collection('users').snapshots(),
                       builder: (context, snap) {
                         if (!snap.hasData) {
-                          return const Center(child: CircularProgressIndicator(color: _GSDark.accent));
+                          return Center(child: CircularProgressIndicator(color: _GSDark.accent));
                         }
                         final available = snap.data!.docs.where((d) => !existingIds.contains(d.id)).toList();
 
@@ -517,7 +528,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                           return Center(
                             child: Text(
                               'គ្មានសមាជិកថ្មីសម្រាប់បន្ថែមទេ',
-                              style: GoogleFonts.kantumruyPro(color: Colors.white54),
+                              style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted),
                             ),
                           );
                         }
@@ -545,8 +556,8 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                     ? Text(name.isNotEmpty ? name[0].toUpperCase() : 'U', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold))
                                     : null,
                               ),
-                              title: Text(name, style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.w600)),
-                              subtitle: position.isNotEmpty ? Text(position, style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)) : null,
+                              title: Text(name, style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontWeight: FontWeight.w600)),
+                              subtitle: position.isNotEmpty ? Text(position, style: GoogleFonts.inter(color: _GSDark.textMuted, fontSize: 12)) : null,
                               value: isSelected,
                               onChanged: (val) {
                                 setStateModal(() {
@@ -602,11 +613,11 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
-                        child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 15)),
+                        child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted, fontSize: 15)),
                       ),
                       Text(
                         'ការកំណត់ក្រុម',
-                        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       TextButton(
                         onPressed: () async {
@@ -682,7 +693,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     ),
                     child: TextField(
                       controller: nameCtrl,
-                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                      style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'ឈ្មោះក្រុម (Group Name)',
                         hintStyle: GoogleFonts.kantumruyPro(color: _GSDark.textMuted),
@@ -702,7 +713,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                     child: TextField(
                       controller: descCtrl,
                       maxLines: 3,
-                      style: GoogleFonts.kantumruyPro(color: Colors.white),
+                      style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'ការពិពណ៌នាអំពីក្រុម (Description)',
                         hintStyle: GoogleFonts.kantumruyPro(color: _GSDark.textMuted),
@@ -777,7 +788,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                   color: Colors.transparent,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person_add_alt_1_rounded, color: _GSDark.accent, size: 24),
+                child: Icon(Icons.person_add_alt_1_rounded, color: _GSDark.accent, size: 24),
               ),
               title: Text(
                 'Add Members',
@@ -785,13 +796,13 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               ),
               onTap: () => _showAddMembersModal(participantIds),
             ),
-            const Divider(height: 1, color: _GSDark.divider, indent: 16),
+            Divider(height: 1, color: _GSDark.divider, indent: 16),
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               itemCount: participantIds.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 64),
+              separatorBuilder: (_, __) => Divider(height: 1, color: _GSDark.divider, indent: 64),
               itemBuilder: (context, idx) {
                 final uid = participantIds[idx].toString();
 
@@ -847,7 +858,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                       ),
                       title: Text(
                         memberName,
-                        style: GoogleFonts.inter(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w500),
+                        style: GoogleFonts.inter(color: _GSDark.textPrimary, fontSize: 14.5, fontWeight: FontWeight.w500),
                       ),
                       subtitle: Text(
                         statusStr,
@@ -888,7 +899,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                             ),
                           if (isAdmin && uid != widget.currentUserId && !isUserOwner)
                             PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert_rounded, color: Colors.white54, size: 20),
+                              icon: Icon(Icons.more_vert_rounded, color: _GSDark.textMuted, size: 20),
                               color: _GSDark.card,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               onSelected: (val) async {
@@ -905,7 +916,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                                   value: 'toggle_admin',
                                   child: Text(
                                     isUserAdmin ? 'ដកសិទ្ធិ Admin' : 'ដំឡើងជា Admin',
-                                    style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                                    style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontSize: 13.5),
                                   ),
                                 ),
                                 PopupMenuItem(
@@ -944,7 +955,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: _GSDark.accent)));
+          return Center(child: Padding(padding: const EdgeInsets.all(24), child: CircularProgressIndicator(color: _GSDark.accent)));
         }
 
         final docs = snapshot.data!.docs.where((doc) {
@@ -980,7 +991,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.perm_media_outlined, color: _GSDark.textMuted, size: 40),
+                Icon(Icons.perm_media_outlined, color: _GSDark.textMuted, size: 40),
                 const SizedBox(height: 10),
                 Text(
                   'គ្មានប្រព័ន្ធផ្សព្វផ្សាយនៅឡើយទេ',
@@ -1041,7 +1052,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: docs.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: _GSDark.divider, indent: 16),
+            separatorBuilder: (_, __) => Divider(height: 1, color: _GSDark.divider, indent: 16),
             itemBuilder: (context, idx) {
               final data = docs[idx].data() as Map<String, dynamic>;
               final text = data['text'] ?? data['fileName'] ?? 'សារប្រព័ន្ធផ្សព្វផ្សាយ';
@@ -1063,12 +1074,12 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
               final fileUrl = (data['fileUrl'] ?? data['mediaUrl'] ?? data['url'] ?? data['text'] ?? '').toString();
 
               return ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.insert_drive_file_rounded,
                   color: _GSDark.accent,
                   size: 28,
                 ),
-                title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
+                title: Text(text, style: GoogleFonts.kantumruyPro(color: _GSDark.textPrimary, fontSize: 14)),
                 subtitle: Text('ផ្ញើដោយ: $sender', style: GoogleFonts.kantumruyPro(color: _GSDark.textMuted, fontSize: 12)),
                 onTap: () async {
                   if (fileUrl.startsWith('http')) {
@@ -1205,11 +1216,11 @@ class _VoicePlayerTileState extends State<_VoicePlayerTile> {
                   children: [
                     Text(
                       widget.senderName,
-                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                      style: GoogleFonts.inter(color: _GSDark.textPrimary, fontWeight: FontWeight.bold, fontSize: 13.5),
                     ),
                     Text(
                       _formatDuration(_isPlaying ? _position : _duration),
-                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.inter(color: _GSDark.textMuted, fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),

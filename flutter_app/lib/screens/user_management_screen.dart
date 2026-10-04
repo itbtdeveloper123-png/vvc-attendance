@@ -761,7 +761,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             style: GoogleFonts.kantumruyPro(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: const Color(0xFF0F172A),
                             ),
                           ),
                         ),

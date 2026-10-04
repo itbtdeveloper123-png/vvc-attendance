@@ -18,6 +18,7 @@ import '../services/face_recognizer_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_theme.dart';
 import '../utils/image_compress.dart';
+import '../utils/perf_config.dart';
 import 'face_setup_screen.dart';
 import '../widgets/vvc_global_alert.dart';
 import '../services/local_db_service.dart';
@@ -1121,25 +1122,35 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   }
 
   Future<String?> _showActionDialog({String suggested = "Check-In"}) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final dialogBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
     return showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(
+          sigmaX: PerfConfig.blur(10),
+          sigmaY: PerfConfig.blur(10),
+        ),
         child: FadeInScale(
           child: AlertDialog(
-            backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
+            backgroundColor: dialogBg,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
               side: BorderSide(
-                color: AppTheme.textPrimary.withValues(alpha: 0.1),
+                color: dialogBorder,
+                width: 1.2,
               ),
             ),
             title: Text(
               "ជ្រើសរើសសកម្មភាព",
               textAlign: TextAlign.center,
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
+                color: textCol,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1150,14 +1161,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   "តើអ្នកចង់ Check-In ឬ Check-Out?",
                   textAlign: TextAlign.center,
                   style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary.withValues(alpha: 0.70),
+                    color: textMuted,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   "សំណើបន្ទាប់៖ $suggested",
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.cyanAccent.withValues(alpha: 0.8),
+                    color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -1168,13 +1179,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             actions: [
               _buildDialogButton(
                 "Check-In",
-                Colors.cyanAccent,
+                isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
                 () => Navigator.pop(context, "Check-In"),
                 isSuggested: suggested == "Check-In",
               ),
               _buildDialogButton(
                 "Check-Out",
-                Colors.orangeAccent,
+                isDark ? Colors.orangeAccent : const Color(0xFFEA580C),
                 () => Navigator.pop(context, "Check-Out"),
                 isSuggested: suggested == "Check-Out",
               ),
@@ -1187,18 +1198,31 @@ class _AttendanceScreenState extends State<AttendanceScreen>
 
   Future<String?> _showLateReasonDialog(String message) async {
     TextEditingController reasonController = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final textCol = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final inputBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
+    final inputBorder = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
+
     return showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(
+          sigmaX: PerfConfig.blur(10),
+          sigmaY: PerfConfig.blur(10),
+        ),
         child: FadeInScale(
           child: AlertDialog(
-            backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.9),
+            backgroundColor: dialogBg,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
               side: BorderSide(
-                color: Colors.orangeAccent.withValues(alpha: 0.3),
+                color: isDark
+                    ? Colors.orangeAccent.withValues(alpha: 0.3)
+                    : const Color(0xFFFDBA74),
+                width: 1.2,
               ),
             ),
             title: Column(
@@ -1214,7 +1238,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   "ស្កេនចូលយឺត",
                   textAlign: TextAlign.center,
                   style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary,
+                    color: textCol,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1227,7 +1251,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   message,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.kantumruyPro(
-                    color: AppTheme.textPrimary.withValues(alpha: 0.8),
+                    color: textMuted,
                     fontSize: 14,
                   ),
                 ),
@@ -1235,15 +1259,19 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 TextField(
                   controller: reasonController,
                   maxLines: 3,
-                  style: GoogleFonts.kantumruyPro(color: Colors.white),
+                  style: GoogleFonts.kantumruyPro(color: textCol),
                   decoration: InputDecoration(
                     hintText: "សូមសរសេរមូលហេតុនៅទីនេះ...",
-                    hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
+                    hintStyle: GoogleFonts.kantumruyPro(color: textMuted),
                     filled: true,
-                    fillColor: Colors.black12,
+                    fillColor: inputBg,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.white24),
+                      borderSide: BorderSide(color: inputBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: inputBorder),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1259,7 +1287,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                 onPressed: () => Navigator.pop(context, null),
                 child: Text(
                   "បោះបង់",
-                  style: GoogleFonts.kantumruyPro(color: Colors.white54),
+                  style: GoogleFonts.kantumruyPro(color: textMuted),
                 ),
               ),
               ElevatedButton(

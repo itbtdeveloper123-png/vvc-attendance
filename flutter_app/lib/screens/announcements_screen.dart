@@ -92,6 +92,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildShimmerList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final shimmerBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),
       itemCount: 6,
@@ -101,8 +104,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
           child: Container(
             height: 140,
             decoration: BoxDecoration(
-              color: AppTheme.bgCard,
-              borderRadius: BorderRadius.circular(28),
+              color: shimmerBg,
+              borderRadius: BorderRadius.circular(24),
             ),
           ),
         ),
@@ -111,20 +114,24 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final textMuted = isDark ? const Color(0xFF8E8E93) : const Color(0xFF64748B);
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             CupertinoIcons.speaker_2,
-            color: AppTheme.textPrimary.withValues(alpha: 0.10),
+            color: textMuted.withValues(alpha: 0.30),
             size: 80,
           ),
           const SizedBox(height: 16),
           Text(
             "មិនទាន់មានការជូនដំណឹងនៅឡើយ",
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary.withValues(alpha: 0.38),
+              color: textMuted,
+              fontSize: 15,
             ),
           ),
         ],
@@ -169,14 +176,27 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Widget _buildAnnouncementCard(dynamic item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final cardBorder = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06);
+    final innerBg = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary = isDark ? const Color(0xFF98989D) : const Color(0xFF64748B);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppTheme.cardBorder),
-        boxShadow: AppTheme.cardShadow,
+        color: cardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cardBorder, width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,7 +206,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  color: AppTheme.primary.withValues(alpha: isDark ? 0.18 : 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -203,7 +223,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                     Text(
                       item['title'] ?? 'No Title',
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary,
+                        color: textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
@@ -213,16 +233,14 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                         children: [
                           Icon(
                             CupertinoIcons.clock,
-                            color: AppTheme.textPrimary.withValues(alpha: 0.38),
+                            color: textSecondary,
                             size: 12,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             item['created_at'],
                             style: GoogleFonts.inter(
-                              color: AppTheme.textPrimary.withValues(
-                                alpha: 0.38,
-                              ),
+                              color: textSecondary,
                               fontSize: 11,
                             ),
                           ),
@@ -238,13 +256,13 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.textPrimary.withValues(alpha: 0.03),
+              color: innerBg,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Text(
               item['text'] ?? '',
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary.withValues(alpha: 0.70),
+                color: textPrimary.withValues(alpha: 0.85),
                 fontSize: 14,
                 height: 1.6,
               ),

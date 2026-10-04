@@ -16,7 +16,7 @@ class SeasonalThemeProvider extends ChangeNotifier {
   ThemeData get themeData {
     // If backend theme is available, use it
     if (_backendTheme != null) {
-      return _backendTheme!.toThemeData();
+      return _backendTheme!.toThemeData(isDark: AppTheme.isDarkMode);
     }
     // Otherwise use legacy seasonal theme
     return AppTheme.isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme;

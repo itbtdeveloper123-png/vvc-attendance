@@ -148,7 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppTheme.bgDark,
+        backgroundColor: AppTheme.bgSurface,
         body: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
       );
     }
@@ -446,24 +446,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildKhmerCalendarMiniCard(BuildContext context) {
+    final user = Provider.of<UserProvider>(context, listen: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final cardBorder = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF1D1D1F);
+    final textMuted = isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70);
+
     return GestureDetector(
       onTap: () => _showKhmerCalendar(context),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 10),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.textPrimary.withValues(alpha: 0.08),
-          ),
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cardBorder, width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
+                color: AppTheme.primary.withValues(alpha: isDark ? 0.18 : 0.10),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -472,7 +484,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 size: 20,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,16 +492,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     "ប្រតិទិនចន្ទគតិខ្មែរ",
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                      fontWeight: FontWeight.w700,
                       fontSize: 15,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     Chhankitek.now().toString(),
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textMuted,
-                      fontSize: 11,
+                      color: textMuted,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w400,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -498,9 +512,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: AppTheme.textMuted,
-              size: 14,
+              Icons.chevron_right_rounded,
+              color: textMuted,
+              size: 20,
             ),
           ],
         ),
@@ -509,40 +523,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showKhmerCalendar(BuildContext context) {
+    final user = Provider.of<UserProvider>(context, listen: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
+    final modalBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF1D1D1F);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
+        height: MediaQuery.of(context).size.height * 0.78,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          border: Border.all(color: AppTheme.borderColor),
+          color: modalBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: borderColor, width: 1),
         ),
         child: Column(
           children: [
             const SizedBox(height: 12),
             Container(
-              width: 50,
+              width: 44,
               height: 5,
               decoration: BoxDecoration(
-                color: AppTheme.textMuted.withValues(alpha: 0.2),
+                color: isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(5),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             Text(
               "ប្រតិទិនខ្មែរ",
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                color: textPrimary,
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const Expanded(
               child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(vertical: 20),
+                physics: BouncingScrollPhysics(),
+                padding: EdgeInsets.symmetric(vertical: 16),
                 child: KhmerLunarCalendarCard(isModal: true),
               ),
             ),
@@ -626,15 +647,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         double progress = (streak / nextTarget).clamp(0.0, 1.0);
 
+        final isDark = Theme.of(context).brightness == Brightness.dark || currentUser.isDarkMode;
+        final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+        final cardBorder = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0);
+        final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+        final textMuted = isDark ? const Color(0xFF8E8E93) : const Color(0xFF64748B);
+
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppTheme.bgCard,
+            color: cardBg,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppTheme.textPrimary.withValues(alpha: 0.07),
+              color: cardBorder,
+              width: isDark ? 0.9 : 1.1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.35)
+                    : const Color(0xFF0F172A).withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,7 +682,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     "មេដាយកិត្តិយស (Badges)",
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
+                      color: textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
@@ -681,7 +718,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       "វឌ្ឍនភាពមេដាយបន្ទាប់ ($nextMedal)",
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textMuted,
+                        color: textMuted,
                         fontSize: 11,
                       ),
                     ),
@@ -700,9 +737,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   borderRadius: BorderRadius.circular(10),
                   child: LinearProgressIndicator(
                     value: progress,
-                    backgroundColor: AppTheme.textPrimary.withValues(
-                      alpha: 0.05,
-                    ),
+                    backgroundColor: textPrimary.withValues(alpha: 0.08),
                     color: progressColor,
                     minHeight: 6,
                   ),
@@ -816,12 +851,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? dept,
     String? pos,
   ) {
+    final user = Provider.of<UserProvider>(context, listen: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? const Color(0xFF8E8E93) : const Color(0xFF64748B);
+    final dividerColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFEEF2F6);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.07)),
+        border: Border.all(color: cardBorder, width: isDark ? 0.9 : 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -829,38 +881,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(
             "ព័ត៌មានគណនី",
             style: GoogleFonts.kantumruyPro(
-              color: AppTheme.textPrimary,
+              color: textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 15,
             ),
           ),
           const SizedBox(height: 16),
-          _buildInfoRow(Icons.badge_rounded, "អត្តលេខ", id ?? 'N/A'),
-          Divider(
-            color: AppTheme.textPrimary.withValues(alpha: 0.12),
-            height: 20,
-          ),
-          _buildInfoRow(Icons.person_rounded, "ឈ្មោះ", name ?? 'N/A'),
+          _buildInfoRow(Icons.badge_rounded, "អត្តលេខ", id ?? 'N/A', textPrimary: textPrimary, textMuted: textMuted),
+          Divider(color: dividerColor, height: 20),
+          _buildInfoRow(Icons.person_rounded, "ឈ្មោះ", name ?? 'N/A', textPrimary: textPrimary, textMuted: textMuted),
           if (dept != null && dept != 'N/A') ...[
-            Divider(
-              color: AppTheme.textPrimary.withValues(alpha: 0.12),
-              height: 20,
-            ),
-            _buildInfoRow(Icons.account_balance_rounded, "ផ្នែក (Dept)", dept),
+            Divider(color: dividerColor, height: 20),
+            _buildInfoRow(Icons.account_balance_rounded, "ផ្នែក (Dept)", dept, textPrimary: textPrimary, textMuted: textMuted),
           ],
           if (pos != null && pos != 'N/A') ...[
-            Divider(
-              color: AppTheme.textPrimary.withValues(alpha: 0.12),
-              height: 20,
-            ),
-            _buildInfoRow(Icons.work_history_rounded, "តួនាទី (Pos)", pos),
+            Divider(color: dividerColor, height: 20),
+            _buildInfoRow(Icons.work_history_rounded, "តួនាទី (Pos)", pos, textPrimary: textPrimary, textMuted: textMuted),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(IconData icon, String label, String value, {Color? textPrimary, Color? textMuted}) {
     return Row(
       children: [
         Container(
@@ -878,14 +921,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textMuted,
+                color: textMuted ?? AppTheme.textMuted,
                 fontSize: 11,
               ),
             ),
             Text(
               value,
               style: GoogleFonts.kantumruyPro(
-                color: AppTheme.textPrimary,
+                color: textPrimary ?? AppTheme.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -897,11 +940,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildMenuSection(BuildContext context, UserProvider user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final dividerColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFEEF2F6);
+
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.bgCard,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.textPrimary.withValues(alpha: 0.07)),
+        border: Border.all(color: cardBorder, width: isDark ? 0.9 : 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -912,6 +970,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? "កំណត់ Face ID (បានចុះឈ្មោះ)"
                   : "ចុះឈ្មោះផ្ទៃមុខ (Face Scan)",
               color: AppTheme.success,
+              textColor: textPrimary,
               trailingWidget: user.faceRegistered
                   ? Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -948,7 +1007,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             Divider(
-              color: AppTheme.textPrimary.withValues(alpha: 0.12),
+              color: dividerColor,
               height: 1,
               indent: 16,
               endIndent: 16,
@@ -958,10 +1017,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.shield_rounded,
             label: "កូដផ្ទៀងផ្ទាត់ 2FA (Authenticator)",
             color: const Color(0xFF0284C7),
-            trailingWidget: const Icon(
+            textColor: textPrimary,
+            trailingWidget: Icon(
               CupertinoIcons.chevron_right,
               size: 14,
-              color: Colors.grey,
+              color: isDark ? const Color(0xFF8E8E93) : Colors.grey,
             ),
             onTap: () {
               Navigator.push(
@@ -971,7 +1031,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
           Divider(
-            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            color: dividerColor,
             height: 1,
             indent: 16,
             endIndent: 16,
@@ -980,10 +1040,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.info_outline_rounded,
             label: "អំពីប្រព័ន្ធ",
             color: AppTheme.info,
+            textColor: textPrimary,
             onTap: () => _showAboutDialog(context),
           ),
           Divider(
-            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            color: dividerColor,
             height: 1,
             indent: 16,
             endIndent: 16,
@@ -993,15 +1054,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.person_outline_rounded,
             label: "ប្ដូរគណនី",
             color: AppTheme.primary,
+            textColor: textPrimary,
             onTap: () => _showAccountSwitchSheet(context, user),
             trailingWidget: Icon(
               CupertinoIcons.chevron_right,
               size: 14,
-              color: AppTheme.textPrimary.withValues(alpha: 0.25),
+              color: isDark ? const Color(0xFF8E8E93) : const Color(0xFF94A3B8),
             ),
           ),
           Divider(
-            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            color: dividerColor,
             height: 1,
             indent: 16,
             endIndent: 16,
@@ -1010,13 +1072,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: user.isDarkMode ? CupertinoIcons.moon_fill : CupertinoIcons.sun_max_fill,
             label: "ទម្រង់ងងឹត (Dark Mode)",
             color: const Color(0xFFF3D010),
+            textColor: textPrimary,
             value: user.isDarkMode,
             onChanged: (val) async {
               await user.setDarkMode(val);
             },
           ),
           Divider(
-            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            color: dividerColor,
             height: 1,
             indent: 16,
             endIndent: 16,
@@ -1025,6 +1088,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.calendar_month_rounded,
             label: "ជូនដំណឹងថ្ងៃបុណ្យ/ថ្ងៃសីល",
             color: Colors.orange,
+            textColor: textPrimary,
             value: _khmerCalNotificationsEnabled,
             onChanged: (val) async {
               setState(() {
@@ -1040,7 +1104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
           Divider(
-            color: AppTheme.textPrimary.withValues(alpha: 0.12),
+            color: dividerColor,
             height: 1,
             indent: 16,
             endIndent: 16,
@@ -1049,6 +1113,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.logout_rounded,
             label: "ចេញពីគណនី",
             color: AppTheme.danger,
+            textColor: AppTheme.danger,
             isDestructive: true,
             onTap: () => _confirmLogout(context, user),
           ),
@@ -1063,6 +1128,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color color,
     required bool value,
     required ValueChanged<bool> onChanged,
+    Color? textColor,
   }) {
     return ListTile(
       leading: Container(
@@ -1077,16 +1143,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: Text(
         label,
         style: GoogleFonts.kantumruyPro(
-          color: AppTheme.textPrimary,
+          color: textColor ?? AppTheme.textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: Switch(
+      trailing: CupertinoSwitch(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: AppTheme.primaryLight,
-        activeTrackColor: AppTheme.primary.withValues(alpha: 0.3),
+        activeTrackColor: const Color(0xFF34C759),
       ),
     );
   }
@@ -1098,6 +1163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
     bool isDestructive = false,
     Widget? trailingWidget,
+    Color? textColor,
   }) {
     return Material(
       color: Colors.transparent,
@@ -1135,7 +1201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Text(
                   label,
                   style: GoogleFonts.kantumruyPro(
-                    color: isDestructive ? AppTheme.danger : AppTheme.textPrimary,
+                    color: isDestructive ? AppTheme.danger : (textColor ?? AppTheme.textPrimary),
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1145,7 +1211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Icon(
                     CupertinoIcons.chevron_right,
                     size: 14,
-                    color: AppTheme.textPrimary.withValues(alpha: 0.25),
+                    color: textColor?.withValues(alpha: 0.3) ?? AppTheme.textPrimary.withValues(alpha: 0.25),
                   ),
             ],
           ),
@@ -1164,16 +1230,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (pickedFile != null && context.mounted) {
-      // Choice Modal for AI Cutout vs Original
+      final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
+      final modalBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+      final textPri = isDark ? Colors.white : const Color(0xFF1D1D1F);
+      final textMut = isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70);
+      final borderColor = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08);
+
       final choice = await showModalBottomSheet<String>(
         context: context,
         backgroundColor: Colors.transparent,
         builder: (ctx) => Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
+            color: modalBg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: AppTheme.cardBorder),
+            border: Border.all(color: borderColor),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1182,7 +1253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.textPrimary.withValues(alpha: 0.18),
+                  color: isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1190,7 +1261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(
                 'ជម្រើសរូបភាព Profile',
                 style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textPrimary,
+                  color: textPri,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1205,22 +1276,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   child: const Icon(CupertinoIcons.sparkles, color: Colors.white, size: 20),
                 ),
-                title: Text('✨ កាត់ Background ដោយ AI (Remove.bg)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-                subtitle: Text('កាត់ផ្ទៃខាងក្រោយឱ្យថ្លា ស្អាតកម្រិត Studio HD', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),
+                title: Text('✨ កាត់ Background ដោយ AI (Remove.bg)', style: GoogleFonts.kantumruyPro(color: textPri, fontWeight: FontWeight.bold)),
+                subtitle: Text('កាត់ផ្ទៃខាងក្រោយឱ្យថ្លា ស្អាតកម្រិត Studio HD', style: GoogleFonts.kantumruyPro(color: textMut, fontSize: 12)),
                 onTap: () => Navigator.pop(ctx, 'ai_remove_bg'),
               ),
-              Divider(color: AppTheme.borderColor),
+              Divider(color: borderColor),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.isDarkMode ? const Color(0xFF2C2C2E) : const Color(0xFFF1F5F9),
+                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(CupertinoIcons.photo, color: AppTheme.textSecondary, size: 20),
+                  child: Icon(CupertinoIcons.photo, color: textMut, size: 20),
                 ),
-                title: Text('រក្សារូបភាពដើម (Original Photo)', style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
-                subtitle: Text('ប្រើរូបភាពដើមទាំងស្រុងដោយមិនកាត់', style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted, fontSize: 12)),
+                title: Text('រក្សារូបភាពដើម (Original Photo)', style: GoogleFonts.kantumruyPro(color: textPri)),
+                subtitle: Text('ប្រើរូបភាពដើមទាំងស្រុងដោយមិនកាត់', style: GoogleFonts.kantumruyPro(color: textMut, fontSize: 12)),
                 onTap: () => Navigator.pop(ctx, 'original'),
               ),
               const SizedBox(height: 10),
@@ -1238,9 +1309,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             decoration: BoxDecoration(
-              color: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
+              color: modalBg,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.cardBorder),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1324,15 +1395,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             account['employeeId']?.toString().isNotEmpty == true)
         .toList();
 
+    final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
+    final sheetBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final sheetBorder = isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08);
+
+    final itemBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF8FAFC);
+    final itemBorder = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06);
+    final textPri = isDark ? Colors.white : const Color(0xFF1D1D1F);
+    final textSec = isDark ? const Color(0xFF8E8E93) : const Color(0xFF64748B);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
+      backgroundColor: sheetBg,
       shape: RoundedRectangleBorder(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         side: BorderSide(
-          color: AppTheme.isDarkMode ? const Color(0x38545458) : Colors.transparent,
-          width: 0.5,
+          color: sheetBorder,
+          width: 1.0,
         ),
       ),
       builder: (ctx) {
@@ -1349,7 +1429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: AppTheme.textPrimary.withValues(alpha: 0.18),
+                        color: isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1358,7 +1438,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     'ជ្រើសគណនីដើម្បីប្ដូរ',
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textPrimary,
+                      color: textPri,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1367,7 +1447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     'គណនីបច្ចុប្បន្ន',
                     style: GoogleFonts.kantumruyPro(
-                      color: AppTheme.textSecondary,
+                      color: textSec,
                       fontSize: 12,
                     ),
                   ),
@@ -1376,10 +1456,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                       side: BorderSide(
-                        color: AppTheme.primary.withValues(alpha: 0.25),
+                        color: AppTheme.primary.withValues(alpha: 0.35),
+                        width: 1.2,
                       ),
                     ),
-                    tileColor: AppTheme.bgCard,
+                    tileColor: itemBg,
                     leading: CircleAvatar(
                       radius: 24,
                       backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
@@ -1406,7 +1487,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: Text(
                       currentName,
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textPrimary,
+                        color: textPri,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1414,15 +1495,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     subtitle: Text(
                       currentId.isNotEmpty ? currentId : 'N/A',
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textSecondary,
+                        color: textSec,
                         fontSize: 12,
                       ),
                     ),
-                    trailing: Text(
-                      'បច្ចុប្បន្ន',
-                      style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.primary,
-                        fontSize: 12,
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'បច្ចុប្បន្ន',
+                        style: GoogleFonts.kantumruyPro(
+                          color: AppTheme.primary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -1431,7 +1520,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       'គណនីចុងក្រោយ',
                       style: GoogleFonts.kantumruyPro(
-                        color: AppTheme.textSecondary,
+                        color: textSec,
                         fontSize: 12,
                       ),
                     ),
@@ -1449,10 +1538,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
                               side: BorderSide(
-                                color: AppTheme.textPrimary.withValues(alpha: 0.08),
+                                color: itemBorder,
                               ),
                             ),
-                            tileColor: AppTheme.bgCard,
+                            tileColor: itemBg,
                             leading: CircleAvatar(
                               radius: 22,
                               backgroundColor: AppTheme.primary.withValues(alpha: 0.18),
@@ -1479,7 +1568,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             title: Text(
                               name,
                               style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textPrimary,
+                                color: textPri,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1487,7 +1576,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             subtitle: Text(
                               id,
                               style: GoogleFonts.kantumruyPro(
-                                color: AppTheme.textSecondary,
+                                color: textSec,
                                 fontSize: 12,
                               ),
                             ),

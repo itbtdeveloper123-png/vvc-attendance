@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'app_icon_service.dart';
+import '../utils/app_theme.dart';
 
 class BackendTheme {
   final String themeId;
@@ -146,36 +147,19 @@ class BackendTheme {
     return now.isAfter(festivalDateStart!) && now.isBefore(festivalDateEnd!);
   }
 
-  // Create ThemeData from this theme
-  ThemeData toThemeData() {
-    return ThemeData(
-      brightness: Brightness.dark,
+  /// បង្កើត ThemeData ពី Backend Theme ដោយគោរព Light/Dark Mode របស់អ្នកប្រើ។
+  ///
+  /// ⚠️ មុននេះ វាបង្ខំ `Brightness.dark` + អក្សរពណ៌ស ជានិច្ច ដែលធ្វើឱ្យ Widget
+  /// ទាំងអស់ដែលពឹងលើ `Theme.of(context).brightness` បង្ហាញអក្សរសលើផ្ទៃស
+  /// ពេលនៅ Light Mode។ ឥឡូវយើងប្រើ AppTheme ជាមូលដ្ឋាន ហើយគ្រាន់តែជំនួស
+  /// ពណ៌ Brand (primary/secondary) ពី Backend ប៉ុណ្ណោះ។
+  ThemeData toThemeData({bool isDark = false}) {
+    final base = isDark ? AppTheme.darkTheme : AppTheme.lightTheme;
+    return base.copyWith(
       primaryColor: primaryColor,
-      scaffoldBackgroundColor: backgroundColor,
-      cardColor: cardColor,
-      colorScheme: ColorScheme.dark(
+      colorScheme: base.colorScheme.copyWith(
         primary: primaryColor,
         secondary: secondaryColor,
-        surface: cardColor,
-        error: Colors.red,
-      ),
-      textTheme: TextTheme(
-        bodyLarge: TextStyle(color: textPrimaryColor),
-        bodyMedium: TextStyle(color: textSecondaryColor),
-        titleLarge: TextStyle(
-          color: textPrimaryColor,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: primaryColor,
-        foregroundColor: textPrimaryColor,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: primaryColor,
-          foregroundColor: textPrimaryColor,
-        ),
       ),
     );
   }

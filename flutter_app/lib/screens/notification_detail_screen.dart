@@ -14,6 +14,13 @@ class NotificationDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final sheetBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final innerCardBg = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.08);
+    final textPri = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSec = isDark ? const Color(0xFF98989D) : const Color(0xFF64748B);
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
@@ -24,11 +31,17 @@ class NotificationDetailSheet extends StatelessWidget {
         bottom: MediaQuery.of(context).padding.bottom + 20,
       ),
       decoration: BoxDecoration(
-        color: AppTheme.isDarkMode ? const Color(0xFF1C1C1E) : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(35)),
-        boxShadow: AppTheme.cardShadow,
+        color: sheetBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.10),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
         border: Border.all(
-          color: AppTheme.cardBorder,
+          color: borderColor,
           width: 1,
         ),
       ),
@@ -37,10 +50,10 @@ class NotificationDetailSheet extends StatelessWidget {
         children: [
           // Drag handle for premium feel
           Container(
-            width: 45,
+            width: 44,
             height: 4.5,
             decoration: BoxDecoration(
-              color: AppTheme.textMuted.withValues(alpha: 0.4),
+              color: isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -59,17 +72,17 @@ class NotificationDetailSheet extends StatelessWidget {
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 20),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(22),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
+                            color: Colors.black.withValues(alpha: 0.25),
                             blurRadius: 15,
-                            offset: const Offset(0, 8),
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(22),
                         child: GestureDetector(
                           onTap: () {
                             Navigator.push(
@@ -103,7 +116,7 @@ class NotificationDetailSheet extends StatelessWidget {
                               return Container(
                                 height: 220,
                                 width: double.infinity,
-                                color: AppTheme.bgCard,
+                                color: innerCardBg,
                                 child: const Center(
                                   child: CircularProgressIndicator(),
                                 ),
@@ -119,11 +132,11 @@ class NotificationDetailSheet extends StatelessWidget {
                   // 2. Title & Message Card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
-                      color: AppTheme.bgCard,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: AppTheme.borderColor),
+                      color: innerCardBg,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: borderColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +146,7 @@ class NotificationDetailSheet extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: AppTheme.primary.withValues(alpha: 0.1),
+                                color: AppTheme.primary.withValues(alpha: isDark ? 0.18 : 0.12),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -142,47 +155,47 @@ class NotificationDetailSheet extends StatelessWidget {
                                 size: 20,
                               ),
                             ),
-                            const SizedBox(width: 15),
+                            const SizedBox(width: 14),
                             Expanded(
                               child: Text(
                                 notification.title,
                                 style: GoogleFonts.kantumruyPro(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 19,
+                                  color: textPri,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 16),
                         Divider(
-                          color: AppTheme.borderColor.withValues(alpha: 0.5),
+                          color: borderColor,
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 16),
                         Text(
                           notification.message,
                           style: GoogleFonts.kantumruyPro(
-                            color: AppTheme.textPrimary.withValues(alpha: 0.9),
-                            fontSize: 15.5,
+                            color: textPri.withValues(alpha: 0.90),
+                            fontSize: 14.5,
                             height: 1.6,
                           ),
                         ),
-                        const SizedBox(height: 25),
+                        const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Icon(
                               CupertinoIcons.clock,
-                              color: AppTheme.textSecondary,
+                              color: textSec,
                               size: 14,
                             ),
                             const SizedBox(width: 6),
                             Text(
                               notification.sentAt,
                               style: GoogleFonts.inter(
-                                color: AppTheme.textSecondary,
-                                fontSize: 12.5,
+                                color: textSec,
+                                fontSize: 12,
                               ),
                             ),
                           ],

@@ -247,6 +247,23 @@ class _NotificationScreenState extends State<NotificationScreen> {
   // 1. DYNAMIC FROSTED HEADER PODS (3 ISLANDS)
   // ===========================================================================
   Widget _buildHeaderPods(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final podBg = isDark
+        ? (_isScrolled
+            ? const Color(0xFF24272E).withValues(alpha: 0.94)
+            : const Color(0xFF1C1C1E).withValues(alpha: 0.65))
+        : (_isScrolled
+            ? Colors.white.withValues(alpha: 0.94)
+            : Colors.white.withValues(alpha: 0.82));
+    final podBorder = isDark
+        ? (_isScrolled
+            ? Colors.white.withValues(alpha: 0.22)
+            : Colors.white.withValues(alpha: 0.10))
+        : (_isScrolled
+            ? Colors.black.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06));
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
@@ -262,19 +279,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _isScrolled
-                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
+                  color: podBg,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.22)
-                        : Colors.white.withValues(alpha: 0.10),
+                    color: podBorder,
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+                      color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
                       blurRadius: _isScrolled ? 16 : 4,
                       offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
@@ -288,10 +301,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       HapticFeedback.lightImpact();
                       Navigator.maybePop(context);
                     },
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         CupertinoIcons.chevron_back,
-                        color: Colors.white,
+                        color: textPrimary,
                         size: 20,
                       ),
                     ),
@@ -314,19 +327,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
-                    color: _isScrolled
-                        ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
+                    color: podBg,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: _isScrolled
-                          ? Colors.white.withValues(alpha: 0.22)
-                          : Colors.white.withValues(alpha: 0.10),
+                      color: podBorder,
                       width: 1.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+                        color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
                         blurRadius: _isScrolled ? 16 : 4,
                         offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
@@ -339,7 +348,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         child: Text(
                           'ការជូនដំណឹង',
                           style: GoogleFonts.kantumruyPro(
-                            color: Colors.white,
+                            color: textPrimary,
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                           ),
@@ -352,8 +361,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: _unreadCount > 0
-                              ? const Color(0xFFFFCC00).withValues(alpha: 0.18)
-                              : Colors.white.withValues(alpha: 0.12),
+                              ? const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.18 : 0.22)
+                              : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
                           borderRadius: BorderRadius.circular(10),
                           border: _unreadCount > 0
                               ? Border.all(
@@ -366,8 +375,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           _unreadCount > 0 ? '$_unreadCount ថ្មី' : '${_notifications.length}',
                           style: GoogleFonts.inter(
                             color: _unreadCount > 0
-                                ? const Color(0xFFFFCC00)
-                                : Colors.white.withValues(alpha: 0.75),
+                                ? (isDark ? const Color(0xFFFFCC00) : const Color(0xFFB45309))
+                                : (isDark ? Colors.white.withValues(alpha: 0.75) : const Color(0xFF64748B)),
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                           ),
@@ -392,19 +401,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _isScrolled
-                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
+                  color: podBg,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.22)
-                        : Colors.white.withValues(alpha: 0.10),
+                    color: podBorder,
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
+                      color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
                       blurRadius: _isScrolled ? 16 : 4,
                       offset: Offset(0, _isScrolled ? 4 : 2),
                     ),
@@ -418,10 +423,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       HapticFeedback.lightImpact();
                       _fetchNotifications();
                     },
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         CupertinoIcons.arrow_clockwise,
-                        color: Colors.white,
+                        color: textPrimary,
                         size: 19,
                       ),
                     ),
@@ -439,6 +444,24 @@ class _NotificationScreenState extends State<NotificationScreen> {
   // 2. SLEEK FROSTED SEARCH BAR
   // ===========================================================================
   Widget _buildSearchBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final searchBg = isDark
+        ? (_isScrolled
+            ? const Color(0xFF24272E).withValues(alpha: 0.92)
+            : const Color(0xFF1C1C1E).withValues(alpha: 0.65))
+        : (_isScrolled
+            ? Colors.white.withValues(alpha: 0.94)
+            : Colors.white.withValues(alpha: 0.85));
+    final searchBorder = isDark
+        ? (_isScrolled
+            ? Colors.white.withValues(alpha: 0.20)
+            : Colors.white.withValues(alpha: 0.08))
+        : (_isScrolled
+            ? Colors.black.withValues(alpha: 0.12)
+            : Colors.black.withValues(alpha: 0.06));
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF94A3B8);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: ClipRRect(
@@ -450,19 +473,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
             curve: Curves.easeInOutCubic,
             height: 42,
             decoration: BoxDecoration(
-              color: _isScrolled
-                  ? const Color(0xFF24272E).withValues(alpha: 0.92)
-                  : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
+              color: searchBg,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: _isScrolled
-                    ? Colors.white.withValues(alpha: 0.20)
-                    : Colors.white.withValues(alpha: 0.08),
+                color: searchBorder,
                 width: 1.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: _isScrolled ? 0.45 : 0.10),
+                  color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.45 : 0.06) : (isDark ? 0.10 : 0.02)),
                   blurRadius: _isScrolled ? 14 : 4,
                   offset: Offset(0, _isScrolled ? 4 : 1),
                 ),
@@ -473,7 +492,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 const SizedBox(width: 12),
                 Icon(
                   CupertinoIcons.search,
-                  color: Colors.white.withValues(alpha: 0.45),
+                  color: textMuted,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
@@ -481,7 +500,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   child: TextField(
                     controller: _searchController,
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: textPrimary,
                       fontSize: 13.5,
                     ),
                     cursorColor: const Color(0xFFFFCC00),
@@ -490,7 +509,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       fillColor: Colors.transparent,
                       hintText: 'ស្វែងរកការជូនដំណឹង...',
                       hintStyle: GoogleFonts.kantumruyPro(
-                        color: Colors.white.withValues(alpha: 0.35),
+                        color: textMuted,
                         fontSize: 13,
                       ),
                       border: InputBorder.none,
@@ -514,7 +533,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Icon(
                         CupertinoIcons.clear_circled_solid,
-                        color: Colors.white.withValues(alpha: 0.45),
+                        color: textMuted,
                         size: 16,
                       ),
                     ),
@@ -531,6 +550,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   // 3. FLUID HORIZONTAL IOS SEGMENTED FILTER SLIDER
   // ===========================================================================
   Widget _buildSegmentedFilterSlider() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final chips = [
       {'key': 'all', 'label': 'ទាំងអស់ ${_notifications.length}'},
       {'key': 'unread', 'label': 'មិនទាន់អាន $_unreadCount'},
@@ -547,6 +567,21 @@ class _NotificationScreenState extends State<NotificationScreen> {
           final label = chip['label'] as String;
           final isSelected = _filter == key;
 
+          final chipUnselectedBg = isDark
+              ? (_isScrolled
+                  ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
+                  : const Color(0xFF1C1C1E).withValues(alpha: 0.52))
+              : (_isScrolled
+                  ? Colors.white.withValues(alpha: 0.90)
+                  : Colors.white.withValues(alpha: 0.70));
+          final chipUnselectedBorder = isDark
+              ? (_isScrolled
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : Colors.white.withValues(alpha: 0.07))
+              : (_isScrolled
+                  ? Colors.black.withValues(alpha: 0.10)
+                  : Colors.black.withValues(alpha: 0.05));
+
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ClipRRect(
@@ -558,17 +593,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   curve: Curves.easeOutCubic,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFFFFCC00).withValues(alpha: 0.18)
-                        : _isScrolled
-                            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
-                            : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
+                        ? const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.18 : 0.22)
+                        : chipUnselectedBg,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
                           ? const Color(0xFFFFCC00).withValues(alpha: 0.65)
-                          : _isScrolled
-                              ? Colors.white.withValues(alpha: 0.14)
-                              : Colors.white.withValues(alpha: 0.07),
+                          : chipUnselectedBorder,
                       width: isSelected ? 1.2 : 1.0,
                     ),
                     boxShadow: isSelected
@@ -595,8 +626,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           label,
                           style: GoogleFonts.kantumruyPro(
                             color: isSelected
-                                ? const Color(0xFFFFCC00)
-                                : Colors.white.withValues(alpha: 0.65),
+                                ? (isDark ? const Color(0xFFFFCC00) : const Color(0xFFB45309))
+                                : (isDark ? Colors.white.withValues(alpha: 0.65) : const Color(0xFF64748B)),
                             fontSize: 12,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                           ),
@@ -668,29 +699,46 @@ class _NotificationScreenState extends State<NotificationScreen> {
   // ===========================================================================
   Widget _buildNotificationCard(NotificationModel notification) {
     final hasImage = notification.imageUrl != null && notification.imageUrl!.isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final cardBg = isDark
+        ? (notification.isRead
+            ? const Color(0xFF1C1C1E).withValues(alpha: 0.70)
+            : const Color(0xFF1C1C1E))
+        : (notification.isRead
+            ? Colors.white.withValues(alpha: 0.85)
+            : Colors.white);
+
+    final cardBorder = isDark
+        ? (notification.isRead
+            ? Colors.white.withValues(alpha: 0.08)
+            : const Color(0xFFFFCC00).withValues(alpha: 0.35))
+        : (notification.isRead
+            ? const Color(0xFFE2E8F0)
+            : const Color(0xFFFFCC00).withValues(alpha: 0.50));
+
+    final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final messageColor = isDark ? Colors.white.withValues(alpha: 0.70) : const Color(0xFF475569);
+    final timeColor = isDark ? Colors.white.withValues(alpha: 0.38) : const Color(0xFF94A3B8);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: notification.isRead
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.70)
-            : const Color(0xFF1C1C1E),
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: notification.isRead
-              ? Colors.white.withValues(alpha: 0.08)
-              : const Color(0xFFFFCC00).withValues(alpha: 0.35),
+          color: cardBorder,
           width: 0.8,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
           if (!notification.isRead)
             BoxShadow(
-              color: const Color(0xFFFFCC00).withValues(alpha: 0.08),
+              color: const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.08 : 0.12),
               blurRadius: 12,
               offset: const Offset(0, 2),
             ),
@@ -725,7 +773,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFCC00).withValues(alpha: 0.15),
+                        color: const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.15 : 0.18),
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: const Color(0xFFFFCC00).withValues(alpha: 0.35),
@@ -760,7 +808,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 child: Text(
                                   notification.title,
                                   style: GoogleFonts.kantumruyPro(
-                                    color: Colors.white,
+                                    color: titleColor,
                                     fontSize: 15,
                                     fontWeight: notification.isRead
                                         ? FontWeight.w600
@@ -775,7 +823,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               Text(
                                 _formatTimestamp(notification.sentAt),
                                 style: GoogleFonts.inter(
-                                  color: Colors.white.withValues(alpha: 0.38),
+                                  color: timeColor,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -803,7 +851,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           Text(
                             notification.message,
                             style: GoogleFonts.kantumruyPro(
-                              color: Colors.white.withValues(alpha: 0.70),
+                              color: messageColor,
                               fontSize: 13,
                               height: 1.35,
                             ),

@@ -239,18 +239,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 48),
-                    // Glassmorphic Card
+                    // Card (Crisp solid card with distinct border & shadow)
                     FadeInUp(
                       duration: const Duration(milliseconds: 600),
                       child: Container(
                         padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
-                          color: AppTheme.textPrimary.withValues(alpha: 0.08),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF1C1C1E)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(32),
                           border: Border.all(
-                            color: AppTheme.textPrimary.withValues(alpha: 0.1),
-                            width: 1.5,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF38383A)
+                                : const Color(0xFFE2E8F0),
+                            width: 1.2,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.black.withValues(alpha: 0.4)
+                                  : const Color(0x120F172A),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: Column(
                           children: [
@@ -751,18 +764,18 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         child: _isLoading
-            ? SizedBox(
+            ? const SizedBox(
                 height: 24,
                 width: 24,
                 child: CircularProgressIndicator(
-                  color: AppTheme.textPrimary,
+                  color: Color(0xFF0F172A),
                   strokeWidth: 2,
                 ),
               )
             : Text(
                 "ចូលប្រើប្រាស់",
                 style: GoogleFonts.kantumruyPro(
-                  color: AppTheme.textPrimary,
+                  color: const Color(0xFF0F172A),
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),

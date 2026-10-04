@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:vvc_hrm/providers/user_provider.dart';
 import 'package:vvc_hrm/core/theme/theme_provider.dart';
 import 'package:vvc_hrm/utils/app_theme.dart';
+import 'package:vvc_hrm/utils/perf_config.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 // Screens
@@ -35,6 +37,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   initializeDateFormatting();
+
+  // បិទការទាញ Font ពី Internet — ប្រើតែ Font ដែល Bundle មកជាមួយ App
+  GoogleFonts.config.allowRuntimeFetching = false;
+
+  // រកមើលកម្លាំងទូរស័ព្ទ (ចំណាយ ~10-30ms)
+  await PerfConfig.init();
 
   try {
     await Firebase.initializeApp(
@@ -196,17 +204,19 @@ class VvcHrmApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer2<UserProvider, SeasonalThemeProvider>(
       builder: (context, userProvider, seasonalTheme, child) {
-        final currentTheme = userProvider.isDarkMode
-            ? AppTheme.darkTheme
-            : (seasonalTheme.backendTheme != null
-                ? seasonalTheme.backendTheme!.toThemeData()
-                : AppTheme.lightTheme);
+        // ធានាថា Brightness របស់ Theme ត្រូវគ្នាជានិច្ចជាមួយ Dark Mode Toggle
+        AppTheme.isDarkMode = userProvider.isDarkMode;
+        final backendTheme = seasonalTheme.backendTheme;
+        final lightTheme =
+            backendTheme?.toThemeData(isDark: false) ?? AppTheme.lightTheme;
+        final darkTheme =
+            backendTheme?.toThemeData(isDark: true) ?? AppTheme.darkTheme;
 
         return MaterialApp(
           title: 'VVC Attendance',
           debugShowCheckedModeBanner: false,
-          theme: currentTheme,
-          darkTheme: AppTheme.darkTheme,
+          theme: lightTheme,
+          darkTheme: darkTheme,
           themeMode: userProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: GlobalCallObserver(
             child: !userProvider.isInitialized

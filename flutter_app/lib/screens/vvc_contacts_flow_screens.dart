@@ -8,12 +8,14 @@ import '../widgets/app_widgets.dart';
 // VVC DARK THEME DESIGN TOKENS
 // ============================================================================
 class VvcTheme {
-  static const Color primaryBg = Color(0xFF1C1C1E);
-  static const Color cardBg = Color(0xFF2C2C2E);
-  static const Color accent = Color(0xFF3388FF);
-  static const Color mutedText = Color(0xFF8E8E93);
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color dividerColor = Color(0x1AFFFFFF);
+  static bool isDark = true;
+  static Color get primaryBg => isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF8FAFC);
+  static Color get cardBg => isDark ? const Color(0xFF2C2C2E) : Colors.white;
+  static Color get accent => const Color(0xFF3388FF);
+  static Color get mutedText => isDark ? const Color(0xFF8E8E93) : const Color(0xFF64748B);
+  static Color get textPrimary => isDark ? const Color(0xFFFFFFFF) : const Color(0xFF0F172A);
+  static Color get dividerColor => isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
+  static Color get border => isDark ? const Color(0x1AFFFFFF) : const Color(0xFFE2E8F0);
   static const Color onlineGreen = Color(0xFF34C759);
   static const Color dangerRed = Color(0xFFFF453A);
 }
@@ -64,6 +66,7 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
 
   @override
   Widget build(BuildContext context) {
+    VvcTheme.isDark = Theme.of(context).brightness == Brightness.dark;
     final alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
     return Scaffold(
@@ -105,14 +108,15 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
                   decoration: BoxDecoration(
                     color: VvcTheme.cardBg,
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: VvcTheme.border, width: 0.8),
                   ),
                   child: TextField(
                     controller: _searchController,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                    style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 15),
                     decoration: InputDecoration(
                       hintText: 'Search contacts',
                       hintStyle: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 14.5),
-                      prefixIcon: const Icon(Icons.search_rounded, color: VvcTheme.mutedText, size: 20),
+                      prefixIcon: Icon(Icons.search_rounded, color: VvcTheme.mutedText, size: 20),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 8),
                     ),
@@ -125,7 +129,7 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
                   stream: FirebaseFirestore.instance.collection('users').snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator(color: VvcTheme.accent));
+                      return Center(child: CircularProgressIndicator(color: VvcTheme.accent));
                     }
 
                     final realContacts = snapshot.data!.docs.where((doc) {
@@ -287,7 +291,7 @@ class _VvcNewMessageContactListScreenState extends State<VvcNewMessageContactLis
             Container(
               width: 36,
               height: 36,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 shape: BoxShape.circle,
               ),
@@ -450,13 +454,14 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
 
   @override
   Widget build(BuildContext context) {
+    VvcTheme.isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
       appBar: VvcAppBar(
         backgroundColor: VvcTheme.primaryBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: VvcTheme.accent, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: VvcTheme.accent, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
@@ -464,7 +469,7 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
           children: [
             Text(
               'New Group',
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Text(
               '${_selectedNames.length}/200000',
@@ -496,14 +501,15 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
               decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: VvcTheme.border, width: 0.8),
               ),
               child: TextField(
                 controller: _searchController,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 15),
                 decoration: InputDecoration(
                   hintText: 'Who would you like to add?',
                   hintStyle: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: VvcTheme.mutedText, size: 20),
+                  prefixIcon: Icon(Icons.search_rounded, color: VvcTheme.mutedText, size: 20),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 ),
@@ -515,7 +521,7 @@ class _VvcNewGroupMemberSelectionScreenState extends State<VvcNewGroupMemberSele
               stream: FirebaseFirestore.instance.collection('users').snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator(color: VvcTheme.accent));
+                  return Center(child: CircularProgressIndicator(color: VvcTheme.accent));
                 }
 
                 final realUsers = snapshot.data!.docs.where((doc) {
@@ -670,19 +676,20 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    VvcTheme.isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
       appBar: VvcAppBar(
         backgroundColor: VvcTheme.primaryBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: VvcTheme.accent, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: VvcTheme.accent, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
         title: Text(
           'New Group',
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+          style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.bold),
         ),
         actions: [
           ValueListenableBuilder<TextEditingValue>(
@@ -714,13 +721,14 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
               decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: VvcTheme.border, width: 0.8),
               ),
               child: Row(
                 children: [
                   Container(
                     width: 60,
                     height: 60,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: VvcTheme.accent,
                       shape: BoxShape.circle,
                     ),
@@ -730,7 +738,7 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
                   Expanded(
                     child: TextField(
                       controller: _nameController,
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                      style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 16),
                       decoration: InputDecoration(
                         hintText: 'Group Name',
                         hintStyle: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 16),
@@ -748,6 +756,7 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
               decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: VvcTheme.border, width: 0.8),
               ),
               child: ListTile(
                 leading: Container(
@@ -760,7 +769,7 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
                 ),
                 title: Text(
                   'Auto-Delete Messages',
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 15.5),
+                  style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 15.5),
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -769,7 +778,7 @@ class _VvcNewGroupDetailsScreenState extends State<VvcNewGroupDetailsScreen> {
                       'Off',
                       style: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 15),
                     ),
-                    const Icon(Icons.chevron_right_rounded, color: VvcTheme.mutedText, size: 20),
+                    Icon(Icons.chevron_right_rounded, color: VvcTheme.mutedText, size: 20),
                   ],
                 ),
                 onTap: () {},
@@ -849,6 +858,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    VvcTheme.isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: VvcTheme.primaryBg,
       appBar: VvcAppBar(
@@ -865,7 +875,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
         centerTitle: true,
         title: Text(
           'New Contact',
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+          style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 17, fontWeight: FontWeight.bold),
         ),
         actions: [
           ValueListenableBuilder<TextEditingValue>(
@@ -893,6 +903,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
               decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: VvcTheme.border, width: 0.8),
               ),
               child: Column(
                 children: [
@@ -900,7 +911,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: TextField(
                       controller: _firstNameCtrl,
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                      style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 16),
                       decoration: InputDecoration(
                         hintText: 'First Name',
                         hintStyle: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 16),
@@ -908,12 +919,12 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
                       ),
                     ),
                   ),
-                  const Divider(color: VvcTheme.dividerColor, height: 1),
+                  Divider(color: VvcTheme.dividerColor, height: 1),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     child: TextField(
                       controller: _lastNameCtrl,
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                      style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 16),
                       decoration: InputDecoration(
                         hintText: 'Last Name',
                         hintStyle: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 16),
@@ -931,6 +942,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
               decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: VvcTheme.border, width: 0.8),
               ),
               child: Column(
                 children: [
@@ -939,12 +951,12 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
                     leading: Text(_selectedFlag, style: const TextStyle(fontSize: 20)),
                     title: Text(
                       _selectedCountry,
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                      style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 16),
                     ),
-                    trailing: const Icon(Icons.chevron_right_rounded, color: VvcTheme.mutedText),
+                    trailing: Icon(Icons.chevron_right_rounded, color: VvcTheme.mutedText),
                     onTap: () {},
                   ),
-                  const Divider(color: VvcTheme.dividerColor, height: 1),
+                  Divider(color: VvcTheme.dividerColor, height: 1),
                   // Phone input row
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -959,7 +971,7 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
                           child: TextField(
                             controller: _phoneCtrl,
                             keyboardType: TextInputType.phone,
-                            style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                            style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 16),
                             decoration: InputDecoration(
                               hintText: '00 000 000',
                               hintStyle: GoogleFonts.inter(color: VvcTheme.mutedText, fontSize: 16),
@@ -980,21 +992,22 @@ class _VvcNewContactFormScreenState extends State<VvcNewContactFormScreen> {
               decoration: BoxDecoration(
                 color: VvcTheme.cardBg,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: VvcTheme.border, width: 0.8),
               ),
               child: Column(
                 children: [
                   SwitchListTile(
                     title: Text(
                       'Sync Contact to Phone',
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 15.5),
+                      style: GoogleFonts.inter(color: VvcTheme.textPrimary, fontSize: 15.5),
                     ),
                     value: _syncToPhone,
                     activeThumbColor: VvcTheme.accent,
                     onChanged: (val) => setState(() => _syncToPhone = val),
                   ),
-                  const Divider(color: VvcTheme.dividerColor, height: 1),
+                  Divider(color: VvcTheme.dividerColor, height: 1),
                   ListTile(
-                    leading: const Icon(Icons.qr_code_scanner_rounded, color: VvcTheme.accent),
+                    leading: Icon(Icons.qr_code_scanner_rounded, color: VvcTheme.accent),
                     title: Text(
                       'Add via QR Code',
                       style: GoogleFonts.inter(color: VvcTheme.accent, fontSize: 15.5, fontWeight: FontWeight.w500),

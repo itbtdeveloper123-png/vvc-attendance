@@ -353,8 +353,9 @@ class HomeScreenState extends State<HomeScreen> {
 
     final screens = _getScreens(userProvider);
     final theme = userProvider.companyTheme;
-    final isDark = theme.isDarkTheme;
+    final isDark = theme.isDarkTheme || Theme.of(context).brightness == Brightness.dark;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final effectiveBg = isDark ? const Color(0xFF000000) : theme.backgroundColor;
 
     final scrollAwareNavBar = VvcLiquidGlassBottomBar(
       currentIndex: _currentIndex,
@@ -363,7 +364,8 @@ class HomeScreenState extends State<HomeScreen> {
       isScrolled: _isScrolled,
       backgroundColor: isDark
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
-          : const Color(0xFFF1F3F6).withValues(alpha: 0.92),
+          : const Color(0xFFFFFFFF).withValues(alpha: 0.94),
+      borderColor: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0),
       accentColor: const Color(0xFF0A84FF),
       trailingAction: Icon(
         CupertinoIcons.qrcode_viewfinder,
@@ -403,12 +405,12 @@ class HomeScreenState extends State<HomeScreen> {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: isDark ? const Color(0xFF0F1115) : Colors.white,
+        systemNavigationBarColor: isDark ? const Color(0xFF000000) : Colors.white,
         systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
         extendBody: true,
-        backgroundColor: theme.backgroundColor,
+        backgroundColor: effectiveBg,
         body: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification.metrics.axis == Axis.vertical) {
@@ -427,11 +429,12 @@ class HomeScreenState extends State<HomeScreen> {
               // 2. Scroll-Aware Localized Fade & Blur Transition Zone (Requirements 3-7)
               scrollAwareNavBar.buildTransitionZone(
                 context: context,
-                maskColor: theme.backgroundColor,
+                maskColor: effectiveBg,
               ),
 
-              // 3. Floating Quick Action Bubbles (AI Assistant & Chat)
-              _buildFloatingActionBubbles(bottomInset),
+              // 3. Floating Quick Action Bubbles (AI Assistant & Chat) - Only shown on Home tab
+              if (_currentIndex == 0)
+                _buildFloatingActionBubbles(bottomInset),
             ],
           ),
         ),
@@ -560,7 +563,7 @@ class HomeScreenState extends State<HomeScreen> {
                   child: const Center(
                     child: Icon(
                       CupertinoIcons.chat_bubble_2_fill,
-                      color: Colors.white,
+                      color: Color(0xFF0F172A),
                       size: 22,
                     ),
                   ),
@@ -1530,7 +1533,7 @@ class _HomeContentState extends State<HomeContent> {
                   ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: isDark ? const Color(0x38545458) : Colors.white,
+              color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0),
               width: 1.5,
             ),
             boxShadow: [
@@ -1561,7 +1564,7 @@ class _HomeContentState extends State<HomeContent> {
                       border: Border.all(
                         color: isCheckedIn
                             ? const Color(0xFF10B981).withValues(alpha: 0.35)
-                            : (isDark ? const Color(0x38545458) : Colors.white),
+                            : (isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0)),
                         width: 1.2,
                       ),
                       boxShadow: [
@@ -1646,7 +1649,7 @@ class _HomeContentState extends State<HomeContent> {
                             color: isDark ? const Color(0xFF2C2C2E) : Colors.white.withValues(alpha: 0.85),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isDark ? const Color(0x38545458) : Colors.white,
+                              color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0),
                               width: 1.2,
                             ),
                             boxShadow: [
@@ -1710,14 +1713,14 @@ class _HomeContentState extends State<HomeContent> {
                               isNextCheckIn
                                   ? CupertinoIcons.qrcode_viewfinder
                                   : CupertinoIcons.square_arrow_right,
-                              color: Colors.white,
+                              color: isNextCheckIn ? const Color(0xFF0F172A) : Colors.white,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
                             Text(
                               isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
                               style: GoogleFonts.kantumruyPro(
-                                color: Colors.white,
+                                color: isNextCheckIn ? const Color(0xFF0F172A) : Colors.white,
                                 fontSize: 13.5,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1752,7 +1755,7 @@ class _HomeContentState extends State<HomeContent> {
                           color: isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.75),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.95),
+                            color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
                             width: 1.2,
                           ),
                         ),
@@ -1877,7 +1880,7 @@ class _HomeContentState extends State<HomeContent> {
                     ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? const Color(0x38545458) : Colors.white,
+                color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0),
                 width: 1.2,
               ),
               boxShadow: [
@@ -1923,7 +1926,7 @@ class _HomeContentState extends State<HomeContent> {
                       child: Text(
                         actionText,
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: const Color(0xFF0F172A),
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
@@ -2072,7 +2075,7 @@ class _HomeContentState extends State<HomeContent> {
                     ),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: isDark ? const Color(0x38545458) : Colors.white,
+                color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0),
                 width: 1.2,
               ),
               boxShadow: [
@@ -3294,11 +3297,12 @@ class _HomeContentState extends State<HomeContent> {
       onTap();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark || user.isDarkMode;
     final theme = user.companyTheme;
-    // Unified core branding color for clean Glassmorphism (no messy multi-colors)
-    final brandAccentColor = theme.brand == CompanyBrand.vvc
-        ? const Color(0xFFD97706)
-        : theme.cardPrimary;
+    final effectiveCardBg = isDark ? const Color(0xFF1C1C1E) : theme.cardBackground;
+    final effectiveBorder = isDark ? const Color(0xFF2C2C2E) : theme.cardBorder;
+    final effectiveTextPrimary = isDark ? Colors.white : theme.textPrimary;
+    final effectiveTextSecondary = isDark ? const Color(0xFF98989D) : theme.textSecondary;
 
     if (isList) {
       return Padding(
@@ -3307,23 +3311,24 @@ class _HomeContentState extends State<HomeContent> {
           title: label,
           subtitle: subtitle,
           icon: icon,
-          iconColor: brandAccentColor,
+          iconColor: color,
           onTap: wrappedTap,
-          textColor: theme.textPrimary,
-          subtitleColor: theme.textSecondary,
-          cardColor: theme.cardBackground,
-          borderColor: theme.cardBorder,
+          textColor: effectiveTextPrimary,
+          subtitleColor: effectiveTextSecondary,
+          cardColor: effectiveCardBg,
+          borderColor: effectiveBorder,
         ),
       );
     } else {
       return AppGridAction(
-        label: label.replaceAll(' ', '\n'),
+        label: label,
         icon: icon,
-        color: brandAccentColor,
+        color: color,
         onTap: wrappedTap,
-        textColor: theme.textPrimary,
-        cardColor: theme.cardBackground,
-        borderColor: theme.cardBorder,
+        textColor: effectiveTextPrimary,
+        cardColor: effectiveCardBg,
+        borderColor: effectiveBorder,
+        isDark: isDark,
       );
     }
   }
@@ -3345,7 +3350,7 @@ class _HomeContentState extends State<HomeContent> {
             crossAxisCount: 3,
             crossAxisSpacing: 12.0,
             mainAxisSpacing: 12.0,
-            childAspectRatio: 1.0,
+            childAspectRatio: 0.98,
           ),
           itemCount: items.length,
           itemBuilder: (context, index) {

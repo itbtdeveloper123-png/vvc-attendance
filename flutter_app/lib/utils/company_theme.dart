@@ -93,8 +93,8 @@ class CompanyTheme {
     passCardColor: Color(0xFFC08207),
     passCardTextColor: Colors.white,
     textPrimary: Color(0xFF292524),
-    textSecondary: Color(0xFF78716C),
-    textMuted: Color(0xFFA8A29E),
+    textSecondary: Color(0xFF57534E),
+    textMuted: Color(0xFF78716C),
     glowColor: Color(0xFFC08207),
     orbPrimary: Color(0xFFC08207),
     orbSecondary: Color(0xFFD97706),
@@ -112,12 +112,12 @@ class CompanyTheme {
     cardPrimary: Color(0xFFF3D010),
     cardSecondary: Color(0xFFE5BF00),
     cardBackground: Color(0xFF1C1C1E), // Apple Secondary System Background
-    cardBorder: Color(0x38545458), // Apple Cupertino Separator
+    cardBorder: Color(0xFF38383A), // Apple Cupertino Separator (opaque)
     passCardColor: Color(0xFF1C1C1E),
     passCardTextColor: Color(0xFFF3D010),
     textPrimary: Colors.white,
-    textSecondary: Color(0xFF98989D), // Apple Secondary Label
-    textMuted: Color(0xFF636366), // Apple Tertiary Label
+    textSecondary: Color(0xFFAEAEB2), // Apple Secondary Label (high contrast)
+    textMuted: Color(0xFF8E8E93), // Apple Tertiary Label (readable on black)
     glowColor: Color(0xFFF3D010),
     orbPrimary: Color(0xFFF3D010),
     orbSecondary: Color(0xFFE5BF00),
@@ -135,12 +135,12 @@ class CompanyTheme {
     cardPrimary: Color(0xFFC08207),
     cardSecondary: Color(0xFFA16207),
     cardBackground: Color(0xFF1C1C1E), // Apple Secondary System Background
-    cardBorder: Color(0x38545458), // Apple Cupertino Separator
+    cardBorder: Color(0xFF38383A), // Apple Cupertino Separator (opaque)
     passCardColor: Color(0xFF1C1C1E),
     passCardTextColor: Color(0xFFC08207),
     textPrimary: Colors.white,
-    textSecondary: Color(0xFF98989D), // Apple Secondary Label
-    textMuted: Color(0xFF636366), // Apple Tertiary Label
+    textSecondary: Color(0xFFAEAEB2), // Apple Secondary Label (high contrast)
+    textMuted: Color(0xFF8E8E93), // Apple Tertiary Label (readable on black)
     glowColor: Color(0xFFC08207),
     orbPrimary: Color(0xFFC08207),
     orbSecondary: Color(0xFFD97706),

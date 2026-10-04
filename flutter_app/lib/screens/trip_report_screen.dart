@@ -799,7 +799,7 @@ class _TripReportScreenState extends State<TripReportScreen>
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primary,
-                              foregroundColor: Colors.white,
+                              foregroundColor: const Color(0xFF0F172A),
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -1071,7 +1071,7 @@ class _TripReportScreenState extends State<TripReportScreen>
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF0F172A),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 8,

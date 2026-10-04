@@ -308,7 +308,7 @@ class _TripTrackingScreenState extends State<TripTrackingScreen> {
                     mini: true,
                     backgroundColor: AppTheme.primary,
                     onPressed: _loadTripDetails,
-                    child: const Icon(Icons.refresh, color: Colors.white),
+                    child: const Icon(Icons.refresh, color: Color(0xFF0F172A)),
                   ),
                 ),
               ],

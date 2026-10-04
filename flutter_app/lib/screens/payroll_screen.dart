@@ -276,7 +276,10 @@ class _PayrollScreenState extends State<PayrollScreen> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF0F172A),
+                        ),
                       )
                     : const Icon(Icons.fingerprint_rounded),
                 label: Text(
@@ -285,11 +288,13 @@ class _PayrollScreenState extends State<PayrollScreen> {
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF0F172A),
                   disabledBackgroundColor: AppTheme.primary.withValues(
                     alpha: 0.35,
                   ),
-                  disabledForegroundColor: Colors.white70,
+                  disabledForegroundColor: const Color(0xFF0F172A).withValues(
+                    alpha: 0.5,
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),

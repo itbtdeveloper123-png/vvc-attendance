@@ -8,6 +8,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/api_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/app_palette.dart';
+import '../utils/perf_config.dart';
 import 'vvc_global_alert.dart';
 import 'glass_widgets.dart';
 export 'glass_widgets.dart';
@@ -137,18 +139,21 @@ class VvcGlobalPage extends StatelessWidget {
       bodyWidget = content;
     }
 
+    final palette = context.palette;
+    final effectiveBg = isDark ? palette.background : palette.background;
+
     final shell = showGlows
         ? GlassOrbBackground(
-            baseColor: AppTheme.bgDark,
+            baseColor: effectiveBg,
             primaryOrbColor: AppTheme.primary,
             child: bodyWidget,
           )
-        : ColoredBox(color: AppTheme.bgDark, child: bodyWidget);
+        : ColoredBox(color: effectiveBg, child: bodyWidget);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
       child: Scaffold(
-        backgroundColor: AppTheme.bgDark,
+        backgroundColor: effectiveBg,
         resizeToAvoidBottomInset: resizeToAvoidBottomInset,
         body: shell,
         floatingActionButton: floatingActionButton,
@@ -500,49 +505,40 @@ class AppStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveCardColor = cardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
-    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : Colors.white);
+    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
 
-    return AppShimmer(
-      enabled: isLoading,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C1C1E) : null,
-              gradient: isDark
-                  ? null
-                  : LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        effectiveCardColor.withValues(alpha: 0.94),
-                        effectiveCardColor.withValues(alpha: 0.85),
-                        effectiveCardColor.withValues(alpha: 0.90),
-                      ],
-                      stops: const [0.0, 0.55, 1.0],
-                    ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: effectiveBorderColor,
-                width: isDark ? 1.0 : 1.5,
+    Widget cardBody = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : null,
+        gradient: isDark
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  effectiveCardColor.withValues(alpha: 0.98),
+                  effectiveCardColor.withValues(alpha: 0.92),
+                  effectiveCardColor.withValues(alpha: 0.95),
+                ],
+                stops: const [0.0, 0.55, 1.0],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.065),
-                  blurRadius: 16,
-                  offset: const Offset(0, 5),
-                ),
-                if (!isDark)
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-              ],
-            ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: effectiveBorderColor,
+          width: isDark ? 1.0 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF64748B).withValues(alpha: 0.08),
+            blurRadius: isDark ? 16 : 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -599,8 +595,18 @@ class AppStatCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
+          );
+
+    return AppShimmer(
+      enabled: isLoading,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: enableBlur
+            ? BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: cardBody,
+              )
+            : cardBody,
       ),
     );
   }
@@ -623,7 +629,7 @@ class AppGridAction extends StatelessWidget {
     this.title = '',
     required this.label,
     required this.icon,
-    this.color = const Color(0xFF6366F1), // Default to primary
+    this.color = const Color(0xFFD97706),
     required this.onTap,
     this.textColor,
     this.cardColor,
@@ -633,117 +639,129 @@ class AppGridAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = isDark ??
-        (Theme.of(context).brightness == Brightness.dark ||
-            (cardColor != null && cardColor!.computeLuminance() < 0.2));
-    const goldColor = Color(0xFFD4AF37); // Luxury VVC Gold
+    final themeDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveDark = isDark ?? themeDark;
+    
+    // Resolve true background color
+    final effectiveCardColor = cardColor ??
+        (effectiveDark ? const Color(0xFF1C1C1E) : Colors.white);
+    final isBgDark = effectiveCardColor.computeLuminance() < 0.45;
+
+    // Guaranteed high-contrast text color
+    final effectiveTextColor = isBgDark
+        ? Colors.white
+        : (textColor != null && textColor!.computeLuminance() < 0.4
+            ? textColor!
+            : const Color(0xFF0F172A));
+
+    final effectiveBorder = borderColor ??
+        (isBgDark
+            ? const Color(0xFF2C2C2E)
+            : const Color(0xFFE2E8F0));
+
+    // Dynamic semantic icon color
+    final itemColor = color == const Color(0xFF6366F1)
+        ? (isBgDark ? const Color(0xFFF3D010) : const Color(0xFFD97706))
+        : color;
+
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
+
+    final gridContent = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: effectiveCardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: effectiveBorder,
+          width: isBgDark ? 0.9 : 1.1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isBgDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+          if (!isBgDark)
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.015),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Icon Container with soft harmonic tint
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isBgDark
+                  ? itemColor.withValues(alpha: 0.18)
+                  : itemColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isBgDark
+                    ? itemColor.withValues(alpha: 0.38)
+                    : itemColor.withValues(alpha: 0.22),
+                width: 1.0,
+              ),
+              boxShadow: isBgDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: itemColor.withValues(alpha: 0.12),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                color: isBgDark
+                    ? (itemColor.computeLuminance() < 0.25 ? Colors.white : itemColor)
+                    : itemColor,
+                size: 23,
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          // Clean, high-legibility label
+          Flexible(
+            child: Text(
+              label,
+              style: GoogleFonts.kantumruyPro(
+                color: effectiveTextColor,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                height: 1.22,
+                letterSpacing: -0.1,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
 
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-            decoration: BoxDecoration(
-              color: dark
-                  ? (cardColor ?? const Color(0xFF191B22))
-                  : (cardColor ?? Colors.white).withValues(alpha: 0.94),
-              gradient: dark
-                  ? null
-                  : LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        (cardColor ?? Colors.white).withValues(alpha: 0.94),
-                        (cardColor ?? Colors.white).withValues(alpha: 0.85),
-                        (cardColor ?? Colors.white).withValues(alpha: 0.90),
-                      ],
-                      stops: const [0.0, 0.55, 1.0],
-                    ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: dark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : (borderColor ?? Colors.white),
-                width: dark ? 0.8 : 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: dark
-                      ? Colors.black.withValues(alpha: 0.35)
-                      : const Color(0xFF0F172A).withValues(alpha: 0.06),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-                if (!dark)
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.025),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: dark ? Colors.transparent : const Color(0xFFFFFBEB),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: dark ? goldColor : const Color(0xFFFDE68A),
-                      width: dark ? 1.5 : 1.2,
-                    ),
-                    boxShadow: dark
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                  ),
-                  child: Icon(
-                    icon,
-                    color: dark
-                        ? goldColor
-                        : (color == const Color(0xFF6366F1)
-                            ? const Color(0xFFD97706)
-                            : color),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.center,
-                    child: Text(
-                      label,
-                      style: GoogleFonts.kantumruyPro(
-                        color: dark
-                            ? Colors.white
-                            : (textColor ?? const Color(0xFF0F172A)),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        height: 1.25,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        child: enableBlur
+            ? BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: gridContent,
+              )
+            : gridContent,
       ),
     );
   }
@@ -819,49 +837,40 @@ class AttendanceScanCard extends StatelessWidget {
     bool isCheckIn = nextAction == 'Check-In';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveCardColor = cardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
-    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : Colors.white);
+    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C1C1E) : null,
-              gradient: isDark
-                  ? null
-                  : LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        effectiveCardColor.withValues(alpha: 0.94),
-                        effectiveCardColor.withValues(alpha: 0.85),
-                        effectiveCardColor.withValues(alpha: 0.90),
-                      ],
-                      stops: const [0.0, 0.55, 1.0],
-                    ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: effectiveBorderColor,
-                width: isDark ? 1.0 : 1.5,
+    Widget cardContent = Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : null,
+        gradient: isDark
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  effectiveCardColor.withValues(alpha: 0.98),
+                  effectiveCardColor.withValues(alpha: 0.92),
+                  effectiveCardColor.withValues(alpha: 0.95),
+                ],
+                stops: const [0.0, 0.55, 1.0],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.065),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-                if (!isDark)
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-              ],
-            ),
-            padding: const EdgeInsets.all(20),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: effectiveBorderColor,
+          width: isDark ? 1.0 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.35)
+                : const Color(0xFF64748B).withValues(alpha: 0.08),
+            blurRadius: isDark ? 18 : 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -987,10 +996,20 @@ class AttendanceScanCard extends StatelessWidget {
             ),
           ],
         ),
+      );
+
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: enableBlur
+            ? BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: cardContent,
+              )
+            : cardContent,
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget _buildButton({
@@ -1006,6 +1025,11 @@ class AttendanceScanCard extends StatelessWidget {
         ? color
         : AppTheme.textPrimary.withValues(alpha: 0.05);
 
+    final isBright = color.computeLuminance() > 0.45;
+    final Color activeTextColor = primaryStyle
+        ? (isBright ? const Color(0xFF0F172A) : Colors.white)
+        : color;
+
     return GestureDetector(
       onTap: isLoading ? null : onTap,
       child: AnimatedContainer(
@@ -1013,7 +1037,7 @@ class AttendanceScanCard extends StatelessWidget {
         height: 54,
         decoration: BoxDecoration(
           color: btnColor.withValues(
-            alpha: primaryStyle && isActive ? 0.9 : 0.1,
+            alpha: primaryStyle && isActive ? 0.95 : 0.1,
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
@@ -1031,18 +1055,14 @@ class AttendanceScanCard extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: isActive
-                      ? (primaryStyle ? Colors.white : color)
-                      : AppTheme.textMuted,
+                  color: isActive ? activeTextColor : AppTheme.textMuted,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   label,
                   style: GoogleFonts.kantumruyPro(
-                    color: isActive
-                        ? (primaryStyle ? Colors.white : color)
-                        : AppTheme.textMuted,
+                    color: isActive ? activeTextColor : AppTheme.textMuted,
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
@@ -1096,108 +1116,117 @@ class AppActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveCardColor = cardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
-    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : Colors.white);
+    final enableBlur = PerfConfig.shouldEnableBlur(context);
+    final effectiveBorderColor = borderColor ?? (isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0));
+
+    final actionContent = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : null,
+        gradient: isDark
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  effectiveCardColor.withValues(alpha: 0.94),
+                  effectiveCardColor.withValues(alpha: 0.85),
+                  effectiveCardColor.withValues(alpha: 0.90),
+                ],
+                stops: const [0.0, 0.55, 1.0],
+              ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: effectiveBorderColor,
+          width: isDark ? 1.0 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+          if (!isDark)
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.025),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? iconColor.withValues(alpha: 0.18)
+                  : iconColor.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isDark
+                    ? iconColor.withValues(alpha: 0.38)
+                    : iconColor.withValues(alpha: 0.22),
+                width: 1.0,
+              ),
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: iconColor.withValues(alpha: 0.12),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.kantumruyPro(
+                    color: textColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.kantumruyPro(
+                    color: subtitleColor ?? (isDark ? const Color(0xFF98989D) : const Color(0xFF64748B)),
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            CupertinoIcons.chevron_right,
+            color: isDark ? const Color(0xFF98989D) : const Color(0xFF94A3B8),
+            size: 14,
+          ),
+        ],
+      ),
+    );
 
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1C1C1E) : null,
-              gradient: isDark
-                  ? null
-                  : LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        effectiveCardColor.withValues(alpha: 0.94),
-                        effectiveCardColor.withValues(alpha: 0.85),
-                        effectiveCardColor.withValues(alpha: 0.90),
-                      ],
-                      stops: const [0.0, 0.55, 1.0],
-                    ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: effectiveBorderColor,
-                width: isDark ? 1.0 : 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-                if (!isDark)
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.025),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFFFFBEB),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isDark ? const Color(0x38545458) : const Color(0xFFFDE68A),
-                      width: 1.2,
-                    ),
-                    boxShadow: isDark
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                  ),
-                  child: Icon(icon, color: iconColor, size: 24),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.kantumruyPro(
-                          color: textColor ?? (isDark ? Colors.white : const Color(0xFF0F172A)),
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.kantumruyPro(
-                          color: subtitleColor ?? (isDark ? const Color(0xFF98989D) : const Color(0xFF64748B)),
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  color: isDark ? const Color(0xFF98989D) : const Color(0xFF94A3B8),
-                  size: 14,
-                ),
-              ],
-            ),
-          ),
-        ),
+        child: enableBlur
+            ? BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: actionContent,
+              )
+            : actionContent,
       ),
     );
   }

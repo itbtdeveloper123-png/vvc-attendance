@@ -1003,12 +1003,12 @@ class _RequestListScreenState extends State<RequestListScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: AppTheme.isDarkMode
+        color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
             ? const Color(0xFF1C1C1E)
             : Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppTheme.isDarkMode
+          color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
               ? const Color(0x38545458)
               : Colors.white,
           width: 1.5,
@@ -1566,7 +1566,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppTheme.primary,
-                                foregroundColor: AppTheme.textPrimary,
+                                foregroundColor: const Color(0xFF0F172A),
                                 padding: const EdgeInsets.symmetric(horizontal: 4),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -1664,7 +1664,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppTheme.primary,
-                                    foregroundColor: AppTheme.textPrimary,
+                                    foregroundColor: const Color(0xFF0F172A),
                                     padding: const EdgeInsets.symmetric(horizontal: 4),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),

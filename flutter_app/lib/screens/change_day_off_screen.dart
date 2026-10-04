@@ -144,7 +144,7 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
                   "យល់ព្រម",
                   style: GoogleFonts.kantumruyPro(
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -256,12 +256,12 @@ class _ChangeDayOffScreenState extends State<ChangeDayOffScreen> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: AppTheme.isDarkMode
+                        color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
                             ? const Color(0xFF1C1C1E)
                             : Colors.white.withValues(alpha: 0.94),
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: AppTheme.isDarkMode
+                          color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
                               ? const Color(0x38545458)
                               : Colors.white,
                           width: 1.5,

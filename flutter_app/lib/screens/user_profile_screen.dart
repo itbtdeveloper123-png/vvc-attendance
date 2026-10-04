@@ -16,6 +16,17 @@ import 'call/active_call_screen.dart';
 import '../widgets/chat_wallpaper_picker.dart';
 import '../widgets/vvc_global_alert.dart';
 
+class _UPTheme {
+  static bool isDark = true;
+  static Color get bg => isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+  static Color get card => isDark ? const Color(0xFF1E293B) : Colors.white;
+  static Color get textPrimary => isDark ? Colors.white : const Color(0xFF0F172A);
+  static Color get textMuted => isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+  static Color get border => isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+  static Color get divider => isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+  static Color get iconColor => isDark ? Colors.white : const Color(0xFF0F172A);
+}
+
 class UserProfileScreen extends StatefulWidget {
   final String userId;
   final String userName;
@@ -153,7 +164,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: _UPTheme.bg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -174,7 +185,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx),
-                    child: Text('Cancel', style: GoogleFonts.inter(color: Colors.white, fontSize: 16)),
+                    child: Text('Cancel', style: GoogleFonts.inter(color: _UPTheme.textPrimary, fontSize: 16)),
                   ),
                   CircleAvatar(
                     radius: 26,
@@ -205,19 +216,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               // 1. Name Inputs Card
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: _UPTheme.card,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF334155), width: 1),
+                  border: Border.all(color: _UPTheme.border, width: 1),
                 ),
                 child: Column(
                   children: [
                     TextField(
                       controller: fnCtrl,
                       cursorColor: const Color(0xFF0A84FF),
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                      style: GoogleFonts.inter(color: _UPTheme.textPrimary, fontSize: 15),
                       decoration: InputDecoration(
                         hintText: 'First Name',
-                        hintStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 15),
+                        hintStyle: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 15),
                         filled: false,
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -225,14 +236,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       ),
                     ),
-                    const Divider(height: 1, color: Color(0xFF334155), indent: 16),
+                    Divider(height: 1, color: _UPTheme.divider, indent: 16),
                     TextField(
                       controller: lnCtrl,
                       cursorColor: const Color(0xFF0A84FF),
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                      style: GoogleFonts.inter(color: _UPTheme.textPrimary, fontSize: 15),
                       decoration: InputDecoration(
                         hintText: 'Last Name',
-                        hintStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 15),
+                        hintStyle: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 15),
                         filled: false,
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -248,17 +259,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               // 2. Add Notes Card
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: _UPTheme.card,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFF334155), width: 1),
+                  border: Border.all(color: _UPTheme.border, width: 1),
                 ),
                 child: TextField(
                   controller: notesCtrl,
                   cursorColor: const Color(0xFF0A84FF),
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                  style: GoogleFonts.inter(color: _UPTheme.textPrimary, fontSize: 15),
                   decoration: InputDecoration(
                     hintText: 'Add Notes',
-                    hintStyle: GoogleFonts.inter(color: const Color(0xFF64748B), fontSize: 15),
+                    hintStyle: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 15),
                     filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
@@ -270,15 +281,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               const SizedBox(height: 4),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Notes are only visible to you.', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12)),
+                child: Text('Notes are only visible to you.', style: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 12)),
               ),
               const SizedBox(height: 16),
 
               // 3. Photo Options Card (Matching Screenshot 2)
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: _UPTheme.card,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _UPTheme.border, width: 1),
                 ),
                 child: Column(
                   children: [
@@ -287,7 +299,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       title: Text('Suggest Photo for ${fnCtrl.text}', style: GoogleFonts.inter(color: const Color(0xFF0A84FF))),
                       onTap: () {},
                     ),
-                    const Divider(height: 1, color: Color(0xFF334155), indent: 50),
+                    Divider(height: 1, color: _UPTheme.divider, indent: 50),
                     ListTile(
                       leading: const Icon(Icons.add_a_photo_outlined, color: Color(0xFF0A84FF)),
                       title: Text('Set Photo for ${fnCtrl.text}', style: GoogleFonts.inter(color: const Color(0xFF0A84FF))),
@@ -299,7 +311,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               const SizedBox(height: 4),
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text('You can replace photo with another photo that only you will see.', style: GoogleFonts.inter(color: Colors.white38, fontSize: 12)),
+                child: Text('You can replace photo with another photo that only you will see.', style: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 12)),
               ),
               const SizedBox(height: 20),
 
@@ -307,8 +319,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: _UPTheme.card,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _UPTheme.border, width: 1),
                 ),
                 child: TextButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -325,7 +338,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void _showTelegramMoreMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: _UPTheme.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -335,7 +348,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: _UPTheme.divider, borderRadius: BorderRadius.circular(10))),
               const SizedBox(height: 12),
               _buildMenuItem(Icons.brush_outlined, 'Change Wallpaper', () {
                 Navigator.pop(ctx);
@@ -360,7 +373,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               _buildMenuItem(Icons.card_giftcard_rounded, 'Send a Gift', () {
                 Navigator.pop(ctx);
               }),
-              const Divider(color: Color(0xFF334155), indent: 16, endIndent: 16, height: 16),
+              Divider(color: _UPTheme.divider, indent: 16, endIndent: 16, height: 16),
               _buildMenuItem(Icons.timer_outlined, 'Enable Auto-Delete', () {
                 Navigator.pop(ctx);
               }),
@@ -382,11 +395,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   Widget _buildMenuItem(IconData icon, String title, VoidCallback onTap, {bool isDanger = false}) {
     return ListTile(
-      leading: Icon(icon, color: isDanger ? const Color(0xFFFF3B30) : Colors.white, size: 22),
+      leading: Icon(icon, color: isDanger ? const Color(0xFFFF3B30) : _UPTheme.textPrimary, size: 22),
       title: Text(
         title,
         style: GoogleFonts.inter(
-          color: isDanger ? const Color(0xFFFF3B30) : Colors.white,
+          color: isDanger ? const Color(0xFFFF3B30) : _UPTheme.textPrimary,
           fontSize: 15,
           fontWeight: isDanger ? FontWeight.bold : FontWeight.w500,
         ),
@@ -397,8 +410,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _UPTheme.isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: _UPTheme.bg,
       body: StreamBuilder<DocumentSnapshot>(
         stream: _firestore.collection('users').doc(widget.userId).snapshots(),
         builder: (context, snapshot) {
@@ -449,10 +463,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.82),
-                        border: const Border(
+                        color: _UPTheme.bg.withValues(alpha: 0.82),
+                        border: Border(
                           bottom: BorderSide(
-                            color: Colors.white12,
+                            color: _UPTheme.divider,
                             width: 0.8,
                           ),
                         ),
@@ -466,8 +480,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     onTap: () => Navigator.pop(context),
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      decoration: const BoxDecoration(color: Color(0xFF1E293B), shape: BoxShape.circle),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                      decoration: BoxDecoration(
+                        color: _UPTheme.card,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _UPTheme.divider, width: 0.8),
+                      ),
+                      child: Icon(Icons.arrow_back_ios_new_rounded, color: _UPTheme.iconColor, size: 18),
                     ),
                   ),
                 ),
@@ -477,11 +495,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     child: ElevatedButton(
                       onPressed: () => _showEditContactModal(firstName, lastName, phone, bio),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E293B),
+                        backgroundColor: _UPTheme.card,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(color: _UPTheme.divider, width: 0.8),
+                        ),
                       ),
-                      child: Text('Edit', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text('Edit', style: GoogleFonts.inter(color: _UPTheme.textPrimary, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -506,19 +527,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       const SizedBox(height: 12),
                       Text(
                         name,
-                        style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.kantumruyPro(color: _UPTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('last seen recently', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 13)),
+                          Text('last seen recently', style: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 13)),
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
+                              color: _UPTheme.card,
                               borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _UPTheme.border, width: 0.8),
                             ),
                             child: Text('when?', style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 11)),
                           ),
@@ -556,32 +578,32 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       // Profile Info Card (Matching Screenshot 1)
                       Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
+                          color: _UPTheme.card,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF334155), width: 0.8),
+                          border: Border.all(color: _UPTheme.border, width: 0.8),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Username
                             ListTile(
-                              title: Text('username', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12.5)),
+                              title: Text('username', style: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 12.5)),
                               subtitle: Text(username, style: GoogleFonts.inter(color: const Color(0xFF0A84FF), fontSize: 15, fontWeight: FontWeight.w500)),
                               trailing: const Icon(Icons.qr_code_rounded, color: Color(0xFF0A84FF), size: 22),
                             ),
-                            const Divider(height: 1, color: Color(0xFF334155), indent: 16),
+                            Divider(height: 1, color: _UPTheme.divider, indent: 16),
 
                             // Birthday
                             ListTile(
-                              title: Text('birthday', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12.5)),
-                              subtitle: Text(birthday, style: GoogleFonts.inter(color: Colors.white, fontSize: 14.5)),
+                              title: Text('birthday', style: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 12.5)),
+                              subtitle: Text(birthday, style: GoogleFonts.inter(color: _UPTheme.textPrimary, fontSize: 14.5)),
                             ),
-                            const Divider(height: 1, color: Color(0xFF334155), indent: 16),
+                            Divider(height: 1, color: _UPTheme.divider, indent: 16),
 
                             // Bio
                             ListTile(
-                              title: Text('bio', style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 12.5)),
-                              subtitle: Text(bio, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14, height: 1.4)),
+                              title: Text('bio', style: GoogleFonts.inter(color: _UPTheme.textMuted, fontSize: 12.5)),
+                              subtitle: Text(bio, style: GoogleFonts.kantumruyPro(color: _UPTheme.textPrimary, fontSize: 14, height: 1.4)),
                             ),
                           ],
                         ),
@@ -625,9 +647,16 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         width: 62,
         height: 62,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
+          color: _UPTheme.card,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF334155), width: 0.8),
+          border: Border.all(color: _UPTheme.border, width: 0.8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _UPTheme.isDark ? 0.2 : 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -649,13 +678,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF334155) : const Color(0xFF1E293B),
+          color: isSelected ? (_UPTheme.isDark ? const Color(0xFF334155) : const Color(0xFF0A84FF)) : _UPTheme.card,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? Colors.transparent : _UPTheme.border, width: 0.8),
         ),
         child: Text(
           title,
           style: GoogleFonts.inter(
-            color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+            color: isSelected ? Colors.white : _UPTheme.textMuted,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             fontSize: 13,
           ),
@@ -771,12 +801,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    color: const Color(0xFF1E293B),
+                    color: _UPTheme.card,
                     child: Image.network(
                       ApiService.getFullImageUrl(rawUrl),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(Icons.image_not_supported_rounded, color: Colors.white38),
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Icon(Icons.image_not_supported_rounded, color: _UPTheme.textMuted),
                       ),
                     ),
                   ),
@@ -788,15 +818,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
+            color: _UPTheme.card,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF334155), width: 0.8),
+            border: Border.all(color: _UPTheme.border, width: 0.8),
           ),
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: docs.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF334155), indent: 16),
+            separatorBuilder: (_, __) => Divider(height: 1, color: _UPTheme.divider, indent: 16),
             itemBuilder: (context, idx) {
               final data = docs[idx].data() as Map<String, dynamic>;
               final text = data['text'] ?? data['fileName'] ?? 'សារប្រព័ន្ធផ្សព្វផ្សាយ';
@@ -823,8 +853,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   color: Color(0xFF0A84FF),
                   size: 28,
                 ),
-                title: Text(text, style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 14)),
-                subtitle: Text(sender.isNotEmpty ? 'ផ្ញើដោយ: $sender' : 'សារចែករំលែក', style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12)),
+                title: Text(text, style: GoogleFonts.kantumruyPro(color: _UPTheme.textPrimary, fontSize: 14)),
+                subtitle: Text(sender.isNotEmpty ? 'ផ្ញើដោយ: $sender' : 'សារចែករំលែក', style: GoogleFonts.kantumruyPro(color: _UPTheme.textMuted, fontSize: 12)),
                 onTap: () async {
                   if (fileUrl.startsWith('http')) {
                     await launchUrl(Uri.parse(fileUrl), mode: LaunchMode.externalApplication);
@@ -843,18 +873,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: _UPTheme.card,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF334155), width: 0.8),
+        border: Border.all(color: _UPTheme.border, width: 0.8),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.perm_media_outlined, color: Color(0xFF94A3B8), size: 40),
+          Icon(Icons.perm_media_outlined, color: _UPTheme.textMuted, size: 40),
           const SizedBox(height: 10),
           Text(
             'គ្មានប្រព័ន្ធផ្សព្វផ្សាយនៅឡើយទេ',
-            style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 13.5),
+            style: GoogleFonts.kantumruyPro(color: _UPTheme.textMuted, fontSize: 13.5),
           ),
         ],
       ),
