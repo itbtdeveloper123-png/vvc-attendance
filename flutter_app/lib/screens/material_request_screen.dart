@@ -1078,12 +1078,16 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : const Color(0xFFE2E8F0),
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                              color: const Color(0xFF0F172A).withValues(alpha: isDark ? 0.25 : 0.03),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -1095,7 +1099,9 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               alignment: Alignment.center,
@@ -1114,7 +1120,7 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.kantumruyPro(
-                                      color: AppTheme.textPrimary,
+                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13,
                                     ),
@@ -1125,7 +1131,9 @@ class _MaterialRequestScreenState extends State<MaterialRequestScreen> {
                                     style: GoogleFonts.kantumruyPro(
                                       color: mat.stock <= 5
                                           ? Colors.redAccent
-                                          : const Color(0xFF059669),
+                                          : isDark
+                                              ? const Color(0xFF34D399)
+                                              : const Color(0xFF059669),
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                     ),

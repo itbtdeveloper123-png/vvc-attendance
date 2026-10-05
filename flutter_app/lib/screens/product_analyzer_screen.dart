@@ -1092,7 +1092,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       decoration: BoxDecoration(
         color: AppTheme.bgCard,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppTheme.border),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1103,7 +1103,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppTheme.textMuted.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1115,7 +1115,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               Text(
                 '📁 ដាក់ក្នុង Folder',
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 17,
                 ),
@@ -1126,11 +1126,11 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   _openCreateFolderDialog();
                 },
                 icon: const Icon(Icons.add_rounded,
-                    color: Color(0xFFA78BFA), size: 18),
+                    color: Color(0xFF7C3AED), size: 18),
                 label: Text(
                   'Folder ថ្មី',
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFFA78BFA),
+                    color: const Color(0xFF7C3AED),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1149,7 +1149,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             title: Text(
               'គ្មាន Folder (Uncategorized)',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontWeight: curFolderId == null
                     ? FontWeight.bold
                     : FontWeight.normal,
@@ -1176,7 +1176,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               _showToast('បានផ្លាស់ទីទៅកាន់ "គ្មាន Folder"');
             },
           ),
-          const Divider(color: Colors.white12),
+          Divider(color: AppTheme.border),
           ..._folders.map((folder) {
             final isSelected = curFolderId == folder.id;
             return ListTile(
@@ -1197,7 +1197,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               title: Text(
                 folder.name,
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight:
                       isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
@@ -1230,22 +1230,28 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   }
 
   void _openCreateFolderDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final dialogBg = isDark ? const Color(0xFF1E1B4B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final fieldFill = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC);
+    final dialogBorder = isDark ? const Color(0xFF7C3AED) : AppTheme.border;
+
     final ctrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1B4B),
+        backgroundColor: dialogBg,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             const Icon(Icons.create_new_folder_rounded,
-                color: Color(0xFFA78BFA)),
+                color: Color(0xFF7C3AED)),
             const SizedBox(width: 8),
             Text(
               'បង្កើត Folder ថ្មី',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: textColor,
                 fontWeight: FontWeight.bold,
                 fontSize: 17,
               ),
@@ -1255,16 +1261,16 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: GoogleFonts.kantumruyPro(color: Colors.white),
+          style: GoogleFonts.kantumruyPro(color: textColor),
           decoration: InputDecoration(
             hintText: 'ឧ. គ្រឿងសំអាង, អាហារបំប៉ន...',
-            hintStyle: GoogleFonts.kantumruyPro(color: Colors.white38),
+            hintStyle: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
+            fillColor: fieldFill,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: Color(0xFF7C3AED), width: 1.5),
+                  BorderSide(color: dialogBorder, width: 1.5),
             ),
           ),
         ),
@@ -1272,7 +1278,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text('បោះបង់',
-                style: GoogleFonts.kantumruyPro(color: Colors.white60)),
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1299,21 +1305,27 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   }
 
   void _openRenameFolderDialog(ProductFolder folder) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final dialogBg = isDark ? const Color(0xFF1E1B4B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final fieldFill = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC);
+    final dialogBorder = isDark ? const Color(0xFF7C3AED) : AppTheme.border;
+
     final ctrl = TextEditingController(text: folder.name);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1B4B),
+        backgroundColor: dialogBg,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            const Icon(Icons.edit_note_rounded, color: Color(0xFFA78BFA)),
+            const Icon(Icons.edit_note_rounded, color: Color(0xFF7C3AED)),
             const SizedBox(width: 8),
             Text(
               'ប្តូរឈ្មោះ Folder',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: textColor,
                 fontWeight: FontWeight.bold,
                 fontSize: 17,
               ),
@@ -1323,14 +1335,14 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: GoogleFonts.kantumruyPro(color: Colors.white),
+          style: GoogleFonts.kantumruyPro(color: textColor),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
+            fillColor: fieldFill,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: Color(0xFF7C3AED), width: 1.5),
+                  BorderSide(color: dialogBorder, width: 1.5),
             ),
           ),
         ),
@@ -1338,7 +1350,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text('បោះបង់',
-                style: GoogleFonts.kantumruyPro(color: Colors.white60)),
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1365,22 +1377,28 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   }
 
   void _openRenameProductDialog(SavedProductSession session) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final dialogBg = isDark ? const Color(0xFF1E1B4B) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final fieldFill = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC);
+    final dialogBorder = isDark ? const Color(0xFF7C3AED) : AppTheme.border;
+
     final ctrl = TextEditingController(text: session.title);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1B4B),
+        backgroundColor: dialogBg,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             const Icon(Icons.drive_file_rename_outline_rounded,
-                color: Color(0xFFA78BFA)),
+                color: Color(0xFF7C3AED)),
             const SizedBox(width: 8),
             Text(
               'ប្តូរឈ្មោះផលិតផល',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: textColor,
                 fontWeight: FontWeight.bold,
                 fontSize: 17,
               ),
@@ -1390,14 +1408,14 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: GoogleFonts.kantumruyPro(color: Colors.white),
+          style: GoogleFonts.kantumruyPro(color: textColor),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
+            fillColor: fieldFill,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: Color(0xFF7C3AED), width: 1.5),
+                  BorderSide(color: dialogBorder, width: 1.5),
             ),
           ),
         ),
@@ -1405,7 +1423,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text('បោះបង់',
-                style: GoogleFonts.kantumruyPro(color: Colors.white60)),
+                style: GoogleFonts.kantumruyPro(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1664,24 +1682,31 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   // ─── Welcome Bubble ───────────────────────────────────────────────────────
 
   Widget _buildWelcomeBubble(ChatMessageItem msg) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     return FadeInDown(
       duration: const Duration(milliseconds: 350),
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1E1B4B), Color(0xFF0F172A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          gradient: isDark
+              ? const LinearGradient(
+                  colors: [Color(0xFF1E1B4B), Color(0xFF0F172A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFFF5F3FF), Color(0xFFEDE9FE)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
+            color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.3 : 0.25),
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+              color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.15 : 0.08),
               blurRadius: 18,
               offset: const Offset(0, 4),
             )
@@ -1695,17 +1720,17 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                    color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.25 : 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.auto_awesome_rounded,
-                      color: Color(0xFFA78BFA), size: 20),
+                      color: Color(0xFF7C3AED), size: 20),
                 ),
                 const SizedBox(width: 10),
                 Text(
                   'Chatbot Product Analyzer',
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
+                    color: isDark ? Colors.white : const Color(0xFF1E1B4B),
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -1716,7 +1741,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             Text(
               msg.text,
               style: GoogleFonts.kantumruyPro(
-                color: const Color(0xFFE2E8F0),
+                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
                 fontSize: 13.5,
                 height: 1.5,
               ),
@@ -1732,24 +1757,28 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   label: 'ថតរូបភាព',
                   color: const Color(0xFF7C3AED),
                   onTap: () => _pickImage(ImageSource.camera),
+                  isDark: isDark,
                 ),
                 _buildQuickActionBtn(
                   icon: Icons.photo_library_rounded,
                   label: 'ជ្រើសរូប Gallery',
                   color: const Color(0xFF0EA5E9),
                   onTap: () => _pickImage(ImageSource.gallery),
+                  isDark: isDark,
                 ),
                 _buildQuickActionBtn(
                   icon: Icons.qr_code_scanner_rounded,
                   label: 'Scan Barcode',
                   color: const Color(0xFF10B981),
                   onTap: _openBarcodeScanner,
+                  isDark: isDark,
                 ),
                 _buildQuickActionBtn(
                   icon: Icons.folder_special_rounded,
                   label: 'ប្រវត្តិ & Folders (${_savedHistory.length})',
                   color: const Color(0xFFF59E0B),
                   onTap: _openHistoryModal,
+                  isDark: isDark,
                 ),
               ],
             ),
@@ -1764,6 +1793,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     required String label,
     required Color color,
     required VoidCallback onTap,
+    bool isDark = true,
   }) {
     return InkWell(
       onTap: () {
@@ -1774,9 +1804,9 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
+          color: color.withValues(alpha: isDark ? 0.15 : 0.10),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
+          border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.30)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1786,7 +1816,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: isDark ? Colors.white : color,
                 fontWeight: FontWeight.w600,
                 fontSize: 12.5,
               ),
@@ -1886,6 +1916,8 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
       return _buildProductAnalysisCard(msg.analysis!);
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+
     return FadeInLeft(
       duration: const Duration(milliseconds: 250),
       child: Align(
@@ -1901,7 +1933,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               bottomLeft: Radius.circular(18),
               bottomRight: Radius.circular(18),
             ),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.08) : AppTheme.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1910,12 +1942,12 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.smart_toy_rounded,
-                      color: Color(0xFFA78BFA), size: 16),
+                      color: Color(0xFF7C3AED), size: 16),
                   const SizedBox(width: 6),
                   Text(
                     'AI Assistant',
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFFA78BFA),
+                      color: const Color(0xFF7C3AED),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1926,7 +1958,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               Text(
                 msg.text,
                 style: GoogleFonts.kantumruyPro(
-                  color: const Color(0xFFF1F5F9),
+                  color: AppTheme.textPrimary,
                   fontSize: 14,
                   height: 1.5,
                 ),
@@ -1939,12 +1971,13 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   }
 
   Widget _buildAiThinkingBubble() {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     return FadeIn(
       child: Container(
         margin: const EdgeInsets.only(bottom: 14, right: 40),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1B4B),
+          color: isDark ? const Color(0xFF1E1B4B) : const Color(0xFFF5F3FF),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
@@ -1958,7 +1991,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation(Color(0xFFA78BFA)),
+                valueColor: AlwaysStoppedAnimation(Color(0xFF7C3AED)),
               ),
             ),
             const SizedBox(width: 12),
@@ -1969,7 +2002,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   Text(
                     'AI កំពុងវិភាគ និងស្រាវជ្រាវ...',
                     style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
+                      color: isDark ? Colors.white : const Color(0xFF1E1B4B),
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1977,7 +2010,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   Text(
                     'រយៈពេល: ${_formatElapsed(_elapsedSeconds)}',
                     style: GoogleFonts.inter(
-                      color: const Color(0xFFA78BFA),
+                      color: const Color(0xFF7C3AED),
                       fontSize: 11,
                     ),
                   ),
@@ -2001,14 +2034,14 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             height: 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation(Color(0xFFA78BFA)),
+              valueColor: AlwaysStoppedAnimation(Color(0xFF7C3AED)),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             'AI កំពុងឆ្លើយតប...',
             style: GoogleFonts.kantumruyPro(
-              color: Colors.white70,
+              color: AppTheme.textSecondary,
               fontSize: 12,
             ),
           ),
@@ -2020,6 +2053,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   // ─── Product Analysis Card in Chat ────────────────────────────────────────
 
   Widget _buildProductAnalysisCard(ProductAnalysis r) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     return FadeInUp(
       duration: const Duration(milliseconds: 350),
       child: Container(
@@ -2028,12 +2062,12 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           color: AppTheme.bgCard,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+            color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.35 : 0.22),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+              color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.12 : 0.06),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -2045,14 +2079,20 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             // Header: Flag / Image, Name, Brand
             Container(
               padding: const EdgeInsets.all(18),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF2E1065), Color(0xFF0F172A)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? const LinearGradient(
+                        colors: [Color(0xFF2E1065), Color(0xFF0F172A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                 borderRadius:
-                    BorderRadius.vertical(top: Radius.circular(21)),
+                    const BorderRadius.vertical(top: Radius.circular(21)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2090,7 +2130,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                               Text(
                                 r.brand,
                                 style: GoogleFonts.inter(
-                                  color: const Color(0xFFA78BFA),
+                                  color: const Color(0xFFDDD6FE),
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -2128,7 +2168,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                         _buildMiniBadge(
                           Icons.folder_rounded,
                           _currentFolderName!,
-                          const Color(0xFF8B5CF6),
+                          const Color(0xFFA78BFA),
                         ),
                     ],
                   ),
@@ -2152,13 +2192,13 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 child: Row(
                   children: [
                     const Icon(Icons.travel_explore_rounded,
-                        color: Color(0xFF38BDF8), size: 16),
+                        color: Color(0xFF0284C7), size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'ផ្ទៀងផ្ទាត់ផ្ទាល់ពី Google Search (Live Web Grounding)',
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF38BDF8),
+                          color: const Color(0xFF0284C7),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2176,15 +2216,15 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      const Color(0xFF0284C7).withValues(alpha: 0.18),
-                      const Color(0xFF0D9488).withValues(alpha: 0.14),
+                      const Color(0xFF0284C7).withValues(alpha: isDark ? 0.18 : 0.08),
+                      const Color(0xFF0D9488).withValues(alpha: isDark ? 0.14 : 0.06),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.30),
                   ),
                 ),
                 child: Column(
@@ -2193,12 +2233,12 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                     Row(
                       children: [
                         const Icon(Icons.water_drop_rounded,
-                            color: Color(0xFF38BDF8), size: 17),
+                            color: Color(0xFF0284C7), size: 17),
                         const SizedBox(width: 6),
                         Text(
                           'ព័ត៌មានលម្អិតដបទឹក & កែវរក្សាកម្តៅ (Drinkware Specs)',
                           style: GoogleFonts.kantumruyPro(
-                            color: const Color(0xFF38BDF8),
+                            color: const Color(0xFF0284C7),
                             fontSize: 12.5,
                             fontWeight: FontWeight.bold,
                           ),
@@ -2215,23 +2255,27 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                             icon: Icons.local_drink_rounded,
                             label: 'ចំណុះ: ${r.detectedCapacity}',
                             color: const Color(0xFF0EA5E9),
+                            isDark: isDark,
                           ),
                         if (r.detectedMaterial != null)
                           _buildBottleFeatureChip(
                             icon: Icons.layers_rounded,
                             label: r.detectedMaterial!,
                             color: const Color(0xFF10B981),
+                            isDark: isDark,
                           ),
                         if (r.detectedInsulation != null)
                           _buildBottleFeatureChip(
                             icon: Icons.thermostat_rounded,
                             label: r.detectedInsulation!,
                             color: const Color(0xFFF59E0B),
+                            isDark: isDark,
                           ),
                         _buildBottleFeatureChip(
                           icon: Icons.lock_outline_rounded,
                           label: 'ការពារជ្រាបទឹក 100% & BPA-Free',
                           color: const Color(0xFF8B5CF6),
+                          isDark: isDark,
                         ),
                       ],
                     ),
@@ -2243,10 +2287,10 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
+                color: isDark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF8FAFC),
                 border: Border(
                   bottom: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.06)),
+                      color: isDark ? Colors.white.withValues(alpha: 0.06) : AppTheme.border),
                 ),
               ),
               child: Row(
@@ -2254,7 +2298,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   _buildToolbarBtn(
                     icon: Icons.create_new_folder_rounded,
                     label: _currentFolderName ?? 'ដាក់ក្នុង Folder',
-                    color: const Color(0xFFA78BFA),
+                    color: const Color(0xFF7C3AED),
                     onTap: () => _openMoveToFolderSheet(null),
                   ),
                   const Spacer(),
@@ -2283,7 +2327,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                 child: Text(
                   r.summary,
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFFF1F5F9),
+                    color: AppTheme.textPrimary,
                     fontSize: 14,
                     height: 1.55,
                   ),
@@ -2305,6 +2349,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                           ? 'របៀបប្រើប្រាស់ & ការថែទាំដប'
                           : 'របៀបប្រើប្រាស់',
                       items: r.usage,
+                      isDark: isDark,
                     ),
                   if (r.benefits.isNotEmpty)
                     _buildSectionBlock(
@@ -2314,6 +2359,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                           ? 'អត្ថប្រយោជន៍ & សមត្ថភាពរក្សាសីតុណ្ហភាព'
                           : 'អត្ថប្រយោជន៍',
                       items: r.benefits,
+                      isDark: isDark,
                     ),
                   if (r.warnings.isNotEmpty)
                     _buildSectionBlock(
@@ -2323,6 +2369,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                           ? 'ការប្រុងប្រយ័ត្នចំពោះដបទឹក'
                           : 'ការប្រុងប្រយ័ត្ន',
                       items: r.warnings,
+                      isDark: isDark,
                     ),
                   if (r.ingredientsSummary.isNotEmpty &&
                       r.ingredientsSummary != '—')
@@ -2337,6 +2384,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                           ? 'សម្ភារៈ & លក្ខណៈបច្ចេកទេស'
                           : 'សារធាតុផ្សំ',
                       text: r.ingredientsSummary,
+                      isDark: isDark,
                     ),
                 ],
               ),
@@ -2346,7 +2394,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.2),
+                color: isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFFF8FAFC),
                 borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(21)),
               ),
@@ -2356,12 +2404,12 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   Row(
                     children: [
                       const Icon(Icons.lightbulb_outline_rounded,
-                          color: Color(0xFFFCD34D), size: 15),
+                          color: Color(0xFFD97706), size: 15),
                       const SizedBox(width: 6),
                       Text(
                         'សំណួរណែនាំ (ចុចដើម្បីសួរ AI):',
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white70,
+                          color: AppTheme.textSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2372,20 +2420,20 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: r.isBottleOrDrinkware
+                    children: (r.isBottleOrDrinkware
                         ? [
-                            _buildSuggestionChip('❄️ តើដបនេះរក្សាត្រជាក់ និងកម្តៅបានប៉ុន្មានម៉ោង?'),
-                            _buildSuggestionChip('🛡️ តើផលិតពីដែកអ៊ីណុក SUS 304 ឬ 316 និងមាន BPA-Free ទេ?'),
-                            _buildSuggestionChip('🧼 តើត្រូវលាងសម្អាត និងដោះកៅស៊ូគម្របយ៉ាងដូចម្តេច?'),
-                            _buildSuggestionChip('⚠️ តើអាចដាក់ភេសជ្ជៈហ្គាស ឬទឹកដោះគោបានទេ?'),
-                            _buildSuggestionChip('🚫 តើអាចដាក់ក្នុង Microwave ឬម៉ាស៊ីនលាងចានបានទេ?'),
+                            '❄️ តើដបនេះរក្សាត្រជាក់ និងកម្តៅបានប៉ុន្មានម៉ោង?',
+                            '🛡️ តើផលិតពីដែកអ៊ីណុក SUS 304 ឬ 316 និងមាន BPA-Free ទេ?',
+                            '🧼 តើត្រូវលាងសម្អាត និងដោះកៅស៊ូគម្របយ៉ាងដូចម្តេច?',
+                            '⚠️ តើអាចដាក់ភេសជ្ជៈហ្គាស ឬទឹកដោះគោបានទេ?',
+                            '🚫 តើអាចដាក់ក្នុង Microwave ឬម៉ាស៊ីនលាងចានបានទេ?',
                           ]
                         : [
-                            _buildSuggestionChip('តើផលិតផលនេះក្មេងប្រើបានទេ?'),
-                            _buildSuggestionChip('តើមានផលប៉ះពាល់ស្បែក ឬរាងកាយទេ?'),
-                            _buildSuggestionChip('តើត្រូវរក្សាទុកយ៉ាងដូចម្តេច?'),
-                            _buildSuggestionChip('តើមានសារធាតុគីមីគ្រោះថ្នាក់ទេ?'),
-                          ],
+                            'តើផលិតផលនេះក្មេងប្រើបានទេ?',
+                            'តើមានផលប៉ះពាល់ស្បែក ឬរាងកាយទេ?',
+                            'តើត្រូវរក្សាទុកយ៉ាងដូចម្តេច?',
+                            'តើមានសារធាតុគីមីគ្រោះថ្នាក់ទេ?',
+                          ]).map((q) => _buildSuggestionChip(q, isDark: isDark)).toList(),
                   ),
                 ],
               ),
@@ -2400,13 +2448,14 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     required IconData icon,
     required String label,
     required Color color,
+    bool isDark = true,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
+        color: color.withValues(alpha: isDark ? 0.16 : 0.10),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2418,7 +2467,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             child: Text(
               label,
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: isDark ? Colors.white : AppTheme.textPrimary,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -2502,7 +2551,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
   }) {
     return IconButton(
       tooltip: tooltip,
-      icon: Icon(icon, color: Colors.white70, size: 18),
+      icon: Icon(icon, color: AppTheme.textSecondary, size: 18),
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       onPressed: () {
@@ -2517,14 +2566,15 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     required Color color,
     required String title,
     required List<String> items,
+    bool isDark = true,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.06) : AppTheme.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2536,7 +2586,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               Text(
                 title,
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 13.5,
                 ),
@@ -2555,7 +2605,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
                       child: Text(
                         it,
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFFE2E8F0),
+                          color: AppTheme.textSecondary,
                           fontSize: 13,
                           height: 1.4,
                         ),
@@ -2574,14 +2624,15 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     required Color color,
     required String title,
     required String text,
+    bool isDark = true,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.06) : AppTheme.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2593,7 +2644,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
               Text(
                 title,
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 13.5,
                 ),
@@ -2604,7 +2655,7 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
           Text(
             text,
             style: GoogleFonts.kantumruyPro(
-              color: const Color(0xFFE2E8F0),
+              color: AppTheme.textSecondary,
               fontSize: 13,
               height: 1.4,
             ),
@@ -2614,25 +2665,25 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
     );
   }
 
-  Widget _buildSuggestionChip(String text) {
+  Widget _buildSuggestionChip(String text, {bool isDark = true}) {
     return InkWell(
       onTap: () => _sendFollowUpMessage(text),
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+          color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.15 : 0.10),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: const Color(0xFF7C3AED).withValues(alpha: 0.35),
+            color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.35 : 0.25),
           ),
         ),
         child: Text(
           text,
           style: GoogleFonts.kantumruyPro(
-            color: const Color(0xFFDDD6FE),
+            color: isDark ? const Color(0xFFDDD6FE) : const Color(0xFF6D28D9),
             fontSize: 11.5,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -2675,7 +2726,9 @@ class _ProductAnalyzerScreenState extends State<ProductAnalyzerScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode
+                    ? const Color(0xFF1E293B)
+                    : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: AppTheme.border,
@@ -2949,6 +3002,9 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+
     // Filter items
     final filtered = widget.history.where((p) {
       if (_selectedFolderId == 'uncategorized') {
@@ -3031,7 +3087,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppTheme.border),
               ),
@@ -3080,6 +3136,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                   label: 'ទាំងអស់ (${widget.history.length})',
                   isSelected: _selectedFolderId == null,
                   color: const Color(0xFF7C3AED),
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 6),
                 _buildFolderPill(
@@ -3087,6 +3144,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                   label: 'គ្មាន Folder',
                   isSelected: _selectedFolderId == 'uncategorized',
                   color: Colors.grey,
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 6),
                 ...widget.folders.map((f) {
@@ -3100,6 +3158,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                       isSelected: _selectedFolderId == f.id,
                       color: Color(f.colorHex),
                       folderObj: f,
+                      isDark: isDark,
                     ),
                   );
                 }),
@@ -3118,7 +3177,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                   Text(
                     'Folder សកម្ម៖',
                     style: GoogleFonts.kantumruyPro(
-                        color: Colors.white54, fontSize: 11.5),
+                        color: AppTheme.textMuted, fontSize: 11.5),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -3194,7 +3253,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                     itemCount: filtered.length,
                     itemBuilder: (ctx, idx) {
                       final item = filtered[idx];
-                      return _buildProductHistoryTile(item);
+                      return _buildProductHistoryTile(item, isDark);
                     },
                   ),
           ),
@@ -3208,6 +3267,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
     required String label,
     required bool isSelected,
     required Color color,
+    required bool isDark,
     ProductFolder? folderObj,
   }) {
     return GestureDetector(
@@ -3217,7 +3277,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
         decoration: BoxDecoration(
           color: isSelected
               ? color.withValues(alpha: 0.15)
-              : const Color(0xFFF1F5F9),
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected ? color : AppTheme.border,
@@ -3247,7 +3307,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
     );
   }
 
-  Widget _buildProductHistoryTile(SavedProductSession item) {
+  Widget _buildProductHistoryTile(SavedProductSession item, bool isDark) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -3332,9 +3392,11 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
         trailing: PopupMenuButton<String>(
           icon: Icon(Icons.more_vert_rounded,
               color: AppTheme.textMuted, size: 20),
-          color: const Color(0xFF1E1B4B),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: AppTheme.border),
+          ),
           onSelected: (action) {
             if (action == 'open') {
               widget.onSelectProduct(item);
@@ -3355,7 +3417,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                       color: Color(0xFF10B981), size: 18),
                   const SizedBox(width: 8),
                   Text('បើកមើលភ្លាមៗ',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                      style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 ],
               ),
             ),
@@ -3367,7 +3429,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                       color: Color(0xFFA78BFA), size: 18),
                   const SizedBox(width: 8),
                   Text('ដាក់ក្នុង Folder',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                      style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 ],
               ),
             ),
@@ -3379,7 +3441,7 @@ class _HistoryAndFoldersSheetState extends State<_HistoryAndFoldersSheet> {
                       color: Color(0xFF38BDF8), size: 18),
                   const SizedBox(width: 8),
                   Text('ប្តូរឈ្មោះ',
-                      style: GoogleFonts.kantumruyPro(color: Colors.white)),
+                      style: GoogleFonts.kantumruyPro(color: AppTheme.textPrimary)),
                 ],
               ),
             ),

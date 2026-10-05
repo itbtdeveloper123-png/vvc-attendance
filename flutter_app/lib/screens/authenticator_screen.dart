@@ -7,6 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/authenticator_service.dart';
+import '../utils/app_theme.dart';
 import '../widgets/app_widgets.dart';
 
 class AuthenticatorScreen extends StatefulWidget {
@@ -156,15 +157,21 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   void _showAddOptionsSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final sheetTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final sheetSubtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
+          color: sheetBg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: const Color(0xFF334155), width: 1.2),
+          border: Border.all(color: borderColor, width: 1.2),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -173,7 +180,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               width: 44,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -181,7 +188,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             Text(
               'បន្ថែមគណនីផ្ទៀងផ្ទាត់ (Add 2FA)',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: sheetTextColor,
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
               ),
@@ -197,21 +204,21 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.30)),
                 ),
-                child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF38BDF8), size: 24),
+                child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF0284C7), size: 24),
               ),
               title: Text(
                 'ស្កេន QR Code តាម Camera',
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: sheetTextColor,
                   fontSize: 14.5,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               subtitle: Text(
                 'ស្កេនរូប QR ពីផ្ទាំង Admin Panel ឬគេហទំព័រ',
-                style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12),
+                style: GoogleFonts.kantumruyPro(color: sheetSubtextColor, fontSize: 12),
               ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF64748B)),
+              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sheetSubtextColor),
               onTap: () {
                 Navigator.pop(context);
                 _openQrCameraScanner();
@@ -229,21 +236,21 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: const Color(0xFFFBBF24).withValues(alpha: 0.30)),
                 ),
-                child: const Icon(Icons.keyboard_rounded, color: Color(0xFFFBBF24), size: 24),
+                child: const Icon(Icons.keyboard_rounded, color: Color(0xFFF59E0B), size: 24),
               ),
               title: Text(
                 'បញ្ចូល Secret Key ដោយដៃ',
                 style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
+                  color: sheetTextColor,
                   fontSize: 14.5,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               subtitle: Text(
                 'វាយបញ្ចូលឈ្មោះគណនី និងកូដសម្ងាត់ Base32',
-                style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12),
+                style: GoogleFonts.kantumruyPro(color: sheetSubtextColor, fontSize: 12),
               ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFF64748B)),
+              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sheetSubtextColor),
               onTap: () {
                 Navigator.pop(context);
                 _showManualEntryDialog();
@@ -346,6 +353,13 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   void _showManualEntryDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final dialogBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final fieldBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+
     final nameCtrl = TextEditingController(text: 'Super Administrator');
     final issuerCtrl = TextEditingController(text: 'VVC Attendance');
     final secretCtrl = TextEditingController(text: 'VVCATTENDANCE2FAKEY2026');
@@ -353,10 +367,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: dialogBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: Color(0xFF334155), width: 1.2),
+          side: BorderSide(color: dialogBorder, width: 1.2),
         ),
         title: Row(
           children: [
@@ -367,13 +381,13 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.35)),
               ),
-              child: const Icon(Icons.key_rounded, color: Color(0xFF38BDF8), size: 20),
+              child: const Icon(Icons.key_rounded, color: Color(0xFF0284C7), size: 20),
             ),
             const SizedBox(width: 10),
             Text(
               'បញ្ចូល Secret Key',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -386,38 +400,38 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             children: [
               TextField(
                 controller: issuerCtrl,
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                style: GoogleFonts.kantumruyPro(color: textColor, fontSize: 13.5),
                 decoration: InputDecoration(
                   labelText: 'ស្ថាប័ន / Issuer',
-                  labelStyle: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12),
+                  labelStyle: GoogleFonts.kantumruyPro(color: subtextColor, fontSize: 12),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: fieldBg,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                    borderSide: BorderSide(color: dialogBorder),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: nameCtrl,
-                style: GoogleFonts.kantumruyPro(color: Colors.white, fontSize: 13.5),
+                style: GoogleFonts.kantumruyPro(color: textColor, fontSize: 13.5),
                 decoration: InputDecoration(
                   labelText: 'ឈ្មោះគណនី / Account Name',
-                  labelStyle: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12),
+                  labelStyle: GoogleFonts.kantumruyPro(color: subtextColor, fontSize: 12),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: fieldBg,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                    borderSide: BorderSide(color: dialogBorder),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
                   ),
                 ),
               ),
@@ -425,7 +439,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               TextField(
                 controller: secretCtrl,
                 style: const TextStyle(
-                  color: Color(0xFF38BDF8),
+                  color: Color(0xFF0284C7),
                   fontSize: 14,
                   fontFamily: 'monospace',
                   fontWeight: FontWeight.bold,
@@ -433,16 +447,16 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 ),
                 decoration: InputDecoration(
                   labelText: 'Secret Key (Base32)',
-                  labelStyle: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8), fontSize: 12),
+                  labelStyle: GoogleFonts.kantumruyPro(color: subtextColor, fontSize: 12),
                   filled: true,
-                  fillColor: const Color(0xFF1E293B),
+                  fillColor: fieldBg,
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
+                    borderSide: BorderSide(color: dialogBorder),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
                   ),
                 ),
               ),
@@ -454,7 +468,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             onPressed: () => Navigator.pop(context),
             child: Text(
               'បោះបង់',
-              style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8)),
+              style: GoogleFonts.kantumruyPro(color: subtextColor),
             ),
           ),
           ElevatedButton(
@@ -491,13 +505,19 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   void _confirmDeleteAccount(AuthenticatorAccount acc) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final dialogBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: dialogBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFF334155), width: 1.2),
+          side: BorderSide(color: dialogBorder, width: 1.2),
         ),
         title: Row(
           children: [
@@ -513,7 +533,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             Text(
               'លុបគណនីនេះ?',
               style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -522,12 +542,12 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         ),
         content: Text(
           'តើអ្នកប្រាកដជាចង់លុប ${acc.issuer} (${acc.name}) ចេញពី Authenticator ដែរឬទេ?',
-          style: GoogleFonts.kantumruyPro(color: const Color(0xFFCBD5E1), fontSize: 13, height: 1.4),
+          style: GoogleFonts.kantumruyPro(color: subtextColor, fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: const Color(0xFF94A3B8))),
+            child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: subtextColor)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -549,15 +569,22 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
     final isWarningTime = _secondsLeft <= 5;
-    final timerColor = isWarningTime ? const Color(0xFFEF4444) : const Color(0xFF38BDF8);
+    final accentBlue = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
+    final timerColor = isWarningTime ? const Color(0xFFEF4444) : accentBlue;
+    final cardBg = isDark ? const Color(0xFF131B2A) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final subtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F19),
+      backgroundColor: scaffoldBg,
       appBar: VvcAppBar(
-        backgroundColor: const Color(0xFF131B2A).withValues(alpha: 0.92),
+        backgroundColor: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.95),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -566,11 +593,11 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF0284C7).withValues(alpha: 0.20),
+                color: accentBlue.withValues(alpha: 0.20),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.35)),
+                border: Border.all(color: accentBlue.withValues(alpha: 0.35)),
               ),
-              child: const Icon(Icons.shield_rounded, color: Color(0xFF38BDF8), size: 16),
+              child: Icon(Icons.shield_rounded, color: accentBlue, size: 16),
             ),
             const SizedBox(width: 8),
             Column(
@@ -580,7 +607,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 Text(
                   'កូដផ្ទៀងផ្ទាត់ (Authenticator)',
                   style: GoogleFonts.kantumruyPro(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -602,7 +629,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     Text(
                       '2FA TOTP Security Engine',
                       style: GoogleFonts.inter(
-                        color: const Color(0xFF38BDF8),
+                        color: accentBlue,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -646,14 +673,14 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             )
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: const Color(0xFF38BDF8),
-              backgroundColor: const Color(0xFF131B2A),
+              color: accentBlue,
+              backgroundColor: cardBg,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: [
                   // Top 2FA Master Switch Card
-                  _buildMaster2FaSwitchCard(),
+                  _buildMaster2FaSwitchCard(isDark: isDark, textColor: textColor, subtextColor: subtextColor),
 
                   const SizedBox(height: 22),
 
@@ -666,7 +693,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           Text(
                             'គណនីផ្ទៀងផ្ទាត់',
                             style: GoogleFonts.kantumruyPro(
-                              color: Colors.white,
+                              color: textColor,
                               fontSize: 15.0,
                               fontWeight: FontWeight.bold,
                             ),
@@ -675,17 +702,17 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
+                              color: isDark ? const Color(0xFF1E293B) : accentBlue.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                                color: accentBlue.withValues(alpha: 0.35),
                                 width: 1.0,
                               ),
                             ),
                             child: Text(
                               '${_accounts.length}',
                               style: GoogleFonts.inter(
-                                color: const Color(0xFF38BDF8),
+                                color: accentBlue,
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -735,30 +762,31 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
                   // Accounts List
                   if (_accounts.isEmpty)
-                    _buildEmptyState()
+                    _buildEmptyState(isDark: isDark, textColor: textColor, subtextColor: subtextColor, cardBg: cardBg)
                   else
-                    ..._accounts.map((acc) => _buildOtpAccountCard(acc, timerColor)),
+                    ..._accounts.map((acc) => _buildOtpAccountCard(acc, timerColor, isDark: isDark, accentBlue: accentBlue, cardBg: cardBg, cardBorder: cardBorder, subtextColor: subtextColor, textColor: textColor)),
 
                   const SizedBox(height: 20),
 
                   // Info Tips Banner
-                  _buildInfoSecurityBanner(),
+                  _buildInfoSecurityBanner(isDark: isDark),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildMaster2FaSwitchCard() {
+  Widget _buildMaster2FaSwitchCard({bool isDark = true, Color textColor = Colors.white, Color subtextColor = const Color(0xFF94A3B8)}) {
+    final cardBg = isDark ? const Color(0xFF131B2A) : Colors.white;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF131B2A),
+        color: cardBg,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: _is2FaEnabled
               ? const Color(0xFF10B981).withValues(alpha: 0.40)
-              : Colors.white.withValues(alpha: 0.10),
+              : (isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFE2E8F0)),
           width: 1.2,
         ),
         boxShadow: [
@@ -786,7 +814,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           end: Alignment.bottomRight,
                         )
                       : null,
-                  color: _is2FaEnabled ? null : const Color(0xFF1E293B),
+                  color: _is2FaEnabled ? null : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
                   borderRadius: BorderRadius.circular(15),
                   boxShadow: _is2FaEnabled
                       ? [
@@ -812,7 +840,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     Text(
                       'ប្រព័ន្ធការពារ ២ ជាន់ (2FA)',
                       style: GoogleFonts.kantumruyPro(
-                        color: Colors.white,
+                        color: textColor,
                         fontSize: 15.5,
                         fontWeight: FontWeight.bold,
                       ),
@@ -835,7 +863,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                                 ? 'កំពុងការពារការ Login លើ Admin Panel'
                                 : 'បានបិទ (ចូល Login លើ Admin Panel ផ្ទាល់)',
                             style: GoogleFonts.kantumruyPro(
-                              color: _is2FaEnabled ? const Color(0xFF34D399) : const Color(0xFF94A3B8),
+                              color: _is2FaEnabled ? const Color(0xFF34D399) : subtextColor,
                               fontSize: 12.0,
                               fontWeight: FontWeight.w600,
                             ),
@@ -864,7 +892,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     activeThumbColor: Colors.white,
                     activeTrackColor: const Color(0xFF10B981),
                     inactiveThumbColor: const Color(0xFF94A3B8),
-                    inactiveTrackColor: const Color(0xFF1E293B),
+                    inactiveTrackColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                   ),
                 ),
             ],
@@ -873,22 +901,22 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E2638).withValues(alpha: 0.85),
+              color: isDark ? const Color(0xFF1E2638).withValues(alpha: 0.85) : const Color(0xFFF0F9FF),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: const Color(0xFF38BDF8).withValues(alpha: 0.20),
+                color: isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.20) : const Color(0xFF0284C7).withValues(alpha: 0.20),
                 width: 1.0,
               ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 1.5),
+                Padding(
+                  padding: const EdgeInsets.only(top: 1.5),
                   child: Icon(
                     Icons.info_outline_rounded,
                     size: 16,
-                    color: Color(0xFF38BDF8),
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -898,7 +926,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                         ? 'ពេល Login លើ Admin Panel វានឹងទាមទារកូដ ៦ ខ្ទង់ខាងក្រោមនេះ។'
                         : 'ពេលបិទ Admin Panel នឹងអនុញ្ញាតឱ្យ Login ដោយមិនបាច់វាយកូដ OTP ឡើយ។',
                     style: GoogleFonts.kantumruyPro(
-                      color: const Color(0xFFCBD5E1),
+                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                       fontSize: 12,
                       height: 1.45,
                     ),
@@ -912,7 +940,14 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     );
   }
 
-  Widget _buildOtpAccountCard(AuthenticatorAccount acc, Color timerColor) {
+  Widget _buildOtpAccountCard(AuthenticatorAccount acc, Color timerColor, {
+    bool isDark = true,
+    Color accentBlue = const Color(0xFF38BDF8),
+    Color cardBg = const Color(0xFF131B2A),
+    Color cardBorder = const Color(0xFF334155),
+    Color subtextColor = const Color(0xFF94A3B8),
+    Color textColor = Colors.white,
+  }) {
     final otpCode = TotpHelper.generateTotp(acc.secret);
     final part1 = otpCode.substring(0, 3);
     final part2 = otpCode.substring(3, 6);
@@ -921,15 +956,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFF131B2A),
+        color: cardBg,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: const Color(0xFF38BDF8).withValues(alpha: 0.22),
+          color: isDark ? accentBlue.withValues(alpha: 0.22) : const Color(0xFFE2E8F0),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
             blurRadius: 16,
             offset: const Offset(0, 5),
           ),
@@ -971,7 +1006,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       Text(
                         acc.issuer,
                         style: GoogleFonts.kantumruyPro(
-                          color: Colors.white,
+                          color: textColor,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -980,7 +1015,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       Text(
                         acc.name,
                         style: GoogleFonts.kantumruyPro(
-                          color: const Color(0xFF94A3B8),
+                          color: subtextColor,
                           fontSize: 12.0,
                         ),
                       ),
@@ -1064,10 +1099,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: const Color(0xFF090D16),
+                color: isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: timerColor.withValues(alpha: 0.35),
+                  color: isDark ? timerColor.withValues(alpha: 0.35) : timerColor.withValues(alpha: 0.45),
                   width: 1.2,
                 ),
                 boxShadow: [
@@ -1106,7 +1141,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.22),
+                      color: isDark
+                          ? const Color(0xFF0284C7).withValues(alpha: 0.22)
+                          : const Color(0xFF0284C7).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
@@ -1116,12 +1153,12 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.copy_rounded, color: Color(0xFF38BDF8), size: 14),
+                        const Icon(Icons.copy_rounded, color: Color(0xFF0284C7), size: 14),
                         const SizedBox(width: 5),
                         Text(
                           'Copy',
                           style: GoogleFonts.inter(
-                            color: const Color(0xFF38BDF8),
+                            color: const Color(0xFF0284C7),
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1142,7 +1179,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             child: LinearProgressIndicator(
               value: _progress,
               minHeight: 5,
-              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              backgroundColor: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.08),
               valueColor: AlwaysStoppedAnimation<Color>(timerColor),
             ),
           ),
@@ -1151,13 +1190,20 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({
+    bool isDark = true,
+    Color textColor = Colors.white,
+    Color subtextColor = const Color(0xFF94A3B8),
+    Color cardBg = const Color(0xFF131B2A),
+  }) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF131B2A),
+        color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+        ),
       ),
       child: Column(
         children: [
@@ -1167,13 +1213,13 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               color: const Color(0xFF0284C7).withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.security_rounded, size: 40, color: Color(0xFF38BDF8)),
+            child: const Icon(Icons.security_rounded, size: 40, color: Color(0xFF0284C7)),
           ),
           const SizedBox(height: 14),
           Text(
             'មិនទាន់មានគណនី 2FA ឡើយ',
             style: GoogleFonts.kantumruyPro(
-              color: Colors.white,
+              color: textColor,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -1182,7 +1228,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Text(
             'សូមចុចប៊ូតុង + នៅខាងលើស្តាំ ដើម្បីស្កេន QR Code ឬបញ្ចូល Key ដោយដៃ',
             style: GoogleFonts.kantumruyPro(
-              color: const Color(0xFF94A3B8),
+              color: subtextColor,
               fontSize: 12.5,
               height: 1.4,
             ),
@@ -1193,26 +1239,35 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     );
   }
 
-  Widget _buildInfoSecurityBanner() {
+  Widget _buildInfoSecurityBanner({bool isDark = true}) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF0F1E36),
-            Color(0xFF091424),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [
+                  Color(0xFF0F1E36),
+                  Color(0xFF091424),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : const LinearGradient(
+                colors: [
+                  Color(0xFFF0F9FF),
+                  Color(0xFFE0F2FE),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+          color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.35 : 0.25),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0284C7).withValues(alpha: 0.10),
+            color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.10 : 0.05),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -1227,7 +1282,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               color: const Color(0xFF0284C7).withValues(alpha: 0.20),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.verified_user_rounded, color: Color(0xFF38BDF8), size: 20),
+            child: const Icon(Icons.verified_user_rounded, color: Color(0xFF0284C7), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1237,7 +1292,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 Text(
                   'VVC In-App Authenticator (ជំនួស Google Authenticator)',
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF38BDF8),
+                    color: const Color(0xFF0284C7),
                     fontSize: 13.0,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1246,7 +1301,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 Text(
                   'អ្នកអាចប្រើប្រាស់ផ្ទាំងនេះដើម្បីយកកូដ ៦ ខ្ទង់ផ្ទៀងផ្ទាត់ពេល Login លើ Admin Panel ដោយពុំចាំបាច់ដំឡើង App ក្រៅឡើយ។',
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFFCBD5E1),
+                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
                     fontSize: 12.0,
                     height: 1.5,
                   ),
