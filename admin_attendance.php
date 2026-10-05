@@ -451,7 +451,9 @@ if (isset($pdo)) {
 }
 
 // Disable strict exception mode so SQL errors don't crash the page
-mysqli_report(MYSQLI_REPORT_OFF);
+if (function_exists('mysqli_report')) {
+    @mysqli_report(MYSQLI_REPORT_OFF);
+}
 
 require_once __DIR__ . '/admin_db_setup.php';
 

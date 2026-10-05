@@ -17,7 +17,7 @@ subprojects {
         // :app must output to Flutter's expected location (flutter_app/build/app)
         project.layout.buildDirectory.value(newBuildDir.dir(project.name))
     } else {
-        // Plugin subprojects must stay on the SAME drive as the project (F:).
+        // Plugin subprojects must stay on the SAME drive as the project (E:).
         // newBuildDir resolves to flutter_app/build which may differ from the
         // pub-cache drive (C:), triggering a "different roots" Gradle error.
         val pluginBuildDir =

@@ -1,5 +1,5 @@
-// Force Gradle to use Drive F for all caches because Drive C is full (0.00 GB)
-System.setProperty("gradle.user.home", "F:/Vvc-Attendace/.gradle")
+// Force Gradle to use Drive E for all caches
+System.setProperty("gradle.user.home", "E:/Vvc-Attendace/.gradle")
 
 pluginManagement {
     val flutterSdkPath =

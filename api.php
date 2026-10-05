@@ -71,7 +71,9 @@ mb_internal_encoding('UTF-8');
 mb_http_output('UTF-8');
 
 // Disable mysqli exceptions to handle missing tables gracefully (return false instead of fatal error)
-mysqli_report(MYSQLI_REPORT_OFF);
+if (function_exists('mysqli_report')) {
+    @mysqli_report(MYSQLI_REPORT_OFF);
+}
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -528,7 +530,9 @@ function check_api_rate_limit($mysqli) {
 }
 
 // ── Unified DB connection (Singleton instance) ──────────
-mysqli_report(MYSQLI_REPORT_OFF);
+if (function_exists('mysqli_report')) {
+    @mysqli_report(MYSQLI_REPORT_OFF);
+}
 $mysqli = function_exists('get_unified_db_connection') ? get_unified_db_connection() : @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
 if ($mysqli && !$mysqli->connect_error) {
     $mysqli->set_charset('utf8mb4');
@@ -3362,7 +3366,9 @@ if (!$mysqli || $mysqli->connect_error) {
 }
 $mysqli->set_charset('utf8mb4');
 $mysqli->query("SET time_zone = '+07:00'");
-mysqli_report(MYSQLI_REPORT_OFF); // handle errors manually
+if (function_exists('mysqli_report')) {
+    @mysqli_report(MYSQLI_REPORT_OFF); // handle errors manually
+}
 
 // ── Post-connection setup (rate limiting, throttled schema auto-heal) ────────────────
 // Perform API Rate Limiting Check

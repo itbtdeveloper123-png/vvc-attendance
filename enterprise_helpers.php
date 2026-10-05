@@ -1365,7 +1365,13 @@ if (!function_exists('get_unified_db_connection')) {
             return $instance;
         }
 
-        mysqli_report(MYSQLI_REPORT_OFF);
+        if (function_exists('mysqli_report')) {
+            @mysqli_report(MYSQLI_REPORT_OFF);
+        }
+        if (!class_exists('mysqli')) {
+            error_log("Database connection error: MySQLi extension is not enabled");
+            return null;
+        }
         $instance = @new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
         if ($instance->connect_error) {
             error_log("Database connection error: " . $instance->connect_error);

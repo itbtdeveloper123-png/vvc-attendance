@@ -10,9 +10,7 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-15  # macOS 15 = Xcode 16 + iOS 18 SDK (required by connectivity_plus 7.3.1)
-                       # NWPath.isUltraConstrained exists only in iOS 18 SDK (Xcode 16+)
-                       # macos-14 had Xcode 15.4 (iOS 17 SDK only) → compile error
+    runs-on: macos-15  # Xcode 26 (iOS 26 SDK) is selected explicitly in a step below
     timeout-minutes: 60
     defaults:
       run:
@@ -21,6 +19,30 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # device_info_plus >= 12.4 calls NSProcessInfo.isiOSAppOnVision,
+      # which exists only in the iOS 26 SDK (Xcode 26+). The runner default
+      # is Xcode 16.4 (iOS 18.5 SDK) → "No visible @interface" compile error.
+      - name: Select latest Xcode (26+ required)
+        id: xcode
+        run: |
+          echo "Available Xcode versions:"
+          ls -d /Applications/Xcode_*.app || true
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null \
+            | grep -E 'Xcode_[0-9]+(\.[0-9]+)*\.app$' \
+            | sort -V | tail -n 1)
+          if [ -z "$LATEST" ]; then
+            echo "ERROR: No Xcode installation found"
+            exit 1
+          fi
+          MAJOR=$(basename "$LATEST" | sed -E 's/Xcode_([0-9]+).*/\1/')
+          if [ "$MAJOR" -lt 26 ]; then
+            echo "ERROR: Xcode 26+ required, newest available is $LATEST"
+            exit 1
+          fi
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
+          echo "version=$(xcodebuild -version | head -n 1 | tr ' ' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -77,9 +99,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ios-deriveddata-${{ runner.os }}-${{ hashFiles('flutter_app/ios/Podfile.lock', 'flutter_app/ios/Podfile') }}
+          key: ios-deriveddata-${{ runner.os }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('flutter_app/ios/Podfile.lock', 'flutter_app/ios/Podfile') }}
           restore-keys: |
-            ios-deriveddata-${{ runner.os }}-
+            ios-deriveddata-${{ runner.os }}-${{ steps.xcode.outputs.version }}-
 
       - name: Install CocoaPods dependencies
         working-directory: flutter_app/ios

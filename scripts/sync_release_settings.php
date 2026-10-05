@@ -169,7 +169,9 @@ $dbName = isset($options['db-name']) ? trim((string) $options['db-name']) : DB_N
 $dbUser = isset($options['db-user']) ? trim((string) $options['db-user']) : DB_USERNAME;
 $dbPass = isset($options['db-pass']) ? (string) $options['db-pass'] : DB_PASSWORD;
 
-mysqli_report(MYSQLI_REPORT_OFF);
+if (function_exists('mysqli_report')) {
+    @mysqli_report(MYSQLI_REPORT_OFF);
+}
 try {
     $mysqli = new mysqli($dbServer, $dbUser, $dbPass, $dbName);
 } catch (Throwable $throwable) {
