@@ -197,6 +197,22 @@ Future<void> _initFirebaseInBackground() async {
   }
 }
 
+/// Telegram-style elastic bouncing scroll physics across all platforms
+class TelegramScrollBehavior extends MaterialScrollBehavior {
+  const TelegramScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) {
+    return child;
+  }
+}
+
 class VvcHrmApp extends StatelessWidget {
   const VvcHrmApp({super.key});
 
@@ -215,6 +231,7 @@ class VvcHrmApp extends StatelessWidget {
         return MaterialApp(
           title: 'VVC Attendance',
           debugShowCheckedModeBanner: false,
+          scrollBehavior: const TelegramScrollBehavior(),
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: userProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,

@@ -1857,8 +1857,9 @@ class _HomeContentState extends State<HomeContent> {
     const brandAccent = Color(0xFFD4AF37);
     final isDark = theme.isDarkTheme;
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.965,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
@@ -2052,8 +2053,9 @@ class _HomeContentState extends State<HomeContent> {
     const brandAccent = Color(0xFFD4AF37);
     final isDark = theme.isDarkTheme;
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.965,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
@@ -3972,12 +3974,9 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     required Color effectiveBorder,
     required Color primaryGold,
   }) {
-    final capsuleContent = GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onProfileTap?.call();
-      },
-      behavior: HitTestBehavior.opaque,
+    final capsuleContent = TelegramBounce(
+      onTap: onProfileTap,
+      scaleFactor: 0.97,
       child: Container(
         height: 54.0,
         padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
