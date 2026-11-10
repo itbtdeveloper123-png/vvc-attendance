@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-15  # Xcode 26 (iOS 26 SDK) is selected explicitly in a step below
+    runs-on: macos-15  # Xcode 16 (iOS 18 SDK) is selected explicitly in a step below
     timeout-minutes: 60
     defaults:
       run:
@@ -21,28 +21,32 @@ jobs:
         uses: actions/checkout@v4
 
       # device_info_plus >= 12.4 calls NSProcessInfo.isiOSAppOnVision,
-      # which exists only in the iOS 26 SDK (Xcode 26+). The runner default
-      # is Xcode 16.4 (iOS 18.5 SDK) → "No visible @interface" compile error.
-      - name: Select latest Xcode (26+ required)
+      # which exists in iOS 17+/18+ SDK (Xcode 16+).
+      - name: Select latest Xcode (16+ required)
         id: xcode
         run: |
           echo "Available Xcode versions:"
-          ls -d /Applications/Xcode_*.app || true
+          ls -d /Applications/Xcode*.app || true
           LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null \
             | grep -E 'Xcode_[0-9]+(\.[0-9]+)*\.app$' \
             | sort -V | tail -n 1)
+          if [ -z "$LATEST" ] && [ -d "/Applications/Xcode.app" ]; then
+            LATEST="/Applications/Xcode.app"
+          fi
           if [ -z "$LATEST" ]; then
             echo "ERROR: No Xcode installation found"
             exit 1
           fi
-          MAJOR=$(basename "$LATEST" | sed -E 's/Xcode_([0-9]+).*/\1/')
-          if [ "$MAJOR" -lt 26 ]; then
-            echo "ERROR: Xcode 26+ required, newest available is $LATEST"
-            exit 1
-          fi
+          echo "Selected Xcode path: $LATEST"
           sudo xcode-select -s "$LATEST/Contents/Developer"
           xcodebuild -version
-          echo "version=$(xcodebuild -version | head -n 1 | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+          VERSION_STR=$(xcodebuild -version | head -n 1)
+          MAJOR=$(echo "$VERSION_STR" | sed -E 's/Xcode ([0-9]+).*/\1/')
+          if [ "$MAJOR" -lt 16 ]; then
+            echo "ERROR: Xcode 16+ required, current is $VERSION_STR"
+            exit 1
+          fi
+          echo "version=$(echo "$VERSION_STR" | tr ' ' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
