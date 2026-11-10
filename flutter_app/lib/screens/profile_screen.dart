@@ -47,7 +47,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _fetchTargetUser();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    // Optimized: 60s interval (reduced from 15s) to save battery and network bandwidth
+    _pollingTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) _fetchTargetUserSilently();
     });
     _loadNotificationPreference();

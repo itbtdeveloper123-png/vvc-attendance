@@ -52,7 +52,8 @@ class _ScanHistoryScreenState extends State<ScanHistoryScreen> {
 
     _fetchHistory();
     _scrollController.addListener(_onScroll);
-    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Optimized: 60s interval (reduced from 10s) to eliminate background polling storm
+    _pollingTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) _fetchHistorySilently();
     });
   }

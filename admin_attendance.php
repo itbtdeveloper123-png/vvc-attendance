@@ -457,76 +457,80 @@ if (function_exists('mysqli_report')) {
 
 require_once __DIR__ . '/admin_db_setup.php';
 
-// 1. Ensure core database tables exist (ALL wrapped to prevent login crash on any migration error)
-try {
-    ensure_core_tables($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_core_tables] ' . $e->getMessage());
-}
-try {
-    ensure_employment_columns_and_logs($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_employment] ' . $e->getMessage());
-}
-try {
-    ensure_noted_column($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_noted] ' . $e->getMessage());
-}
-try {
-    ensure_user_groups_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_groups] ' . $e->getMessage());
-}
-try {
-    ensure_user_subaccounts_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_subaccounts] ' . $e->getMessage());
-}
-try {
-    ensure_column_visibility_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_visibility] ' . $e->getMessage());
-}
-try {
-    ensure_push_subscriptions_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_push] ' . $e->getMessage());
-}
-try {
-    ensure_meeting_tables($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_meetings] ' . $e->getMessage());
-}
-try {
-    ensure_notification_tables($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_notifications] ' . $e->getMessage());
-}
-try {
-    ensure_fcm_tokens_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_fcm_tokens] ' . $e->getMessage());
-}
-try {
-    ensure_announcements_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_announcements] ' . $e->getMessage());
-}
-try {
-    ensure_payroll_tables($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_payroll] ' . $e->getMessage());
-}
-try {
-    ensure_workspace_card_orders_table($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_workspace_card_orders] ' . $e->getMessage());
-}
-try {
-    ensure_enterprise_support_tables($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_enterprise_support] ' . $e->getMessage());
+// 1. Ensure core database tables exist (Throttled to run at most once every 24 hours to prevent DDL locking on every admin click)
+$_admin_schema_cache = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_admin_schema_verified_' . md5(defined('DB_NAME') ? DB_NAME : 'vvc');
+if (!file_exists($_admin_schema_cache) || (time() - @filemtime($_admin_schema_cache) > 86400)) {
+    @touch($_admin_schema_cache);
+    try {
+        ensure_core_tables($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_core_tables] ' . $e->getMessage());
+    }
+    try {
+        ensure_employment_columns_and_logs($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_employment] ' . $e->getMessage());
+    }
+    try {
+        ensure_noted_column($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_noted] ' . $e->getMessage());
+    }
+    try {
+        ensure_user_groups_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_groups] ' . $e->getMessage());
+    }
+    try {
+        ensure_user_subaccounts_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_subaccounts] ' . $e->getMessage());
+    }
+    try {
+        ensure_column_visibility_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_visibility] ' . $e->getMessage());
+    }
+    try {
+        ensure_push_subscriptions_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_push] ' . $e->getMessage());
+    }
+    try {
+        ensure_meeting_tables($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_meetings] ' . $e->getMessage());
+    }
+    try {
+        ensure_notification_tables($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_notifications] ' . $e->getMessage());
+    }
+    try {
+        ensure_fcm_tokens_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_fcm_tokens] ' . $e->getMessage());
+    }
+    try {
+        ensure_announcements_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_announcements] ' . $e->getMessage());
+    }
+    try {
+        ensure_payroll_tables($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_payroll] ' . $e->getMessage());
+    }
+    try {
+        ensure_workspace_card_orders_table($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_workspace_card_orders] ' . $e->getMessage());
+    }
+    try {
+        ensure_enterprise_support_tables($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_enterprise_support] ' . $e->getMessage());
+    }
 }
 
 if (!function_exists('ensure_tracking_tables')) {
@@ -580,15 +584,24 @@ if (!function_exists('ensure_tracking_tables')) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 }
-try {
-    ensure_tracking_tables($mysqli);
-} catch (Throwable $e) {
-    error_log('[ensure_tracking] ' . $e->getMessage());
+
+if (!file_exists($_admin_schema_cache) || (time() - @filemtime($_admin_schema_cache) > 86400)) {
+    try {
+        ensure_tracking_tables($mysqli);
+    } catch (Throwable $e) {
+        error_log('[ensure_tracking] ' . $e->getMessage());
+    }
 }
-try {
-    process_due_notification_schedules($mysqli);
-} catch (Throwable $e) {
-    error_log('[process_due_notification_schedules] ' . $e->getMessage());
+
+// Throttled notification schedule processing (at most once every 60 seconds)
+$_admin_notif_sched = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_admin_notif_sched_tick';
+if (!file_exists($_admin_notif_sched) || (time() - @filemtime($_admin_notif_sched) > 60)) {
+    @touch($_admin_notif_sched);
+    try {
+        process_due_notification_schedules($mysqli);
+    } catch (Throwable $e) {
+        error_log('[process_due_notification_schedules] ' . $e->getMessage());
+    }
 }
 
 // Haversine distance calculator (km)
@@ -2250,8 +2263,10 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                 $summary['active_sessions'] = (int) ($row['count'] ?? 0);
                 $result->close();
             }
-            if ($stmt = $mysqli->prepare("SELECT SUM(CASE WHEN status = 'Good' THEN 1 ELSE 0 END) AS good_count, SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) AS late_count FROM checkin_logs WHERE DATE(log_datetime) = ?")) {
-                $stmt->bind_param('s', $today_date);
+            $today_start = $today_date . ' 00:00:00';
+            $tomorrow_start = date('Y-m-d 00:00:00', strtotime($today_date . ' +1 day'));
+            if ($stmt = $mysqli->prepare("SELECT SUM(CASE WHEN status = 'Good' THEN 1 ELSE 0 END) AS good_count, SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) AS late_count FROM checkin_logs WHERE log_datetime >= ? AND log_datetime < ?")) {
+                $stmt->bind_param('ss', $today_start, $tomorrow_start);
                 $stmt->execute();
                 $result = $stmt->get_result();
                 $row = $result ? $result->fetch_assoc() : null;
@@ -5125,23 +5140,29 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                     break;
 
                 case 'calculate_payroll':
-                    $mysqli->query("CREATE TABLE IF NOT EXISTS payroll_history (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        employee_id VARCHAR(50),
-                        payroll_month VARCHAR(2),
-                        payroll_year VARCHAR(4),
-                        base_salary DECIMAL(10,2),
-                        present_days INT,
-                        calculated_salary DECIMAL(10,2),
-                        status VARCHAR(20) DEFAULT 'Paid',
-                        payment_date DATETIME DEFAULT CURRENT_TIMESTAMP
-                    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-                    $mysqli->query("ALTER TABLE payroll_history CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-
                     $month = $_POST['month'] ?? date('m');
                     $year = $_POST['year'] ?? date('Y');
                     $month_padded = str_pad($month, 2, '0', STR_PAD_LEFT);
                     $target_month_year = $year . "-" . $month_padded;
+
+                    // Calculate range boundaries for fast B-Tree index scan
+                    $month_start = sprintf('%04d-%02d-01 00:00:00', (int)$year, (int)$month);
+                    $next_month_start = date('Y-m-d 00:00:00', strtotime("$month_start +1 month"));
+                    $ded_start = sprintf('%04d-%02d-01', (int)$year, (int)$month);
+                    $ded_next = date('Y-m-d', strtotime("$ded_start +1 month"));
+
+                    // Prepare statements once outside user loop to avoid repetitive overhead
+                    $stmt_present = $mysqli->prepare("SELECT COUNT(DISTINCT DATE(log_datetime)) as present_days FROM checkin_logs WHERE employee_id=? AND log_datetime >= ? AND log_datetime < ?");
+                    $stmt_deduct = $mysqli->prepare("SELECT SUM(amount) as total FROM payroll_deductions WHERE employee_id=? AND deduction_date >= ? AND deduction_date < ?");
+                    $stmt_ot = $mysqli->prepare("SELECT SUM(amount) as total FROM payroll_ot WHERE employee_id=? AND ot_month=? AND ot_year=?");
+                    $stmt_loan = $mysqli->prepare("
+                        SELECT SUM(monthly_deduction) as total
+                        FROM payroll_loans
+                        WHERE employee_id=?
+                        AND ? >= start_month
+                        AND PERIOD_DIFF(REPLACE(?, '-', ''), REPLACE(start_month, '-', '')) < duration_months
+                    ");
+                    $stmt_paid = $mysqli->prepare("SELECT id FROM payroll_history WHERE employee_id=? AND payroll_month=? AND payroll_year=?");
 
                     $data = [];
                     $users_sql = "SELECT u.employee_id, u.name, u.base_salary FROM users u ORDER BY u.employee_id ASC";
@@ -5151,57 +5172,43 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                             $emp_id = $row['employee_id'];
                             $base_salary = $row['base_salary'] ? (float) $row['base_salary'] : 0;
 
-                            // 1. Present days
-                            $stmt = $mysqli->prepare("SELECT COUNT(DISTINCT DATE(log_datetime)) as present_days FROM checkin_logs WHERE employee_id=? AND MONTH(log_datetime)=? AND YEAR(log_datetime)=?");
+                            // 1. Present days (using fast index range scan)
                             $present_days = 0;
-                            if ($stmt) {
-                                $stmt->bind_param("sii", $emp_id, $month, $year);
-                                $stmt->execute();
-                                $r = $stmt->get_result()->fetch_assoc();
-                                $present_days = $r['present_days'] ?? 0;
-                                $stmt->close();
+                            if ($stmt_present) {
+                                $stmt_present->bind_param("sss", $emp_id, $month_start, $next_month_start);
+                                $stmt_present->execute();
+                                $r = $stmt_present->get_result()->fetch_assoc();
+                                $present_days = (int) ($r['present_days'] ?? 0);
                             }
 
                             // 2. Base Calculation
                             $base_component = ($base_salary / 30) * $present_days;
 
-                            // 3. Deductions
+                            // 3. Deductions (using fast index range scan)
                             $deduct_sum = 0;
-                            $d_stmt = $mysqli->prepare("SELECT SUM(amount) as total FROM payroll_deductions WHERE employee_id=? AND MONTH(deduction_date)=? AND YEAR(deduction_date)=?");
-                            if ($d_stmt) {
-                                $d_stmt->bind_param("sii", $emp_id, $month, $year);
-                                $d_stmt->execute();
-                                $dr = $d_stmt->get_result()->fetch_assoc();
+                            if ($stmt_deduct) {
+                                $stmt_deduct->bind_param("sss", $emp_id, $ded_start, $ded_next);
+                                $stmt_deduct->execute();
+                                $dr = $stmt_deduct->get_result()->fetch_assoc();
                                 $deduct_sum = (float) ($dr['total'] ?? 0);
-                                $d_stmt->close();
                             }
 
                             // 4. OT Bonus
                             $ot_sum = 0;
-                            $o_stmt = $mysqli->prepare("SELECT SUM(amount) as total FROM payroll_ot WHERE employee_id=? AND ot_month=? AND ot_year=?");
-                            if ($o_stmt) {
-                                $o_stmt->bind_param("sss", $emp_id, $month_padded, $year);
-                                $o_stmt->execute();
-                                $or = $o_stmt->get_result()->fetch_assoc();
+                            if ($stmt_ot) {
+                                $stmt_ot->bind_param("sss", $emp_id, $month_padded, $year);
+                                $stmt_ot->execute();
+                                $or = $stmt_ot->get_result()->fetch_assoc();
                                 $ot_sum = (float) ($or['total'] ?? 0);
-                                $o_stmt->close();
                             }
 
                             // 5. Loan Repayment
                             $loan_sum = 0;
-                            $l_stmt = $mysqli->prepare("
-                                SELECT SUM(monthly_deduction) as total
-                                FROM payroll_loans
-                                WHERE employee_id=?
-                                AND ? >= start_month
-                                AND PERIOD_DIFF(REPLACE(?, '-', ''), REPLACE(start_month, '-', '')) < duration_months
-                            ");
-                            if ($l_stmt) {
-                                $l_stmt->bind_param("sss", $emp_id, $target_month_year, $target_month_year);
-                                $l_stmt->execute();
-                                $lr = $l_stmt->get_result()->fetch_assoc();
+                            if ($stmt_loan) {
+                                $stmt_loan->bind_param("sss", $emp_id, $target_month_year, $target_month_year);
+                                $stmt_loan->execute();
+                                $lr = $stmt_loan->get_result()->fetch_assoc();
                                 $loan_sum = (float) ($lr['total'] ?? 0);
-                                $l_stmt->close();
                             }
 
                             // 6. Net Calculation
@@ -5210,16 +5217,36 @@ if (isset($_POST['ajax_action']) || isset($_GET['ajax_action'])) {
                                 $net_salary = 0;
 
                             // Check status
-                            $paid_stmt = $mysqli->prepare("SELECT id FROM payroll_history WHERE employee_id=? AND payroll_month=? AND payroll_year=?");
                             $is_paid = false;
-                            if ($paid_stmt) {
-                                $paid_stmt->bind_param("sss", $emp_id, $month_padded, $year);
-                                $paid_stmt->execute();
-                                if ($paid_stmt->get_result()->num_rows > 0) {
+                            if ($stmt_paid) {
+                                $stmt_paid->bind_param("sss", $emp_id, $month_padded, $year);
+                                $stmt_paid->execute();
+                                if ($stmt_paid->get_result()->num_rows > 0) {
                                     $is_paid = true;
                                 }
-                                $paid_stmt->close();
                             }
+
+                            $data[] = [
+                                'employee_id' => $row['employee_id'],
+                                'name' => $row['name'],
+                                'base_salary' => $base_salary,
+                                'present_days' => $present_days,
+                                'base_component' => round($base_component, 2),
+                                'deductions' => round($deduct_sum, 2),
+                                'ot_bonus' => round($ot_sum, 2),
+                                'loan_deduct' => round($loan_sum, 2),
+                                'calculated_salary' => round($net_salary, 2),
+                                'is_paid' => $is_paid
+                            ];
+                        }
+                    }
+
+                    // Close prepared statements
+                    if ($stmt_present) $stmt_present->close();
+                    if ($stmt_deduct) $stmt_deduct->close();
+                    if ($stmt_ot) $stmt_ot->close();
+                    if ($stmt_loan) $stmt_loan->close();
+                    if ($stmt_paid) $stmt_paid->close();
 
                             $data[] = [
                                 'employee_id' => $row['employee_id'],
@@ -5672,13 +5699,15 @@ if ($show_admin_pages) {
         $result->close();
     }
 
-    // Today Attendance Summary (Good and Late)
+    // Today Attendance Summary (Good and Late) - Optimized range query utilizing B-tree index
+    $today_start = $today_date . ' 00:00:00';
+    $tomorrow_start = date('Y-m-d 00:00:00', strtotime($today_date . ' +1 day'));
     $today_summary_sql = "
 		SELECT
 			SUM(CASE WHEN status = 'Good' THEN 1 ELSE 0 END) as good_count,
 			SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) as late_count
 		FROM checkin_logs
-		WHERE DATE(log_datetime) = '{$today_date}'
+		WHERE log_datetime >= '{$today_start}' AND log_datetime < '{$tomorrow_start}'
 	";
 
     if ($result = $mysqli->query($today_summary_sql)) {

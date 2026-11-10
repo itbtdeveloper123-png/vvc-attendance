@@ -1,0 +1,60 @@
+# Version Control
+.git
+.github
+.gitignore
+.gitattributes
+
+# IDE & Editor Configs
+.idea
+.vscode
+.agents
+.devin
+.editorconfig
+
+# Sensitive Files & Secrets (Security Critical: Never bake into Docker image!)
+.env
+.env.*
+!.env.example
+firebase-adminsdk.json
+
+# Mobile App & Build Artifacts
+flutter
+flutter_app
+.gradle
+.pub-cache
+
+# Python Environments
+.venv
+ai_worker/.venv
+**/__pycache__
+**/*.pyc
+
+# Node & Composer Dependencies
+node_modules
+vendor
+admin_panel/node_modules
+admin_panel/src
+admin_panel/tsconfig.json
+admin_panel/vite.config.ts
+admin_panel/.env*
+admin_panel/admin_panel_build.zip
+
+# Logs & Temporary Sessions
+php_debug.log
+php_sessions/*
+!php_sessions/.gitkeep
+
+# Large Media & Uploads (Mounted as volume at runtime)
+uploads/*
+!uploads/.gitkeep
+*.docx
+*.pdf
+*.zip
+*.apk
+*.ipa
+
+# Docker Configuration
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+.dockerignore

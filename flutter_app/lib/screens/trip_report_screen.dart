@@ -39,7 +39,8 @@ class _TripReportScreenState extends State<TripReportScreen>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadTrips();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    // Optimized: 15s interval (reduced from 3s) to prevent battery drain and map flickering
+    _pollingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) _loadTripsSilently();
     });
   }

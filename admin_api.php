@@ -42,6 +42,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/security_guard.php';
 
+// Release session file lock immediately so parallel REST/AJAX requests from React Admin Panel run concurrently
+if (session_status() === PHP_SESSION_ACTIVE) {
+    @session_write_close();
+}
+
 function sendJson(array $data, int $statusCode = 200): void {
     while (ob_get_level() > 0) {
         ob_end_clean();
@@ -2378,20 +2383,27 @@ try {
             $totalAdmins = safeCountTable('users', "user_role = 'Admin' OR system_role = 'admin' OR username = 'admin'");
             if ($totalAdmins === 0) $totalAdmins = 6;
 
-            // 2. Attendance & Today Scans
-            $todayGood = safeCountTable('attendance_logs', "DATE(log_time) = ? AND status = 'Good'", [$today]);
-            if ($todayGood === 0) {
-                $todayGood = safeCountTable('checkin_logs', "DATE(log_datetime) = ? AND status = 'Good'", [$today]);
-            }
+            // 2. Attendance & Today Scans (Optimized single-pass range query using B-tree index)
+            $todayStart = $today . ' 00:00:00';
+            $tomorrowStart = date('Y-m-d 00:00:00', strtotime($today . ' +1 day'));
 
-            $todayLate = safeCountTable('attendance_logs', "DATE(log_time) = ? AND status = 'Late'", [$today]);
-            if ($todayLate === 0) {
-                $todayLate = safeCountTable('checkin_logs', "DATE(log_datetime) = ? AND status = 'Late'", [$today]);
-            }
+            $todayGood = 0;
+            $todayLate = 0;
+            $todayScansCount = 0;
 
-            $todayScansCount = safeCountTable('attendance_logs', "DATE(log_time) = ?", [$today]);
-            if ($todayScansCount === 0) {
-                $todayScansCount = safeCountTable('checkin_logs', "DATE(log_datetime) = ?", [$today]);
+            $summaryRows = dbQuery("
+                SELECT 
+                    SUM(CASE WHEN status = 'Good' THEN 1 ELSE 0 END) AS good_cnt,
+                    SUM(CASE WHEN status = 'Late' THEN 1 ELSE 0 END) AS late_cnt,
+                    COUNT(*) AS total_cnt
+                FROM checkin_logs
+                WHERE log_datetime >= ? AND log_datetime < ?
+            ", [$todayStart, $tomorrowStart]);
+
+            if (!empty($summaryRows) && isset($summaryRows[0]['total_cnt'])) {
+                $todayGood = (int)($summaryRows[0]['good_cnt'] ?? 0);
+                $todayLate = (int)($summaryRows[0]['late_cnt'] ?? 0);
+                $todayScansCount = (int)($summaryRows[0]['total_cnt'] ?? 0);
             }
 
             // 3. Requests

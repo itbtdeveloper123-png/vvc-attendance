@@ -551,30 +551,116 @@ if (!function_exists('ensure_staff_poll_tables')) {
     }
 }
 
-// Global execution for current $mysqli context if available
+/**
+ * Ensure performance indexes exist on high-frequency tables.
+ */
+if (!function_exists('ensure_optimized_indexes')) {
+    function ensure_optimized_indexes($mysqli) {
+        $indexes = [
+            'checkin_logs' => [
+                'idx_checkin_emp_datetime' => ['employee_id', 'log_datetime'],
+                'idx_checkin_log_datetime' => ['log_datetime'],
+                'idx_checkin_status_dt'    => ['status', 'log_datetime'],
+            ],
+            'requests' => [
+                'idx_req_status'       => ['status'],
+                'idx_req_emp_status'   => ['employee_id', 'status'],
+                'idx_req_created_at'   => ['created_at'],
+            ],
+            'active_tokens' => [
+                'idx_act_tokens_token'    => ['token'],
+                'idx_act_tokens_emp'      => ['employee_id'],
+                'idx_act_tokens_lastused' => ['last_used'],
+            ],
+            'attendance_rules' => [
+                'idx_rules_admin_id'   => ['admin_id'],
+            ],
+            'announcements' => [
+                'idx_ann_created_at'   => ['created_at'],
+                'idx_ann_target_role'  => ['target_role'],
+            ],
+            'user_notifications' => [
+                'idx_notif_emp_read'   => ['employee_id', 'is_read'],
+                'idx_notif_created_at' => ['created_at'],
+            ],
+            'audit_logs' => [
+                'idx_audit_action_time' => ['action', 'created_at'],
+                'idx_audit_created_at'  => ['created_at'],
+            ],
+            'employee_face_data' => [
+                'idx_face_emp_status'  => ['employee_id', 'status'],
+            ],
+            'employee_trips' => [
+                'idx_trips_emp_status' => ['employee_id', 'status'],
+            ],
+            'trip_locations' => [
+                'idx_triploc_trip_time'=> ['trip_id', 'recorded_at'],
+            ],
+            'payroll_history' => [
+                'idx_payroll_emp_month_year' => ['employee_id', 'payroll_month', 'payroll_year'],
+            ],
+            'payroll_deductions' => [
+                'idx_payded_emp_date' => ['employee_id', 'deduction_date'],
+            ],
+            'payroll_ot' => [
+                'idx_payot_emp_month_year' => ['employee_id', 'ot_month', 'ot_year'],
+            ],
+            'payroll_loans' => [
+                'idx_payloans_emp_month' => ['employee_id', 'start_month'],
+            ],
+        ];
+
+        foreach ($indexes as $table => $table_indexes) {
+            $table_check = $mysqli->query("SHOW TABLES LIKE '{$table}'");
+            if (!$table_check || $table_check->num_rows == 0) {
+                continue;
+            }
+            $existing_indexes = [];
+            $res = $mysqli->query("SHOW INDEX FROM `{$table}`");
+            if ($res) {
+                while ($row = $res->fetch_assoc()) {
+                    $existing_indexes[$row['Key_name']] = true;
+                }
+                $res->close();
+            }
+            foreach ($table_indexes as $index_name => $columns) {
+                if (!isset($existing_indexes[$index_name])) {
+                    $col_list = implode(', ', array_map(function($c) { return "`$c`"; }, $columns));
+                    $sql = "ALTER TABLE `{$table}` ADD INDEX `{$index_name}` ({$col_list})";
+                    @$mysqli->query($sql);
+                }
+            }
+        }
+    }
+}
+
+// Global execution for current $mysqli context if available (Throttled to run at most once every 24 hours)
 $mysqli_conn = $mysqli ?? ($GLOBALS['mysqli'] ?? null);
-error_log("DB_SETUP: Checking mysqli. isset: " . (isset($mysqli_conn) ? 'YES' : 'NO'));
 if ($mysqli_conn && $mysqli_conn instanceof mysqli) {
     $mysqli = $mysqli_conn;
-    error_log("DB_SETUP: Global execution started");
-    ensure_core_tables($mysqli);
-    ensure_employment_columns_and_logs($mysqli);
-    ensure_noted_column($mysqli);
-    ensure_user_groups_table($mysqli);
-    ensure_app_themes_table($mysqli);
-    ensure_user_subaccounts_table($mysqli);
-    ensure_column_visibility_table($mysqli);
-    ensure_push_subscriptions_table($mysqli);
-    ensure_meeting_tables($mysqli);
-    ensure_notification_tables($mysqli);
-    ensure_fcm_tokens_table($mysqli);
-    ensure_payroll_tables($mysqli);
-    ensure_announcements_table($mysqli);
-    ensure_quiz_tables($mysqli);
-    try {
-        ensure_staff_poll_tables($mysqli);
-    } catch (Throwable $e) {
-        error_log("DB_SETUP: ensure_staff_poll_tables fatal error: " . $e->getMessage());
+    $_admin_db_cache = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_admin_db_setup_' . md5(defined('DB_NAME') ? DB_NAME : 'vvc');
+    if (!file_exists($_admin_db_cache) || (time() - @filemtime($_admin_db_cache) > 86400)) {
+        @touch($_admin_db_cache);
+        ensure_core_tables($mysqli);
+        ensure_employment_columns_and_logs($mysqli);
+        ensure_noted_column($mysqli);
+        ensure_user_groups_table($mysqli);
+        ensure_app_themes_table($mysqli);
+        ensure_user_subaccounts_table($mysqli);
+        ensure_column_visibility_table($mysqli);
+        ensure_push_subscriptions_table($mysqli);
+        ensure_meeting_tables($mysqli);
+        ensure_notification_tables($mysqli);
+        ensure_fcm_tokens_table($mysqli);
+        ensure_payroll_tables($mysqli);
+        ensure_announcements_table($mysqli);
+        ensure_quiz_tables($mysqli);
+        try {
+            ensure_staff_poll_tables($mysqli);
+        } catch (Throwable $e) {
+            error_log("DB_SETUP: ensure_staff_poll_tables fatal error: " . $e->getMessage());
+        }
+        ensure_optimized_indexes($mysqli);
     }
     auto_resign_due_users($mysqli);
 }

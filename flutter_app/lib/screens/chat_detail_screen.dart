@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -138,6 +140,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _isTargetTyping = false;
   bool _isTargetRecordingVoice = false;
   Timer? _typingDebounceTimer;
+  bool _isTypingReported = false;
+  final ApiService _api = ApiService();
 
   // Voice Recording state
   bool _isRecording = false;
@@ -445,9 +449,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _onTextChanged() {
     if (currentUserId.isEmpty) return;
+    if (!_isTypingReported) {
+      _isTypingReported = true;
+      _setTypingState(true);
+    }
     _typingDebounceTimer?.cancel();
-    _setTypingState(true);
     _typingDebounceTimer = Timer(const Duration(seconds: 2), () {
+      _isTypingReported = false;
       _setTypingState(false);
     });
   }
@@ -2082,7 +2090,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final bool isBase64 = imageUrl.startsWith('data:image');
     final ImageProvider rawProvider = isBase64
         ? _getMemoryImage(imageUrl)
-        : NetworkImage(imageUrl);
+        : CachedNetworkImageProvider(imageUrl);
     final ImageProvider imgProvider = ResizeImage(
       rawProvider,
       width: 600,
@@ -2920,11 +2928,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 final userProvider = Provider.of<UserProvider>(context, listen: false);
                                 final targetRoomId = "PRIVATE_${([currentUserId, targetId]..sort()).join('_')}";
 
-                                final msgData = {
-                                  'text': type == 'text' ? content : '',
-                                  if (type == 'image') 'imageUrl': content,
-                                  if (type == 'voice') 'base64Audio': content,
-                                  'type': type,
+                                  final msgData = {
+                                    'text': type == 'text' ? content : '',
+                                    if (type == 'image') 'imageUrl': content,
+                                    if (type == 'voice') ...{
+                                      'audioUrl': content,
+                                      'base64Audio': content.startsWith('data:') ? content : '',
+                                    },
+                                    'type': type,
                                   'isForwarded': true,
                                   'forwardedFrom': showSenderName && originalSenderName.isNotEmpty ? originalSenderName : null,
                                   'senderId': currentUserId,
@@ -4100,6 +4111,53 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
 
 
+  /// High-performance media uploader:
+  /// 1. Tries Firebase Storage (Cloud CDN, direct download URL, tiny payload in Firestore)
+  /// 2. Falls back to Backend API (uploads/community/)
+  /// 3. Falls back to Base64 data URI only if offline/all fail
+  Future<String> _uploadMediaAndGetUrl({
+    required Uint8List bytes,
+    required String ext,
+    required String contentType,
+  }) async {
+    final fileName = 'chat_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(99999)}.$ext';
+
+    // Strategy 1: Firebase Storage (Primary - Cloud CDN)
+    try {
+      final ref = firebase_storage.FirebaseStorage.instance
+          .ref()
+          .child('chats/$_roomId/$fileName');
+      final metadata = firebase_storage.SettableMetadata(contentType: contentType);
+      await ref.putData(bytes, metadata);
+      final downloadUrl = await ref.getDownloadURL();
+      if (downloadUrl.isNotEmpty) {
+        return downloadUrl;
+      }
+    } catch (e) {
+      debugPrint('Firebase Storage upload failed: $e. Falling back to backend server...');
+    }
+
+    // Strategy 2: Backend API Upload (Secondary)
+    try {
+      final res = await _api.uploadChatMedia(
+        bytes: bytes,
+        ext: ext,
+        mimeType: contentType,
+      );
+      if (res['success'] == true && res['url'] != null) {
+        final fullUrl = ApiService.getFullImageUrl(res['url'].toString());
+        if (fullUrl.isNotEmpty) {
+          return fullUrl;
+        }
+      }
+    } catch (e) {
+      debugPrint('Backend server upload failed: $e. Falling back to Base64...');
+    }
+
+    // Strategy 3: Base64 data URI (Offline safety net)
+    return 'data:$contentType;base64,${base64Encode(bytes)}';
+  }
+
   // Pick and Send Image
   Future<void> _pickAndSendImage(ImageSource source) async {
     try {
@@ -4113,7 +4171,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) return;
 
-      // Fix orientation / mirroring and compress image size for Firestore (must be under 1MB limit)
+      // Fix orientation / mirroring and compress image size
       Uint8List processedBytes = bytes;
       try {
         final img.Image? decoded = img.decodeImage(bytes);
@@ -4127,12 +4185,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       } catch (_) {}
 
       if (!mounted) return;
-      final base64Image = 'data:image/jpeg;base64,${base64Encode(processedBytes)}';
+      final mediaUrl = await _uploadMediaAndGetUrl(
+        bytes: processedBytes,
+        ext: 'jpg',
+        contentType: 'image/jpeg',
+      );
+      if (!mounted) return;
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       final msgData = {
         'text': '',
-        'imageUrl': base64Image,
+        'imageUrl': mediaUrl,
         'type': 'image',
         'senderId': currentUserId,
         'senderName': userProvider.name ?? '',
@@ -4202,13 +4265,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         if (await file.exists()) {
           final bytes = await file.readAsBytes();
           if (bytes.isNotEmpty && currentUserId.isNotEmpty) {
-            final base64Audio = 'data:audio/mp4;base64,${base64Encode(bytes)}';
+            if (!mounted) return;
+            final audioMediaUrl = await _uploadMediaAndGetUrl(
+              bytes: bytes,
+              ext: 'm4a',
+              contentType: 'audio/mp4',
+            );
             if (!mounted) return;
             final userProvider = Provider.of<UserProvider>(context, listen: false);
 
             final msgData = {
               'text': '',
-              'base64Audio': base64Audio,
+              'audioUrl': audioMediaUrl,
+              'base64Audio': audioMediaUrl.startsWith('data:') ? audioMediaUrl : '',
               'audioDuration': duration > 0 ? duration : 1,
               'type': 'voice',
               'senderId': currentUserId,

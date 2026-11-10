@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' show Rect;
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,6 +22,24 @@ class FaceRecognizerService {
   Interpreter? _interpreter;
   bool _initialized = false;
   bool _modelLoadFailed = false;
+
+  /// Reusable FaceDetector instances to avoid high native allocation overhead on every scan
+  FaceDetector? _faceDetector;
+  FaceDetector get _detector => _faceDetector ??= FaceDetector(
+        options: FaceDetectorOptions(performanceMode: FaceDetectorMode.fast),
+      );
+
+  FaceDetector? _livenessDetector;
+  FaceDetector get _liveDetector => _livenessDetector ??= FaceDetector(
+        options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
+          enableClassification: true,
+          enableLandmarks: true,
+        ),
+      );
+
+  /// In-memory cache of parsed embeddings to eliminate redundant disk I/O and double parsing
+  final Map<String, List<List<double>>> _memoryEmbeddings = {};
 
   /// Input size for MobileFaceNet (112 x 112 RGB)
   static const int inputSize = 112;
@@ -55,6 +74,9 @@ class FaceRecognizerService {
       final file = File(imagePath);
       if (!file.existsSync()) return false;
 
+      // Invalidate memory cache so next verification picks up new embeddings
+      _memoryEmbeddings.remove(userId);
+
       final embedding = await extractEmbedding(imagePath);
       final prefs = await SharedPreferences.getInstance();
 
@@ -83,48 +105,29 @@ class FaceRecognizerService {
 
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
-      final faceDetector = FaceDetector(
-        options: FaceDetectorOptions(performanceMode: FaceDetectorMode.fast),
-      );
-      final faces = await faceDetector.processImage(inputImage);
-      await faceDetector.close();
+      final faces = await _detector.processImage(inputImage);
 
       final bytes = await File(imagePath).readAsBytes();
-      final decodedImage = img.decodeImage(bytes);
-      if (decodedImage == null) return null;
 
-      img.Image faceCrop = decodedImage;
-
+      Rect? faceRect;
       if (faces.isNotEmpty) {
-        final face = faces.first;
-        final rect = face.boundingBox;
-
-        int x = max(0, rect.left.toInt());
-        int y = max(0, rect.top.toInt());
-        int w = min(decodedImage.width - x, rect.width.toInt());
-        int h = min(decodedImage.height - y, rect.height.toInt());
-
-        if (w > 0 && h > 0) {
-          faceCrop = img.copyCrop(decodedImage, x: x, y: y, width: w, height: h);
-        }
+        faceRect = faces.first.boundingBox;
       }
 
-      // Resize cropped face to 112x112
-      final resized = img.copyResize(faceCrop, width: inputSize, height: inputSize);
+      // Offload heavy CPU image decoding & cropping to background isolate via compute()
+      final input = await compute(
+        _preprocessFaceImage,
+        _FaceCropParams(
+          bytes: bytes,
+          rectLeft: faceRect?.left.toInt(),
+          rectTop: faceRect?.top.toInt(),
+          rectWidth: faceRect?.width.toInt(),
+          rectHeight: faceRect?.height.toInt(),
+          inputSize: inputSize,
+        ),
+      );
 
-      // Preprocess image bytes to float array [-1, 1]
-      final input = Float32List(1 * inputSize * inputSize * 3);
-      int pixelIndex = 0;
-
-      for (int y = 0; y < inputSize; y++) {
-        for (int x = 0; x < inputSize; x++) {
-          final pixel = resized.getPixel(x, y);
-          // Normalize (value - 127.5) / 127.5
-          input[pixelIndex++] = (pixel.r - 127.5) / 127.5;
-          input[pixelIndex++] = (pixel.g - 127.5) / 127.5;
-          input[pixelIndex++] = (pixel.b - 127.5) / 127.5;
-        }
-      }
+      if (input == null) return null;
 
       // Input tensor shape: [1, 112, 112, 3]
       final inputTensor = input.reshape([1, inputSize, inputSize, 3]);
@@ -184,19 +187,30 @@ class FaceRecognizerService {
         );
       }
 
-      // Load stored embeddings
-      final prefs = await SharedPreferences.getInstance();
-      double maxSimilarity = -1.0;
-
-      for (final label in ['front', 'left', 'right', 'profile_pic']) {
-        final key = 'face_embedding_${userId}_$label';
-        final strList = prefs.getStringList(key);
-        if (strList != null && strList.isNotEmpty) {
-          final storedEmbedding = strList.map((s) => double.tryParse(s) ?? 0.0).toList();
-          final sim = cosineSimilarity(liveEmbedding, storedEmbedding);
-          if (sim > maxSimilarity) {
-            maxSimilarity = sim;
+      // Load stored embeddings (utilize in-memory cache to skip repeated SharedPreferences I/O)
+      List<List<double>> storedList = _memoryEmbeddings[userId] ?? [];
+      if (storedList.isEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        for (final label in ['front', 'left', 'right', 'profile_pic']) {
+          final key = 'face_embedding_${userId}_$label';
+          final strList = prefs.getStringList(key);
+          if (strList != null && strList.isNotEmpty) {
+            final storedEmbedding = strList.map((s) => double.tryParse(s) ?? 0.0).toList();
+            if (storedEmbedding.isNotEmpty) {
+              storedList.add(storedEmbedding);
+            }
           }
+        }
+        if (storedList.isNotEmpty) {
+          _memoryEmbeddings[userId] = storedList;
+        }
+      }
+
+      double maxSimilarity = -1.0;
+      for (final storedEmbedding in storedList) {
+        final sim = cosineSimilarity(liveEmbedding, storedEmbedding);
+        if (sim > maxSimilarity) {
+          maxSimilarity = sim;
         }
       }
 
@@ -229,6 +243,7 @@ class FaceRecognizerService {
 
   /// Delete all stored faces for user
   Future<void> deleteAllFaces(String userId) async {
+    _memoryEmbeddings.remove(userId);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('face_registered_$userId');
     for (final label in ['front', 'left', 'right', 'profile_pic']) {
@@ -243,11 +258,13 @@ class FaceRecognizerService {
     double normA = 0.0;
     double normB = 0.0;
     for (int i = 0; i < v1.length; i++) {
-      dotProduct += v1[i] * v2[i];
-      normA += v1[i] * v1[i];
-      normB += v2[i] * v2[i];
+      final double a = v1[i];
+      final double b = v2[i];
+      dotProduct += a * b;
+      normA += a * a;
+      normB += b * b;
     }
-    if (normA == 0 || normB == 0) return 0.0;
+    if (normA == 0.0 || normB == 0.0) return 0.0;
     return dotProduct / (sqrt(normA) * sqrt(normB));
   }
 
@@ -266,15 +283,7 @@ class FaceRecognizerService {
   Future<FaceLivenessResult> checkImageLiveness(String imagePath) async {
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
-      final faceDetector = FaceDetector(
-        options: FaceDetectorOptions(
-          performanceMode: FaceDetectorMode.accurate,
-          enableClassification: true, // enables eye open & smile probabilities
-          enableLandmarks: true,
-        ),
-      );
-      final faces = await faceDetector.processImage(inputImage);
-      await faceDetector.close();
+      final faces = await _liveDetector.processImage(inputImage);
 
       if (faces.isEmpty) {
         return const FaceLivenessResult(
@@ -309,6 +318,81 @@ class FaceRecognizerService {
         feedbackMessage: 'កំហុសក្នុងការត្រួតពិនិត្យភាពរស់រវើក៖ $e',
       );
     }
+  }
+
+  void dispose() {
+    _interpreter?.close();
+    _faceDetector?.close();
+    _livenessDetector?.close();
+    _interpreter = null;
+    _faceDetector = null;
+    _livenessDetector = null;
+    _memoryEmbeddings.clear();
+    _initialized = false;
+  }
+}
+
+// ========================
+// Background Isolate Worker
+// ========================
+class _FaceCropParams {
+  final Uint8List bytes;
+  final int? rectLeft;
+  final int? rectTop;
+  final int? rectWidth;
+  final int? rectHeight;
+  final int inputSize;
+
+  const _FaceCropParams({
+    required this.bytes,
+    this.rectLeft,
+    this.rectTop,
+    this.rectWidth,
+    this.rectHeight,
+    required this.inputSize,
+  });
+}
+
+/// Offloads heavy CPU image decoding & cropping to background isolate
+Float32List? _preprocessFaceImage(_FaceCropParams params) {
+  try {
+    final decodedImage = img.decodeImage(params.bytes);
+    if (decodedImage == null) return null;
+
+    img.Image faceCrop = decodedImage;
+    if (params.rectLeft != null &&
+        params.rectTop != null &&
+        params.rectWidth != null &&
+        params.rectHeight != null) {
+      final int x = max(0, params.rectLeft!);
+      final int y = max(0, params.rectTop!);
+      final int w = min(decodedImage.width - x, params.rectWidth!);
+      final int h = min(decodedImage.height - y, params.rectHeight!);
+
+      if (w > 0 && h > 0) {
+        faceCrop = img.copyCrop(decodedImage, x: x, y: y, width: w, height: h);
+      }
+    }
+
+    // Resize cropped face to 112x112
+    final resized = img.copyResize(faceCrop, width: params.inputSize, height: params.inputSize);
+
+    // Preprocess image bytes to float array [-1, 1]
+    final input = Float32List(1 * params.inputSize * params.inputSize * 3);
+    int pixelIndex = 0;
+
+    for (int y = 0; y < params.inputSize; y++) {
+      for (int x = 0; x < params.inputSize; x++) {
+        final pixel = resized.getPixel(x, y);
+        // Normalize (value - 127.5) / 127.5
+        input[pixelIndex++] = (pixel.r - 127.5) / 127.5;
+        input[pixelIndex++] = (pixel.g - 127.5) / 127.5;
+        input[pixelIndex++] = (pixel.b - 127.5) / 127.5;
+      }
+    }
+    return input;
+  } catch (e) {
+    return null;
   }
 }
 

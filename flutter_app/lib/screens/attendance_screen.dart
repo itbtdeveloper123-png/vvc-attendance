@@ -800,6 +800,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       _isLoading = true;
     });
 
+    String? capturedPhotoPath;
     try {
       if (_cameraController != null &&
           _cameraController!.value.isStreamingImages) {
@@ -808,6 +809,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       }
 
       final XFile photo = await _cameraController!.takePicture();
+      capturedPhotoPath = photo.path;
       final String photoBase64 = await compressAndEncodeImage(await photo.readAsBytes());
 
       // === AI FACE VERIFICATION (On-Device FaceNet) ===
@@ -935,6 +937,14 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         }
       }
     } finally {
+      if (capturedPhotoPath != null) {
+        try {
+          final tempFile = File(capturedPhotoPath);
+          if (tempFile.existsSync()) {
+            tempFile.deleteSync();
+          }
+        } catch (_) {}
+      }
       if (mounted) setState(() => _isLoading = false);
     }
   }

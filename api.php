@@ -81,6 +81,12 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
 }
 
 require_once __DIR__ . '/config.php';
+
+// Release session lock immediately so concurrent mobile API requests run in parallel (no sequential blocking)
+if (session_status() === PHP_SESSION_ACTIVE) {
+    @session_write_close();
+}
+
 require_once __DIR__ . '/security_guard.php';
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
@@ -461,17 +467,18 @@ function check_api_rate_limit($mysqli) {
     $now = time();
     $limit = 60; // Max 60 requests per minute
 
-    // Auto-create rate limits table if not exists
-    $mysqli->query("CREATE TABLE IF NOT EXISTS api_rate_limits (
-        ip_address VARCHAR(45) NOT NULL,
-        endpoint VARCHAR(255) NOT NULL,
-        request_count INT NOT NULL DEFAULT 1,
-        first_request_time INT NOT NULL,
-        PRIMARY KEY (ip_address, endpoint)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-    // Retrieve current rate limit state
+    // Retrieve current rate limit state (create table on-demand only if missing, avoiding DDL lock overhead on every request)
     $stmt = $mysqli->prepare("SELECT request_count, first_request_time FROM api_rate_limits WHERE ip_address = ? AND endpoint = ?");
+    if (!$stmt && ($mysqli->errno === 1146 || stripos($mysqli->error, "doesn't exist") !== false)) {
+        $mysqli->query("CREATE TABLE IF NOT EXISTS api_rate_limits (
+            ip_address VARCHAR(45) NOT NULL,
+            endpoint VARCHAR(255) NOT NULL,
+            request_count INT NOT NULL DEFAULT 1,
+            first_request_time INT NOT NULL,
+            PRIMARY KEY (ip_address, endpoint)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $stmt = $mysqli->prepare("SELECT request_count, first_request_time FROM api_rate_limits WHERE ip_address = ? AND endpoint = ?");
+    }
     if ($stmt) {
         $stmt->bind_param("ss", $ip, $action);
         $stmt->execute();
@@ -2816,58 +2823,69 @@ function meeting_ai_generate_summary_payload(array $meeting, $transcriptText) {
     ];
 }
 
-// Initialize tables
-try {
-    ensure_api_notification_tables($mysqli);
-} catch (Exception $e) {
-    error_log("API notification tables error: " . $e->getMessage());
-}
+// Schema helper functions
+function ensure_core_api_tables_schema($mysqli) {
+    if (!$mysqli || !is_object($mysqli) || @$mysqli->connect_error) {
+        return;
+    }
 
-try {
-    ensure_app_scan_settings_table($mysqli);
-} catch (Exception $e) {
-    error_log("App scan settings table error: " . $e->getMessage());
-}
+    try { ensure_api_notification_tables($mysqli); } catch (Exception $e) { error_log("API notification tables error: " . $e->getMessage()); }
+    try { ensure_app_scan_settings_table($mysqli); } catch (Exception $e) { error_log("App scan settings table error: " . $e->getMessage()); }
+    try { ensure_daily_report_telegram_table($mysqli); } catch (Exception $e) { error_log("Daily report telegram table error: " . $e->getMessage()); }
+    try { ensure_daily_reports_table($mysqli); } catch (Exception $e) { error_log("Daily reports table error: " . $e->getMessage()); }
+    try { ensure_mission_letters_table($mysqli); } catch (Exception $e) { error_log("Mission letters table error: " . $e->getMessage()); }
+    try { ensure_meetings_table($mysqli); } catch (Exception $e) { error_log("Meetings table error: " . $e->getMessage()); }
+    try { ensure_ai_chat_tables($mysqli); } catch (Exception $e) { error_log("AI chat tables error: " . $e->getMessage()); }
+    try { ensure_trip_tables($mysqli); } catch (Exception $e) { error_log("Trip tables error: " . $e->getMessage()); }
+    try { ensure_work_checklist_table($mysqli); } catch (Exception $e) { error_log("Work checklist table error: " . $e->getMessage()); }
 
-try {
-    ensure_daily_report_telegram_table($mysqli);
-} catch (Exception $e) {
-    error_log("Daily report telegram table error: " . $e->getMessage());
-}
+    // Ensure checkin_logs has required columns (null-safe guard)
+    $check_photo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'photo_path'");
+    if ($check_photo && $check_photo->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN photo_path VARCHAR(255) DEFAULT NULL");
+    }
+    if ($check_photo && is_object($check_photo)) $check_photo->close();
 
-try {
-    ensure_daily_reports_table($mysqli);
-} catch (Exception $e) {
-    error_log("Daily reports table error: " . $e->getMessage());
-}
+    $check_emp_name = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'employee_name'");
+    if ($check_emp_name && $check_emp_name->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN employee_name VARCHAR(255) DEFAULT NULL AFTER employee_id");
+    }
+    if ($check_emp_name && is_object($check_emp_name)) $check_emp_name->close();
 
-try {
-    ensure_mission_letters_table($mysqli);
-} catch (Exception $e) {
-    error_log("Mission letters table error: " . $e->getMessage());
-}
+    $check_geo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'latitude'");
+    if ($check_geo && $check_geo->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN latitude DOUBLE DEFAULT NULL, ADD COLUMN longitude DOUBLE DEFAULT NULL");
+    }
+    if ($check_geo && is_object($check_geo)) $check_geo->close();
 
-try {
-    ensure_meetings_table($mysqli);
-} catch (Exception $e) {
-    error_log("Meetings table error: " . $e->getMessage());
-}
-try {
-    ensure_ai_chat_tables($mysqli);
-} catch (Exception $e) {
-    error_log("AI chat tables error: " . $e->getMessage());
-}
+    $check_qr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'qr_location_id'");
+    if ($check_qr && $check_qr->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN qr_location_id INT DEFAULT 0");
+    }
+    if ($check_qr && is_object($check_qr)) $check_qr->close();
 
-try {
-    ensure_trip_tables($mysqli);
-} catch (Exception $e) {
-    error_log("Trip tables error: " . $e->getMessage());
-}
+    $check_addr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'geo_address'");
+    if ($check_addr && $check_addr->num_rows === 0) {
+        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN geo_address TEXT DEFAULT NULL");
+    }
+    if ($check_addr && is_object($check_addr)) $check_addr->close();
 
-try {
-    ensure_work_checklist_table($mysqli);
-} catch (Exception $e) {
-    error_log("Work checklist table error: " . $e->getMessage());
+    // ===== FACE REGISTRATION TABLE =====
+    $mysqli->query("CREATE TABLE IF NOT EXISTS employee_face_data (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        employee_id VARCHAR(64) NOT NULL,
+        photo_path VARCHAR(512) NOT NULL,
+        photo_index TINYINT DEFAULT 0 COMMENT '0=straight,1=left,2=right',
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        registered_by VARCHAR(64) DEFAULT NULL COMMENT 'admin who registered on behalf',
+        INDEX idx_face_employee (employee_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $check_face_reg = $mysqli->query("SHOW COLUMNS FROM users LIKE 'face_registered'");
+    if ($check_face_reg && $check_face_reg->num_rows === 0) {
+        $mysqli->query("ALTER TABLE users ADD COLUMN face_registered TINYINT(1) DEFAULT 0");
+    }
+    if ($check_face_reg && is_object($check_face_reg)) $check_face_reg->close();
 }
 
 function ensure_work_checklist_table($mysqli) {
@@ -2961,74 +2979,67 @@ function ensure_trip_tables($mysqli) {
     $mysqli->query("ALTER TABLE tracking_customers CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 }
 
-// Ensure checkin_logs has required columns (null-safe guard)
-if ($mysqli) {
-    $check_photo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'photo_path'");
-    if ($check_photo && $check_photo->num_rows === 0) {
-        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN photo_path VARCHAR(255) DEFAULT NULL");
-    }
-
-    // Ensure checkin_logs has employee_name so report can show name even when users join fails
-    $check_emp_name = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'employee_name'");
-    if ($check_emp_name && $check_emp_name->num_rows === 0) {
-        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN employee_name VARCHAR(255) DEFAULT NULL AFTER employee_id");
-    }
-
-    // Ensure checkin_logs has geo-coordinates
-    $check_geo = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'latitude'");
-    if ($check_geo && $check_geo->num_rows === 0) {
-        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN latitude DOUBLE DEFAULT NULL, ADD COLUMN longitude DOUBLE DEFAULT NULL");
-    }
-
-    // Ensure checkin_logs has qr_location_id (0 = outside scan)
-    $check_qr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'qr_location_id'");
-    if ($check_qr && $check_qr->num_rows === 0) {
-        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN qr_location_id INT DEFAULT 0");
-    }
-}
-
-// Ensure checkin_logs has geo_address
-if ($mysqli) {
-    $check_addr = $mysqli->query("SHOW COLUMNS FROM checkin_logs LIKE 'geo_address'");
-    if ($check_addr && $check_addr->num_rows === 0) {
-        $mysqli->query("ALTER TABLE checkin_logs ADD COLUMN geo_address TEXT DEFAULT NULL");
-    }
-
-    // ===== FACE REGISTRATION TABLE =====
-    // បង្កើតតារាងដើម្បីរក្សាទុករូបថតចុះឈ្មោះ Face ID
-    $mysqli->query("CREATE TABLE IF NOT EXISTS employee_face_data (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        employee_id VARCHAR(64) NOT NULL,
-        photo_path VARCHAR(512) NOT NULL,
-        photo_index TINYINT DEFAULT 0 COMMENT '0=straight,1=left,2=right',
-        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        registered_by VARCHAR(64) DEFAULT NULL COMMENT 'admin who registered on behalf',
-        INDEX idx_face_employee (employee_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-
-    // បន្ថែម face_registered column ក្នុង users table
-    $check_face_reg = $mysqli->query("SHOW COLUMNS FROM users LIKE 'face_registered'");
-    if ($check_face_reg && $check_face_reg->num_rows === 0) {
-        $mysqli->query("ALTER TABLE users ADD COLUMN face_registered TINYINT(1) DEFAULT 0");
-    }
-}
-
 function get_address_from_gps($lat, $lon) {
     if (!$lat || !$lon) return null;
-    $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1";
-    $options = [
-        "http" => [
-            "header" => "User-Agent: VvcAttendanceApp/1.0\r\n",
-            "timeout" => 3
-        ]
-    ];
-    $context = stream_context_create($options);
-    $result = @file_get_contents($url, false, $context);
-    if ($result) {
-        $data = json_decode($result, true);
-        return $data['display_name'] ?? null;
+
+    // 1. In-memory request cache (keyed by rounded lat/lon ~100m radius)
+    static $geo_cache = [];
+    $cache_key = sprintf('%.3f_%.3f', (float)$lat, (float)$lon);
+    if (isset($geo_cache[$cache_key])) {
+        return $geo_cache[$cache_key];
     }
-    return null;
+
+    // 2. Disk cache (persisted in temp dir for 30 days to avoid repeat OSM calls)
+    $cache_file = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'vvc_geo_' . md5($cache_key) . '.cache';
+    if (file_exists($cache_file) && (time() - @filemtime($cache_file) < 2592000)) {
+        $cached_val = @file_get_contents($cache_file);
+        if (!empty($cached_val)) {
+            $geo_cache[$cache_key] = $cached_val;
+            return $cached_val;
+        }
+    }
+
+    // 3. Fast reverse geocoding with strict 1.5s timeout (prevents check-in hang during OSM rate limiting)
+    $addr = null;
+    $url = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lon}&zoom=18&addressdetails=1";
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_USERAGENT => 'VvcAttendanceApp/1.0 (contact@vvc.asia)',
+            CURLOPT_TIMEOUT => 2,
+            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($http_code === 200 && $response) {
+            $data = json_decode($response, true);
+            $addr = $data['display_name'] ?? null;
+        }
+    } else {
+        $options = [
+            "http" => [
+                "header" => "User-Agent: VvcAttendanceApp/1.0\r\n",
+                "timeout" => 2
+            ]
+        ];
+        $context = stream_context_create($options);
+        $result = @file_get_contents($url, false, $context);
+        if ($result) {
+            $data = json_decode($result, true);
+            $addr = $data['display_name'] ?? null;
+        }
+    }
+
+    if (!empty($addr)) {
+        $geo_cache[$cache_key] = $addr;
+        @file_put_contents($cache_file, $addr);
+    }
+    return $addr;
 }
 
 function haversine_distance($lat1, $lon1, $lat2, $lon2) {
@@ -3050,81 +3061,77 @@ if (!function_exists('is_system_wide_scan_setting_key')) {
 
 function get_scan_setting($key, $default = '', $mysqli, $employee_id = null) {
     static $scan_settings_cache = [];
+    static $admin_id_cache = [];
+    static $loaded_admin_scopes = [];
 
     if (is_system_wide_scan_setting_key($key)) {
         $employee_id = null;
     }
 
-    // Resolve admin_id
+    // Fast-path 1: Resolve admin_id once per employee_id with memory caching
     $admin_id = 'SYSTEM_WIDE';
     if ($employee_id) {
-        $stmt = $mysqli->prepare("SELECT user_role, COALESCE(created_by_admin_id, '') AS created_by_admin_id FROM users WHERE employee_id = ? LIMIT 1");
-        if ($stmt) {
-            $stmt->bind_param("s", $employee_id);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            if ($res && $row = $res->fetch_assoc()) {
-                $role    = $row['user_role'] ?? '';
-                $creator = $row['created_by_admin_id'] ?? '';
+        if (isset($admin_id_cache[$employee_id])) {
+            $admin_id = $admin_id_cache[$employee_id];
+        } else {
+            $stmt = $mysqli->prepare("SELECT user_role, COALESCE(created_by_admin_id, '') AS created_by_admin_id FROM users WHERE employee_id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param("s", $employee_id);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res && $row = $res->fetch_assoc()) {
+                    $role    = $row['user_role'] ?? '';
+                    $creator = $row['created_by_admin_id'] ?? '';
 
-                // Step 1: Does this employee have their own settings row?
-                $chk = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = ? LIMIT 1");
-                if ($chk) {
-                    $chk->bind_param("s", $employee_id);
-                    $chk->execute();
-                    $has_own = ($chk->get_result()->num_rows > 0);
-                    $chk->close();
-                } else {
-                    $has_own = false;
-                }
+                    $chk = $mysqli->prepare("SELECT 1 FROM app_scan_settings WHERE admin_id = ? LIMIT 1");
+                    if ($chk) {
+                        $chk->bind_param("s", $employee_id);
+                        $chk->execute();
+                        $has_own = ($chk->get_result()->num_rows > 0);
+                        $chk->close();
+                    } else {
+                        $has_own = false;
+                    }
 
-                if ($has_own) {
-                    $admin_id = $employee_id;
-                } elseif (!empty($creator)) {
-                    $admin_id = $creator;  // Use creator/manager's settings
-                } elseif (strcasecmp($role, 'Admin') === 0) {
-                    $admin_id = $employee_id;
+                    if ($has_own) {
+                        $admin_id = $employee_id;
+                    } elseif (!empty($creator)) {
+                        $admin_id = $creator;
+                    } elseif (strcasecmp($role, 'Admin') === 0) {
+                        $admin_id = $employee_id;
+                    }
                 }
-                // else: remains 'SYSTEM_WIDE'
+                $stmt->close();
             }
-            $stmt->close();
+            $admin_id_cache[$employee_id] = $admin_id;
         }
     }
 
-
     $cache_key = "{$admin_id}_{$key}";
-    if (isset($scan_settings_cache[$cache_key])) return $scan_settings_cache[$cache_key];
+    if (isset($scan_settings_cache[$cache_key])) {
+        return $scan_settings_cache[$cache_key];
+    }
 
-    // Priority 1: Check admin-specific app_scan_settings (New UI)
-    $stmt = $mysqli->prepare("SELECT setting_value FROM app_scan_settings WHERE admin_id = ? AND setting_key = ? LIMIT 1");
-    if ($stmt) {
-        $stmt->bind_param("ss", $admin_id, $key);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if ($row = $res->fetch_assoc()) {
-            $val = $row['setting_value'];
-            $scan_settings_cache[$cache_key] = $val;
-            $stmt->close();
-            return $val;
+    // Fast-path 2: Bulk pre-load all scan settings for this admin_id + SYSTEM_WIDE in 1 query
+    if (!isset($loaded_admin_scopes[$admin_id])) {
+        $loaded_admin_scopes[$admin_id] = true;
+        $scope_admin = $mysqli->real_escape_string($admin_id);
+        $resAll = $mysqli->query("SELECT admin_id, setting_key, setting_value FROM app_scan_settings WHERE admin_id IN ('$scope_admin', 'SYSTEM_WIDE')");
+        if ($resAll) {
+            while ($rowA = $resAll->fetch_assoc()) {
+                $scan_settings_cache["{$rowA['admin_id']}_{$rowA['setting_key']}"] = $rowA['setting_value'];
+            }
+            $resAll->close();
         }
-        $stmt->close();
+    }
+
+    if (isset($scan_settings_cache[$cache_key])) {
+        return $scan_settings_cache[$cache_key];
     }
 
     // Priority 2: Fallback to SYSTEM_WIDE app_scan_settings
-    if ($admin_id !== 'SYSTEM_WIDE') {
-        $stmt = $mysqli->prepare("SELECT setting_value FROM app_scan_settings WHERE admin_id = 'SYSTEM_WIDE' AND setting_key = ? LIMIT 1");
-        if ($stmt) {
-            $stmt->bind_param("s", $key);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            if ($row = $res->fetch_assoc()) {
-                $val = $row['setting_value'];
-                $scan_settings_cache[$cache_key] = $val;
-                $stmt->close();
-                return $val;
-            }
-            $stmt->close();
-        }
+    if ($admin_id !== 'SYSTEM_WIDE' && isset($scan_settings_cache["SYSTEM_WIDE_{$key}"])) {
+        return $scan_settings_cache["SYSTEM_WIDE_{$key}"];
     }
 
     // Priority 3: Legacy system_settings (Global overrides)
@@ -3403,6 +3410,7 @@ if ($_should_check_schema) {
     }
     unset($_required_columns, $_col, $_def, $_col_check);
 
+    try { ensure_core_api_tables_schema($mysqli);     } catch (Exception $e) { error_log("Core API tables schema: " . $e->getMessage()); }
     try { ensure_enterprise_support_tables($mysqli); } catch (Exception $e) { error_log("Enterprise tables: " . $e->getMessage()); }
     try { ensure_requests_table_schema($mysqli);      } catch (Exception $e) { error_log("Requests schema: "  . $e->getMessage()); }
 }
@@ -3446,9 +3454,10 @@ if ($token) {
                 }
             }
             $stmt->close();
-            // Update last activity for this session
+            // Update last activity for this session (throttled to at most once per 5 minutes to eliminate DB row-lock contention)
             if ($user && !empty($token)) {
-                $mysqli->query("UPDATE active_tokens SET last_used = NOW() WHERE auth_token = '" . $mysqli->real_escape_string($token) . "'");
+                $esc_token = $mysqli->real_escape_string($token);
+                $mysqli->query("UPDATE active_tokens SET last_used = NOW() WHERE auth_token = '$esc_token' AND (last_used IS NULL OR last_used < DATE_SUB(NOW(), INTERVAL 5 MINUTE))");
             }
         }
     } catch (Exception $e) {}
@@ -6537,7 +6546,16 @@ try {
         if ($ins) {
             $u_lat = isset($u_lat) ? floatval($u_lat) : null;
             $u_lon = isset($u_lon) ? floatval($u_lon) : null;
-            $geo_address = get_address_from_gps($u_lat, $u_lon);
+
+            // Prioritize client address or known branch name to completely eliminate OSM reverse geocoding latency
+            $client_geo = trim((string)($_POST['geo_address'] ?? $_POST['address'] ?? ''));
+            if ($client_geo !== '' && $client_geo !== 'Unknown' && $client_geo !== 'N/A') {
+                $geo_address = $client_geo;
+            } elseif ($loc_id > 0 && !empty($loc_name)) {
+                $geo_address = $loc_name;
+            } else {
+                $geo_address = get_address_from_gps($u_lat, $u_lon);
+            }
 
             $ins->bind_param("sssssdssddis", $eid, $uname, $action_type, $status, $loc_name, $distance_m, $late_reason, $photo_path, $u_lat, $u_lon, $loc_id, $geo_address);
             if ($ins->execute()) {

@@ -517,6 +517,32 @@ class ApiService {
     }
   }
 
+  /// Upload Chat Media (Images, Voice Audio, etc.) to backend storage
+  Future<Map<String, dynamic>> uploadChatMedia({
+    required Uint8List bytes,
+    required String ext,
+    String? mimeType,
+  }) async {
+    try {
+      final base64String = base64Encode(bytes);
+      final headers = await _authHeaders();
+      final mime = mimeType ?? (ext == 'm4a' ? 'audio/mp4' : 'image/jpeg');
+
+      return _processRequest(
+        'upload_media',
+        headers: headers,
+        body: {
+          'file_base64': 'data:$mime;base64,$base64String',
+          'ext': ext,
+          'file_name': 'chat_${DateTime.now().millisecondsSinceEpoch}.$ext',
+        },
+        timeout: const Duration(seconds: 45),
+      );
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   /// Send Push & In-App Notification when a new Community Post is published
   Future<Map<String, dynamic>> notifyCommunityPost({
     required String postId,

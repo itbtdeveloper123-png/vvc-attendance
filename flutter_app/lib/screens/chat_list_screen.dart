@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'new_message_screen.dart';
 import 'chat_detail_screen.dart';
 import 'storage_usage_screen.dart';
@@ -806,7 +807,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               child: CircleAvatar(
                 radius: 14.5,
                 backgroundImage: user.avatar != null && user.avatar!.isNotEmpty
-                    ? NetworkImage(ApiService.getFullImageUrl(user.avatar!))
+                    ? CachedNetworkImageProvider(ApiService.getFullImageUrl(user.avatar!))
                     : null,
                 backgroundColor: _getAvatarBgColor(user.name ?? ''),
                 child: user.avatar == null || user.avatar!.isEmpty
@@ -1122,7 +1123,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                         radius: 28.0,
                         backgroundImage:
                             avatar.isNotEmpty
-                                ? NetworkImage(
+                                ? CachedNetworkImageProvider(
                                   ApiService.getFullImageUrl(avatar),
                                 )
                                 : null,
@@ -1512,7 +1513,7 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
                               radius: 26.0,
                               backgroundImage:
                                   avatar.isNotEmpty
-                                      ? NetworkImage(
+                                      ? CachedNetworkImageProvider(
                                         ApiService.getFullImageUrl(avatar),
                                       )
                                       : null,
