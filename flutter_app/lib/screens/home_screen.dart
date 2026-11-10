@@ -56,31 +56,8 @@ import '../widgets/responsive_layout.dart';
 import '../widgets/desktop_navigation_shell.dart';
 import '../widgets/desktop_dashboard_view.dart';
 
-// ========== SLIDE PAGE ROUTE (Feature #9) ==========
-PageRouteBuilder _slideRoute(Widget page) {
-  return PageRouteBuilder(
-    transitionDuration: const Duration(milliseconds: 380),
-    reverseTransitionDuration: const Duration(milliseconds: 300),
-    pageBuilder: (context, animation, secondaryAnimation) => page,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final tween = Tween<Offset>(
-        begin: const Offset(1.0, 0.0),
-        end: Offset.zero,
-      ).chain(CurveTween(curve: Curves.easeInOutCubic));
-      final fadeTween = Tween<double>(
-        begin: 0.0,
-        end: 1.0,
-      ).chain(CurveTween(curve: Curves.easeIn));
-      return SlideTransition(
-        position: animation.drive(tween),
-        child: FadeTransition(
-          opacity: animation.drive(fadeTween),
-          child: child,
-        ),
-      );
-    },
-  );
-}
+// ========== TELEGRAM PAGE ROUTE (Feature #9) ==========
+PageRoute<T> _slideRoute<T>(Widget page) => TelegramPageRoute<T>(page: page);
 
 // Feature #10: Haptic helpers
 void _hapticLight() => HapticFeedback.lightImpact();
@@ -91,6 +68,87 @@ void _hapticSuccess() {
     const Duration(milliseconds: 120),
     () => HapticFeedback.lightImpact(),
   );
+}
+
+/// Telegram-style animated tab transition preserving state of all tabs
+class _TelegramAnimatedIndexedStack extends StatefulWidget {
+  final int index;
+  final List<Widget> children;
+
+  const _TelegramAnimatedIndexedStack({
+    required this.index,
+    required this.children,
+  });
+
+  @override
+  State<_TelegramAnimatedIndexedStack> createState() =>
+      _TelegramAnimatedIndexedStackState();
+}
+
+class _TelegramAnimatedIndexedStackState
+    extends State<_TelegramAnimatedIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  int _prevIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _prevIndex = widget.index;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _controller.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(covariant _TelegramAnimatedIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      _prevIndex = oldWidget.index;
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        final t = _animation.value;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Outgoing screen with cross-fade
+            if (_prevIndex != widget.index && t < 1.0)
+              IgnorePointer(
+                child: Opacity(
+                  opacity: (1.0 - t).clamp(0.0, 1.0),
+                  child: widget.children[_prevIndex],
+                ),
+              ),
+            // Incoming active screen
+            Opacity(
+              opacity: t.clamp(0.0, 1.0),
+              child: widget.children[widget.index],
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class HomeScreen extends StatefulWidget {
@@ -366,7 +424,7 @@ class HomeScreenState extends State<HomeScreen> {
           ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
           : const Color(0xFFFFFFFF).withValues(alpha: 0.94),
       borderColor: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0),
-      accentColor: const Color(0xFF0A84FF),
+      accentColor: isDark ? const Color(0xFFF3D010) : AppTheme.primary,
       trailingAction: Icon(
         CupertinoIcons.qrcode_viewfinder,
         color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -423,8 +481,8 @@ class HomeScreenState extends State<HomeScreen> {
           },
           child: Stack(
             children: [
-              // 1. Content Screens
-              IndexedStack(index: _currentIndex, children: screens),
+              // 1. Content Screens with Telegram-style crossfade
+              _TelegramAnimatedIndexedStack(index: _currentIndex, children: screens),
 
               // 2. Scroll-Aware Localized Fade & Blur Transition Zone (Requirements 3-7)
               scrollAwareNavBar.buildTransitionZone(
@@ -455,8 +513,8 @@ class HomeScreenState extends State<HomeScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 1. AI Assistant Floating Bubble
-          GestureDetector(
+          // 1. AI Assistant Floating Bubble with Telegram Spring Bounce
+          TelegramBounce(
             onTap: () {
               _hapticLight();
               Navigator.push(
@@ -464,7 +522,6 @@ class HomeScreenState extends State<HomeScreen> {
                 _slideRoute(const AiChatScreen()),
               );
             },
-            behavior: HitTestBehavior.opaque,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -527,8 +584,8 @@ class HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // 2. Chat Floating Bubble (with 3.9K Badge)
-          GestureDetector(
+          // 2. Chat Floating Bubble with Telegram Spring Bounce
+          TelegramBounce(
             onTap: () {
               _hapticLight();
               Navigator.push(
@@ -536,7 +593,6 @@ class HomeScreenState extends State<HomeScreen> {
                 _slideRoute(const ChatListScreen()),
               );
             },
-            behavior: HitTestBehavior.opaque,
             child: Stack(
               clipBehavior: Clip.none,
               children: [

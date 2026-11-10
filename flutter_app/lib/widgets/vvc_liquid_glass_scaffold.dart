@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_theme.dart';
+import 'telegram_bounce.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 1. LIQUID GLASS BOTTOM BAR ITEM MODEL
@@ -335,9 +336,10 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
     final unselectedColor = widget.unselectedItemColor ??
         (isDark ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF64748B));
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onItemTap,
-      behavior: HitTestBehavior.opaque,
+      scaleFactor: 0.94,
+      enableHaptic: false, // _animateTo handles haptics
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 2.0),
         padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
@@ -610,12 +612,13 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
           // 2. RIGHT STANDALONE CIRCULAR ACTION POD (Quick Scan QR / Face)
           if (widget.trailingAction != null) ...[
             const SizedBox(width: 10.0),
-            GestureDetector(
+            TelegramBounce(
+              scaleFactor: 0.92,
+              enableHaptic: false,
               onTap: () {
                 _triggerHaptic();
                 widget.onTrailingActionTap?.call();
               },
-              behavior: HitTestBehavior.opaque,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 240),
                 curve: Curves.easeInOutCubic,

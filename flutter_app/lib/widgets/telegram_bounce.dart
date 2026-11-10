@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -122,83 +123,48 @@ class _TelegramBounceState extends State<TelegramBounce>
 /// ═══════════════════════════════════════════════════════════════════════════
 /// TelegramPageRoute (Liquid Parallax Slide & Edge-Swipe Navigation)
 /// ═══════════════════════════════════════════════════════════════════════════
-class TelegramPageRoute<T> extends PageRouteBuilder<T> {
+/// Native iOS & Telegram-grade edge-swipe interactive pop gesture,
+/// responsive spring curve, and depth parallax on all platforms.
+class TelegramPageRoute<T> extends CupertinoPageRoute<T> {
   final Widget page;
 
   TelegramPageRoute({
     required this.page,
     super.settings,
-  }) : super(
-          pageBuilder: (context, animation, secondaryAnimation) => page,
-          transitionDuration: const Duration(milliseconds: 320),
-          reverseTransitionDuration: const Duration(milliseconds: 280),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            // Forward entering slide from right
-            final primarySlide = Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(
-                parent: animation,
-                curve: Curves.fastEaseInToSlowEaseOut,
-                reverseCurve: Curves.easeInCubic,
-              ),
-            );
+    super.maintainState = true,
+    super.fullscreenDialog = false,
+    super.allowSnapshotting = true,
+    super.barrierDismissible = false,
+  }) : super(builder: (_) => page);
+}
 
-            // Previous page parallax depth (translates slightly left when pushed)
-            final secondarySlide = Tween<Offset>(
-              begin: Offset.zero,
-              end: const Offset(-0.25, 0.0),
-            ).animate(
-              CurvedAnimation(
-                parent: secondaryAnimation,
-                curve: Curves.fastEaseInToSlowEaseOut,
-                reverseCurve: Curves.easeInCubic,
-              ),
-            );
+/// Quick helper to create a Telegram-style page route
+Route<T> telegramRoute<T>(Widget page, {RouteSettings? settings, bool fullscreenDialog = false}) =>
+    TelegramPageRoute<T>(
+      page: page,
+      settings: settings,
+      fullscreenDialog: fullscreenDialog,
+    );
 
-            // Previous page subtle dimming overlay
-            final secondaryDim = Tween<double>(
-              begin: 0.0,
-              end: 0.25,
-            ).animate(
-              CurvedAnimation(
-                parent: secondaryAnimation,
-                curve: Curves.linear,
-              ),
-            );
+/// Global PageTransitionsBuilder for Telegram-grade slide & swipe transitions
+class TelegramPageTransitionsBuilder extends PageTransitionsBuilder {
+  const TelegramPageTransitionsBuilder();
 
-            return SlideTransition(
-              position: secondarySlide,
-              child: AnimatedBuilder(
-                animation: secondaryDim,
-                builder: (context, childWidget) {
-                  return ColorFiltered(
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: secondaryDim.value),
-                      BlendMode.srcOver,
-                    ),
-                    child: childWidget,
-                  );
-                },
-                child: SlideTransition(
-                  position: primarySlide,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 18,
-                          offset: const Offset(-4, 0),
-                        ),
-                      ],
-                    ),
-                    child: child,
-                  ),
-                ),
-              ),
-            );
-          },
-        );
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return const CupertinoPageTransitionsBuilder().buildTransitions(
+      route,
+      context,
+      animation,
+      secondaryAnimation,
+      child,
+    );
+  }
 }
 

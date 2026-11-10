@@ -1000,7 +1000,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () async {
                 final res = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const FaceSetupScreen()),
+                  TelegramPageRoute(page: const FaceSetupScreen()),
                 );
                 if (res == true && mounted) {
                   _fetchTargetUserSilently();
@@ -1027,7 +1027,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AuthenticatorScreen()),
+                TelegramPageRoute(page: const AuthenticatorScreen()),
               );
             },
           ),

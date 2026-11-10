@@ -787,6 +787,17 @@ class _RequestListScreenState extends State<RequestListScreen> {
       },
     ];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unselectedChipBg = isDark
+        ? (_isScrolled ? const Color(0xFF1C1C1E).withValues(alpha: 0.82) : const Color(0xFF1C1C1E).withValues(alpha: 0.52))
+        : (_isScrolled ? const Color(0xFFFFFFFF).withValues(alpha: 0.94) : const Color(0xFFF1F5F9).withValues(alpha: 0.88));
+    final unselectedChipBorder = isDark
+        ? (_isScrolled ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.07))
+        : const Color(0xFFE2E8F0);
+    final unselectedTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.70)
+        : const Color(0xFF64748B);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -802,69 +813,60 @@ class _RequestListScreenState extends State<RequestListScreen> {
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutCubic,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? accent.withValues(alpha: 0.22)
-                        : _isScrolled
-                            ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
-                            : const Color(0xFF1C1C1E).withValues(alpha: 0.52),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
+            child: TelegramBounce(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                setState(() {
+                  _selectedStatusFilter = key;
+                });
+                _applyFilters();
+              },
+              scaleFactor: 0.94,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
                       color: isSelected
-                          ? accent.withValues(alpha: 0.70)
-                          : _isScrolled
-                              ? Colors.white.withValues(alpha: 0.14)
-                              : Colors.white.withValues(alpha: 0.07),
-                      width: isSelected ? 1.2 : 1.0,
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: accent.withValues(alpha: 0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
+                          ? accent.withValues(alpha: isDark ? 0.22 : 0.15)
+                          : unselectedChipBg,
                       borderRadius: BorderRadius.circular(16),
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        setState(() {
-                          _selectedStatusFilter = key;
-                        });
-                        _applyFilters();
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (emoji.isNotEmpty) ...[
-                              Text(emoji, style: const TextStyle(fontSize: 10)),
-                              const SizedBox(width: 5),
-                            ],
-                            Text(
-                              label,
-                              style: GoogleFonts.kantumruyPro(
-                                color: isSelected ? textColor : Colors.white.withValues(alpha: 0.65),
-                                fontSize: 11.5,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
+                      border: Border.all(
+                        color: isSelected
+                            ? accent.withValues(alpha: isDark ? 0.70 : 0.60)
+                            : unselectedChipBorder,
+                        width: isSelected ? 1.2 : 1.0,
                       ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.25),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (emoji.isNotEmpty) ...[
+                          Text(emoji, style: const TextStyle(fontSize: 10)),
+                          const SizedBox(width: 5),
+                        ],
+                        Text(
+                          label,
+                          style: GoogleFonts.kantumruyPro(
+                            color: isSelected ? textColor : unselectedTextColor,
+                            fontSize: 11.5,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1513,31 +1515,37 @@ class _RequestListScreenState extends State<RequestListScreen> {
                       Container(
                         width: double.infinity,
                         margin: const EdgeInsets.only(bottom: 12),
-                        child: ElevatedButton.icon(
-                          onPressed: () {
+                        child: TelegramBounce(
+                          onTap: () {
                             Navigator.pop(context); // Close bottom sheet
                             _showOfficialFormDialog(item);
                           },
-                          icon: const Icon(
-                            Icons.description_outlined,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          label: Text(
-                            "📄 មើលទម្រង់ Form សំណើផ្លូវការ",
-                            style: GoogleFonts.kantumruyPro(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context); // Close bottom sheet
+                              _showOfficialFormDialog(item);
+                            },
+                            icon: const Icon(
+                              Icons.description_outlined,
                               color: Colors.white,
+                              size: 20,
                             ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFC59B27), // Gold brand color
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                            label: Text(
+                              "📄 មើលទម្រង់ Form សំណើផ្លូវការ",
+                              style: GoogleFonts.kantumruyPro(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.white,
+                              ),
                             ),
-                            elevation: 2,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC59B27), // Gold brand color
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -1547,62 +1555,72 @@ class _RequestListScreenState extends State<RequestListScreen> {
                         children: [
                           // Copy Image Button
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _captureAndCopyImage(item),
-                              icon: const Icon(
-                                Icons.copy_rounded,
-                                size: 16,
-                              ),
-                              label: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  "Copy រូបភាព",
-                                  style: GoogleFonts.kantumruyPro(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11.5,
+                            child: TelegramBounce(
+                              onTap: () => _captureAndCopyImage(item),
+                              child: ElevatedButton.icon(
+                                onPressed: () => _captureAndCopyImage(item),
+                                icon: const Icon(
+                                  Icons.copy_rounded,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                label: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    "Copy រូបភាព",
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11.5,
+                                      color: Colors.white,
+                                    ),
+                                    maxLines: 1,
                                   ),
-                                  maxLines: 1,
                                 ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primary,
-                                foregroundColor: const Color(0xFF0F172A),
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  minimumSize: const Size(0, 46),
                                 ),
-                                minimumSize: const Size(0, 46),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           // PDF Button
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _generatePDF(item),
-                              icon: const Icon(
-                                Icons.picture_as_pdf_rounded,
-                                size: 16,
-                              ),
-                              label: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  "ទាញយក PDF",
-                                  style: GoogleFonts.kantumruyPro(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11.5,
+                            child: TelegramBounce(
+                              onTap: () => _generatePDF(item),
+                              child: ElevatedButton.icon(
+                                onPressed: () => _generatePDF(item),
+                                icon: const Icon(
+                                  Icons.picture_as_pdf_rounded,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                label: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    "ទាញយក PDF",
+                                    style: GoogleFonts.kantumruyPro(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11.5,
+                                      color: Colors.white,
+                                    ),
+                                    maxLines: 1,
                                   ),
-                                  maxLines: 1,
                                 ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orangeAccent,
-                                foregroundColor: AppTheme.textPrimary,
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF59E0B),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  minimumSize: const Size(0, 46),
                                 ),
-                                minimumSize: const Size(0, 46),
                               ),
                             ),
                           ),
@@ -1612,64 +1630,77 @@ class _RequestListScreenState extends State<RequestListScreen> {
                             if (user.systemRole == SystemRole.admin ||
                                 user.systemRole == SystemRole.hrm)
                               Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _handleStatusUpdate(
+                                child: TelegramBounce(
+                                  onTap: () => _handleStatusUpdate(
                                     item['id'],
                                     'approved',
                                   ),
-                                  icon: const Icon(
-                                    Icons.check_circle_rounded,
-                                    size: 16,
-                                  ),
-                                  label: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      "អនុម័ត",
-                                      style: GoogleFonts.kantumruyPro(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11.5,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _handleStatusUpdate(
+                                      item['id'],
+                                      'approved',
+                                    ),
+                                    icon: const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        "អនុម័ត",
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11.5,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
                                       ),
-                                      maxLines: 1,
                                     ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10b981),
-                                    foregroundColor: AppTheme.textPrimary,
-                                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF10B981),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      minimumSize: const Size(0, 46),
                                     ),
-                                    minimumSize: const Size(0, 46),
                                   ),
                                 ),
                               )
                             else
                               Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _handleEdit(item),
-                                  icon: const Icon(
-                                    Icons.edit_rounded,
-                                    size: 16,
-                                  ),
-                                  label: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: Text(
-                                      "កែសម្រួល",
-                                      style: GoogleFonts.kantumruyPro(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11.5,
+                                child: TelegramBounce(
+                                  onTap: () => _handleEdit(item),
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _handleEdit(item),
+                                    icon: const Icon(
+                                      Icons.edit_rounded,
+                                      size: 16,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        "កែសម្រួល",
+                                        style: GoogleFonts.kantumruyPro(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11.5,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                        maxLines: 1,
                                       ),
-                                      maxLines: 1,
                                     ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primary,
-                                    foregroundColor: const Color(0xFF0F172A),
-                                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primary,
+                                      foregroundColor: const Color(0xFF0F172A),
+                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      minimumSize: const Size(0, 46),
                                     ),
-                                    minimumSize: const Size(0, 46),
                                   ),
                                 ),
                               ),
@@ -1681,26 +1712,29 @@ class _RequestListScreenState extends State<RequestListScreen> {
                         const SizedBox(height: 12),
                         if (user.systemRole == SystemRole.admin ||
                             user.systemRole == SystemRole.hrm)
-                          OutlinedButton.icon(
-                            onPressed: () =>
-                                _handleStatusUpdate(item['id'], 'rejected'),
-                            icon: const Icon(
-                              Icons.cancel_rounded,
-                              color: Colors.redAccent,
-                            ),
-                            label: Text(
-                              "បដិសេធសំណើ",
-                              style: GoogleFonts.kantumruyPro(
+                          TelegramBounce(
+                            onTap: () => _handleStatusUpdate(item['id'], 'rejected'),
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  _handleStatusUpdate(item['id'], 'rejected'),
+                              icon: const Icon(
+                                Icons.cancel_rounded,
                                 color: Colors.redAccent,
-                                fontWeight: FontWeight.bold,
                               ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.redAccent),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                              label: Text(
+                                "បដិសេធសំណើ",
+                                style: GoogleFonts.kantumruyPro(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              minimumSize: const Size(double.infinity, 50),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.redAccent),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                minimumSize: const Size(double.infinity, 50),
+                              ),
                             ),
                           )
                         else if (_isViewingTrash)

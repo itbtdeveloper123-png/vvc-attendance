@@ -638,7 +638,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   Widget build(BuildContext context) {
     final palette = context.palette;
     final isDark = context.isDark;
-    final isWarningTime = _secondsLeft <= 5;
+    final isWarningTime = _secondsLeft <= 7;
     final timerColor = isWarningTime ? const Color(0xFFEF4444) : const Color(0xFF10B981);
     final cardBg = palette.surface;
     final cardBorder = palette.border;
@@ -1110,52 +1110,61 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.30),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                      ],
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.30),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
                     ),
-                    child: const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        acc.issuer,
-                        style: GoogleFonts.kantumruyPro(
-                          color: textColor,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            acc.issuer,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.kantumruyPro(
+                              color: textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            acc.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.kantumruyPro(
+                              color: subtextColor,
+                              fontSize: 12.0,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 1),
-                      Text(
-                        acc.name,
-                        style: GoogleFonts.kantumruyPro(
-                          color: subtextColor,
-                          fontSize: 12.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1163,7 +1172,8 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   TelegramBounce(
                     onTap: () => _openAdminLoginCameraScanner(acc),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
@@ -1171,8 +1181,8 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
-                            blurRadius: 8,
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.30),
+                            blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
                         ],
@@ -1198,12 +1208,19 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   TelegramBounce(
                     onTap: () => _confirmDeleteAccount(acc),
                     child: Container(
-                      padding: const EdgeInsets.all(7),
+                      width: 34,
+                      height: 34,
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.20),
+                          width: 1.0,
+                        ),
                       ),
-                      child: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                      child: const Center(
+                        child: Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFEF4444)),
+                      ),
                     ),
                   ),
                 ],
@@ -1217,10 +1234,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           TelegramBounce(
             onTap: () => _copyOtpCode(otpCode, acc.name, acc.secret),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: innerBoxBg,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isWarningTime
                       ? const Color(0xFFEF4444).withValues(alpha: 0.40)
@@ -1231,41 +1248,50 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        part1,
-                        style: GoogleFonts.jetBrainsMono(
-                          color: isWarningTime ? const Color(0xFFEF4444) : textColor,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 4.5,
-                        ),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            part1,
+                            style: GoogleFonts.jetBrainsMono(
+                              color: isWarningTime ? const Color(0xFFEF4444) : textColor,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 4.0,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            part2,
+                            style: GoogleFonts.jetBrainsMono(
+                              color: isWarningTime ? const Color(0xFFEF4444) : textColor,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 4.0,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      Text(
-                        part2,
-                        style: GoogleFonts.jetBrainsMono(
-                          color: isWarningTime ? const Color(0xFFEF4444) : textColor,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 4.5,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 10),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: isCopied
-                          ? const Color(0xFF10B981).withValues(alpha: 0.20)
-                          : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0)),
+                          ? const Color(0xFF10B981)
+                          : (isDark ? const Color(0xFF38383A) : const Color(0xFFE2E8F0)),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: isCopied
-                            ? const Color(0xFF10B981).withValues(alpha: 0.45)
-                            : (isDark ? const Color(0xFF38383A) : const Color(0xFFCBD5E1)),
+                            ? const Color(0xFF10B981)
+                            : (isDark ? const Color(0xFF48484A) : const Color(0xFFCBD5E1)),
                         width: 1.0,
                       ),
                     ),
@@ -1274,15 +1300,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       children: [
                         Icon(
                           isCopied ? Icons.check_rounded : Icons.copy_rounded,
-                          color: isCopied ? const Color(0xFF10B981) : textColor,
+                          color: isCopied ? Colors.white : textColor,
                           size: 14,
                         ),
                         const SizedBox(width: 5),
                         Text(
                           isCopied ? 'បានចម្លង' : 'Copy',
                           style: GoogleFonts.kantumruyPro(
-                            color: isCopied ? const Color(0xFF10B981) : textColor,
-                            fontSize: 12,
+                            color: isCopied ? Colors.white : textColor,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
