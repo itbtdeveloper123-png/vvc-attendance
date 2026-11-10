@@ -7,7 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 import '../services/authenticator_service.dart';
-import '../utils/app_theme.dart';
+import '../utils/app_palette.dart';
 import '../widgets/app_widgets.dart';
 
 class AuthenticatorScreen extends StatefulWidget {
@@ -26,6 +26,8 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   bool _isToggling2Fa = false;
 
   Timer? _countdownTimer;
+  Timer? _copiedFeedbackTimer;
+  String? _recentlyCopiedSecret;
   int _secondsLeft = 30;
   double _progress = 1.0;
 
@@ -39,6 +41,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _copiedFeedbackTimer?.cancel();
     super.dispose();
   }
 
@@ -132,15 +135,27 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     }
   }
 
-  void _copyOtpCode(String code, String accountName) {
+  void _copyOtpCode(String code, String accountName, String secret) {
     Clipboard.setData(ClipboardData(text: code));
-    HapticFeedback.mediumImpact();
+    HapticFeedback.lightImpact();
+
+    _copiedFeedbackTimer?.cancel();
+    setState(() {
+      _recentlyCopiedSecret = secret;
+    });
+    _copiedFeedbackTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _recentlyCopiedSecret = null;
+        });
+      }
+    });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
             const SizedBox(width: 10),
             Text(
               'បានចម្លងកូដ $code ($accountName) រួចរាល់!',
@@ -148,7 +163,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF0284C7),
+        backgroundColor: const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
@@ -157,11 +172,12 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   void _showAddOptionsSheet() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final sheetTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final sheetSubtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final palette = context.palette;
+    final isDark = context.isDark;
+    final sheetBg = palette.surface;
+    final borderColor = palette.border;
+    final sheetTextColor = palette.text;
+    final sheetSubtextColor = palette.textSecondary;
 
     showModalBottomSheet(
       context: context,
@@ -196,65 +212,109 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             const SizedBox(height: 20),
 
             // Option 1: Scan QR Code
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.30)),
-                ),
-                child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF0284C7), size: 24),
-              ),
-              title: Text(
-                'ស្កេន QR Code តាម Camera',
-                style: GoogleFonts.kantumruyPro(
-                  color: sheetTextColor,
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                'ស្កេនរូប QR ពីផ្ទាំង Admin Panel ឬគេហទំព័រ',
-                style: GoogleFonts.kantumruyPro(color: sheetSubtextColor, fontSize: 12),
-              ),
-              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sheetSubtextColor),
+            TelegramBounce(
               onTap: () {
                 Navigator.pop(context);
                 _openQrCameraScanner();
               },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF252528) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor, width: 1.0),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ស្កេន QR Code តាម Camera',
+                            style: GoogleFonts.kantumruyPro(
+                              color: sheetTextColor,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'ស្កេនរូប QR ពីផ្ទាំង Admin Panel ឬគេហទំព័រ',
+                            style: GoogleFonts.kantumruyPro(color: sheetSubtextColor, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sheetSubtextColor),
+                  ],
+                ),
+              ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             // Option 2: Manual Key Entry
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD97706).withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFFBBF24).withValues(alpha: 0.30)),
-                ),
-                child: const Icon(Icons.keyboard_rounded, color: Color(0xFFF59E0B), size: 24),
-              ),
-              title: Text(
-                'បញ្ចូល Secret Key ដោយដៃ',
-                style: GoogleFonts.kantumruyPro(
-                  color: sheetTextColor,
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                'វាយបញ្ចូលឈ្មោះគណនី និងកូដសម្ងាត់ Base32',
-                style: GoogleFonts.kantumruyPro(color: sheetSubtextColor, fontSize: 12),
-              ),
-              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sheetSubtextColor),
+            TelegramBounce(
               onTap: () {
                 Navigator.pop(context);
                 _showManualEntryDialog();
               },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF252528) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor, width: 1.0),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.keyboard_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'បញ្ចូល Secret Key ដោយដៃ',
+                            style: GoogleFonts.kantumruyPro(
+                              color: sheetTextColor,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'វាយបញ្ចូលឈ្មោះគណនី និងកូដសម្ងាត់ Base32',
+                            style: GoogleFonts.kantumruyPro(color: sheetSubtextColor, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios_rounded, size: 14, color: sheetSubtextColor),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -353,12 +413,13 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   void _showManualEntryDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dialogBg = isDark ? const Color(0xFF0F172A) : Colors.white;
-    final dialogBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-    final fieldBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final palette = context.palette;
+    final isDark = context.isDark;
+    final dialogBg = palette.surface;
+    final dialogBorder = palette.border;
+    final textColor = palette.text;
+    final subtextColor = palette.textSecondary;
+    final fieldBg = isDark ? const Color(0xFF252528) : const Color(0xFFF1F5F9);
 
     final nameCtrl = TextEditingController(text: 'Super Administrator');
     final issuerCtrl = TextEditingController(text: 'VVC Attendance');
@@ -377,11 +438,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF0284C7).withValues(alpha: 0.20),
+                color: const Color(0xFF2563EB).withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.35)),
               ),
-              child: const Icon(Icons.key_rounded, color: Color(0xFF0284C7), size: 20),
+              child: const Icon(Icons.key_rounded, color: Color(0xFF2563EB), size: 20),
             ),
             const SizedBox(width: 10),
             Text(
@@ -412,7 +472,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
                   ),
                 ),
               ),
@@ -431,17 +491,16 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: secretCtrl,
-                style: const TextStyle(
-                  color: Color(0xFF0284C7),
-                  fontSize: 14,
-                  fontFamily: 'monospace',
+                style: GoogleFonts.jetBrainsMono(
+                  color: const Color(0xFF10B981),
+                  fontSize: 13.5,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
                 ),
@@ -456,7 +515,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
                   ),
                 ),
               ),
@@ -471,14 +530,8 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               style: GoogleFonts.kantumruyPro(color: subtextColor),
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0284C7),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              elevation: 4,
-            ),
-            onPressed: () async {
+          TelegramBounce(
+            onTap: () async {
               final secret = secretCtrl.text.trim().toUpperCase().replaceAll(' ', '');
               if (secret.isEmpty) return;
 
@@ -494,9 +547,18 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               if (context.mounted) Navigator.pop(context);
               await _loadData();
             },
-            child: Text(
-              'រក្សាទុក',
-              style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'រក្សាទុក',
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -505,11 +567,11 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   void _confirmDeleteAccount(AuthenticatorAccount acc) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dialogBg = isDark ? const Color(0xFF0F172A) : Colors.white;
-    final dialogBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subtextColor = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569);
+    final palette = context.palette;
+    final dialogBg = palette.surface;
+    final dialogBorder = palette.border;
+    final textColor = palette.text;
+    final subtextColor = palette.textSecondary;
 
     showDialog(
       context: context,
@@ -549,18 +611,23 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
             onPressed: () => Navigator.pop(context),
             child: Text('បោះបង់', style: GoogleFonts.kantumruyPro(color: subtextColor)),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            onPressed: () async {
+          TelegramBounce(
+            onTap: () async {
               await _authService.deleteAccount(acc.id);
               if (context.mounted) Navigator.pop(context);
               await _loadData();
             },
-            child: Text('លុបចេញ', style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'លុបចេញ',
+                style: GoogleFonts.kantumruyPro(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ],
       ),
@@ -569,37 +636,51 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode;
+    final palette = context.palette;
+    final isDark = context.isDark;
     final isWarningTime = _secondsLeft <= 5;
-    final accentBlue = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
-    final timerColor = isWarningTime ? const Color(0xFFEF4444) : accentBlue;
-    final cardBg = isDark ? const Color(0xFF131B2A) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final subtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-    final scaffoldBg = isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9);
-    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final timerColor = isWarningTime ? const Color(0xFFEF4444) : const Color(0xFF10B981);
+    final cardBg = palette.surface;
+    final cardBorder = palette.border;
+    final subtextColor = palette.textSecondary;
+    final scaffoldBg = palette.bg;
+    final textColor = palette.text;
+    final innerBoxBg = isDark ? const Color(0xFF141416) : const Color(0xFFF1F5F9);
+    final innerBoxBorder = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: scaffoldBg,
       appBar: VvcAppBar(
-        backgroundColor: isDark ? const Color(0xFF131B2A).withValues(alpha: 0.92) : Colors.white.withValues(alpha: 0.95),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
-          onPressed: () => Navigator.pop(context),
+        backgroundColor: scaffoldBg.withValues(alpha: 0.95),
+        elevation: 0,
+        leading: Center(
+          child: TelegramBounce(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: cardBorder, width: 1.0),
+              ),
+              child: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 16),
+            ),
+          ),
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: accentBlue.withValues(alpha: 0.20),
+                color: const Color(0xFF10B981).withValues(alpha: 0.16),
                 shape: BoxShape.circle,
-                border: Border.all(color: accentBlue.withValues(alpha: 0.35)),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
               ),
-              child: Icon(Icons.shield_rounded, color: accentBlue, size: 16),
+              child: const Icon(Icons.security_rounded, color: Color(0xFF10B981), size: 16),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 9),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -608,7 +689,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   'កូដផ្ទៀងផ្ទាត់ (Authenticator)',
                   style: GoogleFonts.kantumruyPro(
                     color: textColor,
-                    fontSize: 15,
+                    fontSize: 15.5,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -629,7 +710,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     Text(
                       '2FA TOTP Security Engine',
                       style: GoogleFonts.inter(
-                        color: accentBlue,
+                        color: subtextColor,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -641,46 +722,57 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           ],
         ),
         actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0284C7), Color(0xFF0EA5E9)],
-                ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0284C7).withValues(alpha: 0.45),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: TelegramBounce(
+              onTap: _showAddOptionsSheet,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.add_rounded, color: Color(0xFF18181B), size: 20),
               ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
             ),
-            tooltip: 'បន្ថែម Code ថ្មី',
-            onPressed: _showAddOptionsSheet,
           ),
-          const SizedBox(width: 6),
         ],
       ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF3D010)),
               ),
             )
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: accentBlue,
+              color: const Color(0xFFF3D010),
               backgroundColor: cardBg,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                 children: [
                   // Top 2FA Master Switch Card
-                  _buildMaster2FaSwitchCard(isDark: isDark, textColor: textColor, subtextColor: subtextColor),
+                  _buildMaster2FaSwitchCard(
+                    isDark: isDark,
+                    cardBg: cardBg,
+                    cardBorder: cardBorder,
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                    innerBoxBg: innerBoxBg,
+                    innerBoxBorder: innerBoxBorder,
+                  ),
 
                   const SizedBox(height: 22),
 
@@ -702,17 +794,17 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E293B) : accentBlue.withValues(alpha: 0.10),
+                              color: innerBoxBg,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: accentBlue.withValues(alpha: 0.35),
+                                color: innerBoxBorder,
                                 width: 1.0,
                               ),
                             ),
                             child: Text(
                               '${_accounts.length}',
                               style: GoogleFonts.inter(
-                                color: accentBlue,
+                                color: textColor,
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -740,7 +832,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                                 value: _progress,
                                 strokeWidth: 2.2,
                                 valueColor: AlwaysStoppedAnimation<Color>(timerColor),
-                                backgroundColor: Colors.white.withValues(alpha: 0.12),
+                                backgroundColor: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : Colors.black.withValues(alpha: 0.08),
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -762,22 +856,53 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
                   // Accounts List
                   if (_accounts.isEmpty)
-                    _buildEmptyState(isDark: isDark, textColor: textColor, subtextColor: subtextColor, cardBg: cardBg)
+                    _buildEmptyState(
+                      isDark: isDark,
+                      textColor: textColor,
+                      subtextColor: subtextColor,
+                      cardBg: cardBg,
+                      cardBorder: cardBorder,
+                    )
                   else
-                    ..._accounts.map((acc) => _buildOtpAccountCard(acc, timerColor, isDark: isDark, accentBlue: accentBlue, cardBg: cardBg, cardBorder: cardBorder, subtextColor: subtextColor, textColor: textColor)),
+                    ..._accounts.map((acc) => _buildOtpAccountCard(
+                          acc,
+                          timerColor,
+                          isDark: isDark,
+                          isWarningTime: isWarningTime,
+                          cardBg: cardBg,
+                          cardBorder: cardBorder,
+                          innerBoxBg: innerBoxBg,
+                          innerBoxBorder: innerBoxBorder,
+                          subtextColor: subtextColor,
+                          textColor: textColor,
+                        )),
 
                   const SizedBox(height: 20),
 
                   // Info Tips Banner
-                  _buildInfoSecurityBanner(isDark: isDark),
+                  _buildInfoSecurityBanner(
+                    isDark: isDark,
+                    cardBg: cardBg,
+                    cardBorder: cardBorder,
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                  ),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildMaster2FaSwitchCard({bool isDark = true, Color textColor = Colors.white, Color subtextColor = const Color(0xFF94A3B8)}) {
-    final cardBg = isDark ? const Color(0xFF131B2A) : Colors.white;
+  Widget _buildMaster2FaSwitchCard({
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textColor,
+    required Color subtextColor,
+    required Color innerBoxBg,
+    required Color innerBoxBorder,
+  }) {
+    const emerald = Color(0xFF10B981);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -785,15 +910,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: _is2FaEnabled
-              ? const Color(0xFF10B981).withValues(alpha: 0.40)
-              : (isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFE2E8F0)),
+              ? emerald.withValues(alpha: 0.40)
+              : cardBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
             color: _is2FaEnabled
-                ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                : Colors.black.withValues(alpha: 0.25),
+                ? emerald.withValues(alpha: 0.08)
+                : (isDark ? Colors.black.withValues(alpha: 0.30) : Colors.black.withValues(alpha: 0.04)),
             blurRadius: 18,
             offset: const Offset(0, 4),
           ),
@@ -805,7 +930,8 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(11),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   gradient: _is2FaEnabled
                       ? const LinearGradient(
@@ -814,12 +940,12 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           end: Alignment.bottomRight,
                         )
                       : null,
-                  color: _is2FaEnabled ? null : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                  borderRadius: BorderRadius.circular(15),
+                  color: _is2FaEnabled ? null : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: _is2FaEnabled
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                            color: emerald.withValues(alpha: 0.35),
                             blurRadius: 10,
                             offset: const Offset(0, 2),
                           ),
@@ -828,7 +954,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 ),
                 child: Icon(
                   _is2FaEnabled ? Icons.shield_rounded : Icons.shield_outlined,
-                  color: Colors.white,
+                  color: _is2FaEnabled ? Colors.white : subtextColor,
                   size: 24,
                 ),
               ),
@@ -852,7 +978,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           width: 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: _is2FaEnabled ? const Color(0xFF10B981) : const Color(0xFF64748B),
+                            color: _is2FaEnabled ? emerald : const Color(0xFF64748B),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -863,7 +989,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                                 ? 'កំពុងការពារការ Login លើ Admin Panel'
                                 : 'បានបិទ (ចូល Login លើ Admin Panel ផ្ទាល់)',
                             style: GoogleFonts.kantumruyPro(
-                              color: _is2FaEnabled ? const Color(0xFF34D399) : subtextColor,
+                              color: _is2FaEnabled ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)) : subtextColor,
                               fontSize: 12.0,
                               fontWeight: FontWeight.w600,
                             ),
@@ -880,7 +1006,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                    valueColor: AlwaysStoppedAnimation<Color>(emerald),
                   ),
                 )
               else
@@ -890,9 +1016,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     value: _is2FaEnabled,
                     onChanged: _toggle2Fa,
                     activeThumbColor: Colors.white,
-                    activeTrackColor: const Color(0xFF10B981),
+                    activeTrackColor: emerald,
                     inactiveThumbColor: const Color(0xFF94A3B8),
-                    inactiveTrackColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                    inactiveTrackColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFCBD5E1),
                   ),
                 ),
             ],
@@ -901,10 +1027,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2638).withValues(alpha: 0.85) : const Color(0xFFF0F9FF),
-              borderRadius: BorderRadius.circular(12),
+              color: innerBoxBg,
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.20) : const Color(0xFF0284C7).withValues(alpha: 0.20),
+                color: innerBoxBorder,
                 width: 1.0,
               ),
             ),
@@ -912,11 +1038,11 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 1.5),
+                  padding: const EdgeInsets.only(top: 2),
                   child: Icon(
                     Icons.info_outline_rounded,
                     size: 16,
-                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                    color: _is2FaEnabled ? emerald : subtextColor,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -926,7 +1052,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                         ? 'ពេល Login លើ Admin Panel វានឹងទាមទារកូដ ៦ ខ្ទង់ខាងក្រោមនេះ។'
                         : 'ពេលបិទ Admin Panel នឹងអនុញ្ញាតឱ្យ Login ដោយមិនបាច់វាយកូដ OTP ឡើយ។',
                     style: GoogleFonts.kantumruyPro(
-                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                      color: subtextColor,
                       fontSize: 12,
                       height: 1.45,
                     ),
@@ -940,17 +1066,22 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     );
   }
 
-  Widget _buildOtpAccountCard(AuthenticatorAccount acc, Color timerColor, {
-    bool isDark = true,
-    Color accentBlue = const Color(0xFF38BDF8),
-    Color cardBg = const Color(0xFF131B2A),
-    Color cardBorder = const Color(0xFF334155),
-    Color subtextColor = const Color(0xFF94A3B8),
-    Color textColor = Colors.white,
+  Widget _buildOtpAccountCard(
+    AuthenticatorAccount acc,
+    Color timerColor, {
+    required bool isDark,
+    required bool isWarningTime,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color innerBoxBg,
+    required Color innerBoxBorder,
+    required Color subtextColor,
+    required Color textColor,
   }) {
     final otpCode = TotpHelper.generateTotp(acc.secret);
     final part1 = otpCode.substring(0, 3);
     final part2 = otpCode.substring(3, 6);
+    final isCopied = _recentlyCopiedSecret == acc.secret;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -959,7 +1090,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: isDark ? accentBlue.withValues(alpha: 0.22) : const Color(0xFFE2E8F0),
+          color: isWarningTime
+              ? const Color(0xFFEF4444).withValues(alpha: 0.40)
+              : cardBorder,
           width: 1.2,
         ),
         boxShadow: [
@@ -980,18 +1113,18 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               Row(
                 children: [
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.30),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1027,63 +1160,51 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Camera Icon button for QR Admin Login
-                  Tooltip(
-                    message: 'ស្កេន QR Login Admin',
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => _openAdminLoginCameraScanner(acc),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: const Color(0xFF38BDF8).withValues(alpha: 0.40),
-                              width: 1.0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF0284C7).withValues(alpha: 0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.camera_alt_rounded, size: 14, color: Colors.white),
-                              const SizedBox(width: 5),
-                              Text(
-                                'ស្កេន Login',
-                                style: GoogleFonts.kantumruyPro(
-                                  color: Colors.white,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
+                  TelegramBounce(
+                    onTap: () => _openAdminLoginCameraScanner(acc),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
                         ),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.qr_code_scanner_rounded, size: 14, color: Colors.white),
+                          const SizedBox(width: 5),
+                          Text(
+                            'ស្កេន Login',
+                            style: GoogleFonts.kantumruyPro(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(5),
+                  const SizedBox(width: 6),
+                  TelegramBounce(
+                    onTap: () => _confirmDeleteAccount(acc),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFF87171)),
+                      child: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
                     ),
-                    onPressed: () => _confirmDeleteAccount(acc),
-                    tooltip: 'លុបចេញ',
                   ),
                 ],
               ),
@@ -1092,25 +1213,20 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
           const SizedBox(height: 16),
 
-          // Live 6-Digit Code Hero Row
-          GestureDetector(
-            onTap: () => _copyOtpCode(otpCode, acc.name),
-            behavior: HitTestBehavior.opaque,
+          // Live 6-Digit Code Hero Row with Spring Micro-Bounce & Animated Copy Feedback
+          TelegramBounce(
+            onTap: () => _copyOtpCode(otpCode, acc.name, acc.secret),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
+                color: innerBoxBg,
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: isDark ? timerColor.withValues(alpha: 0.35) : timerColor.withValues(alpha: 0.45),
+                  color: isWarningTime
+                      ? const Color(0xFFEF4444).withValues(alpha: 0.40)
+                      : innerBoxBorder,
                   width: 1.2,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: timerColor.withValues(alpha: 0.08),
-                    blurRadius: 14,
-                  ),
-                ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1120,7 +1236,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       Text(
                         part1,
                         style: GoogleFonts.jetBrainsMono(
-                          color: timerColor,
+                          color: isWarningTime ? const Color(0xFFEF4444) : textColor,
                           fontSize: 30,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 4.5,
@@ -1130,7 +1246,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       Text(
                         part2,
                         style: GoogleFonts.jetBrainsMono(
-                          color: timerColor,
+                          color: isWarningTime ? const Color(0xFFEF4444) : textColor,
                           fontSize: 30,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 4.5,
@@ -1138,27 +1254,34 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       ),
                     ],
                   ),
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF0284C7).withValues(alpha: 0.22)
-                          : const Color(0xFF0284C7).withValues(alpha: 0.12),
+                      color: isCopied
+                          ? const Color(0xFF10B981).withValues(alpha: 0.20)
+                          : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0)),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+                        color: isCopied
+                            ? const Color(0xFF10B981).withValues(alpha: 0.45)
+                            : (isDark ? const Color(0xFF38383A) : const Color(0xFFCBD5E1)),
                         width: 1.0,
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.copy_rounded, color: Color(0xFF0284C7), size: 14),
+                        Icon(
+                          isCopied ? Icons.check_rounded : Icons.copy_rounded,
+                          color: isCopied ? const Color(0xFF10B981) : textColor,
+                          size: 14,
+                        ),
                         const SizedBox(width: 5),
                         Text(
-                          'Copy',
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF0284C7),
+                          isCopied ? 'បានចម្លង' : 'Copy',
+                          style: GoogleFonts.kantumruyPro(
+                            color: isCopied ? const Color(0xFF10B981) : textColor,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1175,13 +1298,13 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
           // Linear Progress Indicator
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: _progress,
               minHeight: 5,
               backgroundColor: isDark
                   ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.black.withValues(alpha: 0.08),
+                  : Colors.black.withValues(alpha: 0.06),
               valueColor: AlwaysStoppedAnimation<Color>(timerColor),
             ),
           ),
@@ -1191,10 +1314,11 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   }
 
   Widget _buildEmptyState({
-    bool isDark = true,
-    Color textColor = Colors.white,
-    Color subtextColor = const Color(0xFF94A3B8),
-    Color cardBg = const Color(0xFF131B2A),
+    required bool isDark,
+    required Color textColor,
+    required Color subtextColor,
+    required Color cardBg,
+    required Color cardBorder,
   }) {
     return Container(
       padding: const EdgeInsets.all(32),
@@ -1202,7 +1326,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+          color: cardBorder,
         ),
       ),
       child: Column(
@@ -1210,10 +1334,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+              color: const Color(0xFF2563EB).withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.security_rounded, size: 40, color: Color(0xFF0284C7)),
+            child: const Icon(Icons.security_rounded, size: 40, color: Color(0xFF2563EB)),
           ),
           const SizedBox(height: 14),
           Text(
@@ -1239,37 +1363,27 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
     );
   }
 
-  Widget _buildInfoSecurityBanner({bool isDark = true}) {
+  Widget _buildInfoSecurityBanner({
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color textColor,
+    required Color subtextColor,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: isDark
-            ? const LinearGradient(
-                colors: [
-                  Color(0xFF0F1E36),
-                  Color(0xFF091424),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : const LinearGradient(
-                colors: [
-                  Color(0xFFF0F9FF),
-                  Color(0xFFE0F2FE),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.35 : 0.25),
+          color: cardBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.10 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: isDark ? Colors.black.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -1279,10 +1393,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF0284C7).withValues(alpha: 0.20),
+              color: const Color(0xFF2563EB).withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.verified_user_rounded, color: Color(0xFF0284C7), size: 20),
+            child: const Icon(Icons.verified_user_rounded, color: Color(0xFF2563EB), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1292,7 +1406,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 Text(
                   'VVC In-App Authenticator (ជំនួស Google Authenticator)',
                   style: GoogleFonts.kantumruyPro(
-                    color: const Color(0xFF0284C7),
+                    color: textColor,
                     fontSize: 13.0,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1301,7 +1415,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 Text(
                   'អ្នកអាចប្រើប្រាស់ផ្ទាំងនេះដើម្បីយកកូដ ៦ ខ្ទង់ផ្ទៀងផ្ទាត់ពេល Login លើ Admin Panel ដោយពុំចាំបាច់ដំឡើង App ក្រៅឡើយ។',
                   style: GoogleFonts.kantumruyPro(
-                    color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                    color: subtextColor,
                     fontSize: 12.0,
                     height: 1.5,
                   ),
