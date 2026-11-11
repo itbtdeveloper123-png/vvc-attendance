@@ -739,27 +739,31 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 14),
-            child: TelegramBounce(
-              onTap: _showAddOptionsSheet,
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0284C7).withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
+            child: Center(
+              child: TelegramBounce(
+                onTap: _showAddOptionsSheet,
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                  ),
                 ),
-                child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
               ),
             ),
           ),
@@ -1126,7 +1130,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(20),
@@ -1155,15 +1159,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 child: Row(
                   children: [
                     Container(
-                      width: 42,
-                      height: 42,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(13),
+                        borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
                             color: const Color(0xFFF59E0B).withValues(alpha: 0.30),
@@ -1172,9 +1176,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.lock_rounded, color: Colors.white, size: 21),
+                      child: const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1185,7 +1189,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.kantumruyPro(
                               color: textColor,
-                              fontSize: 15.5,
+                              fontSize: 15.0,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1196,7 +1200,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.kantumruyPro(
                               color: subtextColor,
-                              fontSize: 12.0,
+                              fontSize: 11.5,
                             ),
                           ),
                         ],
@@ -1214,15 +1218,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                     onTap: () => _openAdminLoginCameraScanner(acc),
                     scaleFactor: 0.92,
                     child: Container(
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(19),
                         boxShadow: [
                           BoxShadow(
                             color: const Color(0xFF2563EB).withValues(alpha: 0.35),
@@ -1235,12 +1239,12 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.qr_code_scanner_rounded, size: 16, color: Colors.white),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           Text(
                             'ស្កេន Login',
                             style: GoogleFonts.kantumruyPro(
                               color: Colors.white,
-                              fontSize: 12.5,
+                              fontSize: 12.0,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1248,14 +1252,14 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   // Delete Button (Circular Pod Spring Bounce)
                   TelegramBounce(
                     onTap: () => _confirmDeleteAccount(acc),
                     scaleFactor: 0.90,
                     child: Container(
-                      width: 40,
-                      height: 40,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                         shape: BoxShape.circle,
@@ -1265,7 +1269,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                         ),
                       ),
                       child: const Center(
-                        child: Icon(Icons.delete_outline_rounded, size: 19, color: Color(0xFFEF4444)),
+                        child: Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
                       ),
                     ),
                   ),
