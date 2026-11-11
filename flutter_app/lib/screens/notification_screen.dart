@@ -234,8 +234,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
               ? _buildErrorState(topPadding: headerTotalHeight)
               : RefreshIndicator(
                   onRefresh: _fetchNotifications,
-                  color: const Color(0xFFFFCC00),
-                  edgeOffset: headerTotalHeight,
+                  color: const Color(0xFFF3D010),
+                  edgeOffset: headerTotalHeight + 8.0,
+                  displacement: 28.0,
                   child: _visibleNotifications.isEmpty
                       ? _buildEmptyState(topPadding: headerTotalHeight)
                       : _buildList(_visibleNotifications, topPadding: headerTotalHeight),
@@ -269,44 +270,41 @@ class _NotificationScreenState extends State<NotificationScreen> {
       child: Row(
         children: [
           // Left Pod: 44x44 circular frosted glass back button
-          ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOutCubic,
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: podBg,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: podBorder,
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
-                      blurRadius: _isScrolled ? 16 : 4,
-                      offset: Offset(0, _isScrolled ? 4 : 2),
+          TelegramBounce(
+            scaleFactor: 0.90,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.maybePop(context);
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOutCubic,
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: podBg,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: podBorder,
+                      width: 1.0,
                     ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.maybePop(context);
-                    },
-                    child: Center(
-                      child: Icon(
-                        CupertinoIcons.chevron_back,
-                        color: textPrimary,
-                        size: 20,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
+                        blurRadius: _isScrolled ? 16 : 4,
+                        offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      CupertinoIcons.chevron_back,
+                      color: textPrimary,
+                      size: 20,
                     ),
                   ),
                 ),
@@ -358,15 +356,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                         decoration: BoxDecoration(
                           color: _unreadCount > 0
-                              ? const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.18 : 0.22)
+                              ? const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.22 : 0.25)
                               : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                           border: _unreadCount > 0
                               ? Border.all(
-                                  color: const Color(0xFFFFCC00).withValues(alpha: 0.4),
+                                  color: const Color(0xFFFFCC00).withValues(alpha: 0.5),
                                   width: 0.8,
                                 )
                               : null,
@@ -390,45 +388,42 @@ class _NotificationScreenState extends State<NotificationScreen> {
           ),
           const SizedBox(width: 10),
 
-          // Right Pod: 44x44 Refresh Pod
-          ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOutCubic,
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: podBg,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: podBorder,
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
-                      blurRadius: _isScrolled ? 16 : 4,
-                      offset: Offset(0, _isScrolled ? 4 : 2),
+          // Right Pod: 44x44 circular Refresh Pod
+          TelegramBounce(
+            scaleFactor: 0.90,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _fetchNotifications();
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOutCubic,
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: podBg,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: podBorder,
+                      width: 1.0,
                     ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      _fetchNotifications();
-                    },
-                    child: Center(
-                      child: Icon(
-                        CupertinoIcons.arrow_clockwise,
-                        color: textPrimary,
-                        size: 19,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
+                        blurRadius: _isScrolled ? 16 : 4,
+                        offset: Offset(0, _isScrolled ? 4 : 2),
                       ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      CupertinoIcons.arrow_clockwise,
+                      color: textPrimary,
+                      size: 19,
                     ),
                   ),
                 ),
@@ -441,7 +436,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   // ===========================================================================
-  // 2. SLEEK FROSTED SEARCH BAR
+  // 2. SLEEK FROSTED SEARCH BAR (FULL CAPSULE)
   // ===========================================================================
   Widget _buildSearchBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -465,7 +460,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(21),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: AnimatedContainer(
@@ -474,7 +469,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             height: 42,
             decoration: BoxDecoration(
               color: searchBg,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(21),
               border: Border.all(
                 color: searchBorder,
                 width: 1.0,
@@ -489,7 +484,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
             child: Row(
               children: [
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Icon(
                   CupertinoIcons.search,
                   color: textMuted,
@@ -547,7 +542,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   // ===========================================================================
-  // 3. FLUID HORIZONTAL IOS SEGMENTED FILTER SLIDER
+  // 3. FLUID HORIZONTAL TELEGRAM-STYLE CATEGORY FILTER PILLS
   // ===========================================================================
   Widget _buildSegmentedFilterSlider() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -568,72 +563,53 @@ class _NotificationScreenState extends State<NotificationScreen> {
           final isSelected = _filter == key;
 
           final chipUnselectedBg = isDark
-              ? (_isScrolled
-                  ? const Color(0xFF1C1C1E).withValues(alpha: 0.82)
-                  : const Color(0xFF1C1C1E).withValues(alpha: 0.52))
-              : (_isScrolled
-                  ? Colors.white.withValues(alpha: 0.90)
-                  : Colors.white.withValues(alpha: 0.70));
+              ? const Color(0xFF1E222B)
+              : Colors.white.withValues(alpha: 0.85);
           final chipUnselectedBorder = isDark
-              ? (_isScrolled
-                  ? Colors.white.withValues(alpha: 0.14)
-                  : Colors.white.withValues(alpha: 0.07))
-              : (_isScrolled
-                  ? Colors.black.withValues(alpha: 0.10)
-                  : Colors.black.withValues(alpha: 0.05));
+              ? const Color(0xFF333A48)
+              : const Color(0xFFE2E8F0);
 
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutCubic,
-                  decoration: BoxDecoration(
+            child: TelegramBounce(
+              scaleFactor: 0.94,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                setState(() => _filter = key);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFFF3D010)
+                      : chipUnselectedBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
                     color: isSelected
-                        ? const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.18 : 0.22)
-                        : chipUnselectedBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFFFFCC00).withValues(alpha: 0.65)
-                          : chipUnselectedBorder,
-                      width: isSelected ? 1.2 : 1.0,
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFFFFCC00).withValues(alpha: 0.20),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ]
-                        : null,
+                        ? const Color(0xFFF3D010)
+                        : chipUnselectedBorder,
+                    width: 1.0,
                   ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        setState(() => _filter = key);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
-                        child: Text(
-                          label,
-                          style: GoogleFonts.kantumruyPro(
-                            color: isSelected
-                                ? (isDark ? const Color(0xFFFFCC00) : const Color(0xFFB45309))
-                                : (isDark ? Colors.white.withValues(alpha: 0.65) : const Color(0xFF64748B)),
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
-                      ),
-                    ),
+                        ]
+                      : null,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  label,
+                  style: GoogleFonts.kantumruyPro(
+                    color: isSelected
+                        ? const Color(0xFF0F172A)
+                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   ),
                 ),
               ),
@@ -963,62 +939,121 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Widget _buildEmptyState({double topPadding = 0}) {
     final isFiltered = _searchController.text.trim().isNotEmpty || _filter != 'all';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-      padding: EdgeInsets.only(top: topPadding / 2),
+      padding: EdgeInsets.only(top: topPadding + 28, bottom: 40, left: 24, right: 24),
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                isFiltered ? CupertinoIcons.search : CupertinoIcons.bell_slash,
-                size: 64,
-                color: Colors.white.withValues(alpha: 0.25),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                isFiltered ? "រកមិនឃើញការជូនដំណឹង" : "មិនទាន់មានការជូនដំណឹងទេ",
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? const Color(0xFF333A48) : const Color(0xFFE2E8F0),
+                  width: 1.2,
                 ),
-                textAlign: TextAlign.center,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                isFiltered
-                    ? "សាកល្បងប្តូរពាក្យស្វែងរក ឬ filter ផ្សេងទៀត"
-                    : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
-                style: GoogleFonts.kantumruyPro(
-                  color: Colors.white.withValues(alpha: 0.50),
-                  fontSize: 13,
+              child: Center(
+                child: Icon(
+                  isFiltered ? CupertinoIcons.search : CupertinoIcons.bell_slash,
+                  size: 38,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                 ),
-                textAlign: TextAlign.center,
               ),
-              if (isFiltered) ...[
-                const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    setState(() {
-                      _filter = 'all';
-                      _searchController.clear();
-                    });
-                  },
-                  icon: const Icon(CupertinoIcons.clear_circled, size: 16),
-                  label: Text('បង្ហាញទាំងអស់',
-                      style: GoogleFonts.kantumruyPro(
-                          fontSize: 13, fontWeight: FontWeight.bold)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFFFCC00),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              isFiltered
+                  ? (_filter == 'unread'
+                      ? "គ្មានការជូនដំណឹងមិនទាន់អានទេ"
+                      : "រកមិនឃើញការជូនដំណឹង")
+                  : "មិនទាន់មានការជូនដំណឹងទេ",
+              style: GoogleFonts.kantumruyPro(
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                fontSize: 16.5,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isFiltered
+                  ? (_filter == 'unread'
+                      ? "អ្នកបានអានការជូនដំណឹងទាំងអស់រួចរាល់ហើយ"
+                      : "សាកល្បងប្តូរពាក្យស្វែងរក ឬ Filter ផ្សេងទៀត")
+                  : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
+              style: GoogleFonts.kantumruyPro(
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                fontSize: 13,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (isFiltered) ...[
+              const SizedBox(height: 24),
+              TelegramBounce(
+                scaleFactor: 0.94,
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _filter = 'all';
+                    _searchController.clear();
+                  });
+                },
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        CupertinoIcons.list_bullet,
+                        size: 16,
+                        color: Color(0xFF0F172A),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'បង្ហាញការជូនដំណឹងទាំងអស់ (${_notifications.length})',
+                        style: GoogleFonts.kantumruyPro(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
