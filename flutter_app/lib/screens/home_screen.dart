@@ -1735,64 +1735,31 @@ class _HomeContentState extends State<HomeContent> {
                   // Main Scan Action Button (Core Branding Color Highlight - Sleek Full Capsule)
                   Expanded(
                     flex: 3,
-                    child: TelegramBounce(
-                      scaleFactor: 0.95,
+                    child: VvcPillButton(
+                      text: isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
+                      icon: isNextCheckIn
+                          ? CupertinoIcons.qrcode_viewfinder
+                          : CupertinoIcons.square_arrow_right,
+                      variant: isNextCheckIn ? VvcPillVariant.gold : VvcPillVariant.danger,
+                      size: VvcButtonSize.hero,
+                      isFullWidth: true,
                       onTap: () {
                         _hapticMedium();
                         _goScan(_nextAction);
                       },
-                      child: Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                           gradient: isNextCheckIn
-                              ? const LinearGradient(
-                                  colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
-                                )
-                              : const LinearGradient(
-                                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                                ),
-                          borderRadius: BorderRadius.circular(26),
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isNextCheckIn
-                                      ? const Color(0xFFF3D010)
-                                      : const Color(0xFFEF4444))
-                                  .withValues(alpha: 0.35),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              isNextCheckIn
-                                  ? CupertinoIcons.qrcode_viewfinder
-                                  : CupertinoIcons.square_arrow_right,
-                              color: isNextCheckIn ? const Color(0xFF0F172A) : Colors.white,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              isNextCheckIn ? 'ស្កេនចូល (Check-In)' : 'ស្កេនចេញ (Check-Out)',
-                              style: GoogleFonts.kantumruyPro(
-                                color: isNextCheckIn ? const Color(0xFF0F172A) : Colors.white,
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   // Outside Attendance Shortcut (Frosted Glass Full Capsule Button)
                   Expanded(
                     flex: 2,
-                    child: TelegramBounce(
-                      scaleFactor: 0.93,
+                    child: VvcPillButton(
+                      text: 'ក្រៅទីតាំង',
+                      icon: CupertinoIcons.location_solid,
+                      variant: VvcPillVariant.glass,
+                      size: VvcButtonSize.hero,
+                      isFullWidth: true,
+                      customTextColor: isDark ? Colors.white : const Color(0xFF0F172A),
                       onTap: () {
                         _hapticLight();
                         if (user.isHRM || user.isAdmin) {
@@ -1807,38 +1774,6 @@ class _HomeContentState extends State<HomeContent> {
                           );
                         }
                       },
-                      child: Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(26),
-                          border: Border.all(
-                            color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              CupertinoIcons.location_solid,
-                              color: theme.brand == CompanyBrand.vvc
-                                  ? const Color(0xFF0284C7)
-                                  : theme.cardPrimary,
-                              size: 19,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'ក្រៅទីតាំង',
-                              style: GoogleFonts.kantumruyPro(
-                                color: isDark ? Colors.white : const Color(0xFF0F172A),
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
                 ],

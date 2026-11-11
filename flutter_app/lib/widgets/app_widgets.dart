@@ -18,6 +18,8 @@ export 'vvc_liquid_glass_scaffold.dart';
 export 'vvc_cupertino_components.dart';
 import 'telegram_bounce.dart';
 export 'telegram_bounce.dart';
+import 'vvc_design_system.dart';
+export 'vvc_design_system.dart';
 
 /// A reusable flat clean background shell for app screens.
 class AppBackgroundShell extends StatelessWidget {

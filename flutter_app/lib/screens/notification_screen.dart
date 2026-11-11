@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -245,299 +244,82 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   // ===========================================================================
-  // 1. DYNAMIC FROSTED HEADER PODS (3 ISLANDS)
+  // 1. DYNAMIC FROSTED HEADER PODS (UNIFIED DESIGN SYSTEM)
   // ===========================================================================
   Widget _buildHeaderPods(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final podBg = isDark
-        ? (_isScrolled
-            ? const Color(0xFF24272E).withValues(alpha: 0.94)
-            : const Color(0xFF1C1C1E).withValues(alpha: 0.65))
-        : (_isScrolled
-            ? Colors.white.withValues(alpha: 0.94)
-            : Colors.white.withValues(alpha: 0.82));
-    final podBorder = isDark
-        ? (_isScrolled
-            ? Colors.white.withValues(alpha: 0.22)
-            : Colors.white.withValues(alpha: 0.10))
-        : (_isScrolled
-            ? Colors.black.withValues(alpha: 0.12)
-            : Colors.black.withValues(alpha: 0.06));
     final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
+    return VvcHeaderPodBar(
+      isScrolled: _isScrolled,
+      leading: VvcCirclePod.back(
+        context,
+        size: AppTokens.sizePodLarge,
+        onBack: () => Navigator.maybePop(context),
+      ),
+      titleWidget: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Left Pod: 44x44 circular frosted glass back button
-          TelegramBounce(
-            scaleFactor: 0.90,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.maybePop(context);
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOutCubic,
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: podBg,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: podBorder,
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
-                        blurRadius: _isScrolled ? 16 : 4,
-                        offset: Offset(0, _isScrolled ? 4 : 2),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Icon(
-                      CupertinoIcons.chevron_back,
-                      color: textPrimary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+          Flexible(
+            child: Text(
+              'ការជូនដំណឹង',
+              style: GoogleFonts.kantumruyPro(
+                color: textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 10),
-
-          // Center Pod: Title "ការជូនដំណឹង" with counter capsule
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOutCubic,
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: podBg,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: podBorder,
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
-                        blurRadius: _isScrolled ? 16 : 4,
-                        offset: Offset(0, _isScrolled ? 4 : 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'ការជូនដំណឹង',
-                          style: GoogleFonts.kantumruyPro(
-                            color: textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                        decoration: BoxDecoration(
-                          color: _unreadCount > 0
-                              ? const Color(0xFFFFCC00).withValues(alpha: isDark ? 0.22 : 0.25)
-                              : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
-                          borderRadius: BorderRadius.circular(12),
-                          border: _unreadCount > 0
-                              ? Border.all(
-                                  color: const Color(0xFFFFCC00).withValues(alpha: 0.5),
-                                  width: 0.8,
-                                )
-                              : null,
-                        ),
-                        child: Text(
-                          _unreadCount > 0 ? '$_unreadCount ថ្មី' : '${_notifications.length}',
-                          style: GoogleFonts.inter(
-                            color: _unreadCount > 0
-                                ? (isDark ? const Color(0xFFFFCC00) : const Color(0xFFB45309))
-                                : (isDark ? Colors.white.withValues(alpha: 0.75) : const Color(0xFF64748B)),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: _unreadCount > 0
+                  ? AppTokens.gold.withValues(alpha: isDark ? 0.22 : 0.25)
+                  : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
+              borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+              border: _unreadCount > 0
+                  ? Border.all(
+                      color: AppTokens.gold.withValues(alpha: 0.5),
+                      width: 0.8,
+                    )
+                  : null,
             ),
-          ),
-          const SizedBox(width: 10),
-
-          // Right Pod: 44x44 circular Refresh Pod
-          TelegramBounce(
-            scaleFactor: 0.90,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _fetchNotifications();
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOutCubic,
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: podBg,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: podBorder,
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.55 : 0.08) : (isDark ? 0.15 : 0.03)),
-                        blurRadius: _isScrolled ? 16 : 4,
-                        offset: Offset(0, _isScrolled ? 4 : 2),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Icon(
-                      CupertinoIcons.arrow_clockwise,
-                      color: textPrimary,
-                      size: 19,
-                    ),
-                  ),
-                ),
+            child: Text(
+              _unreadCount > 0 ? '$_unreadCount ថ្មី' : '${_notifications.length}',
+              style: GoogleFonts.inter(
+                color: _unreadCount > 0
+                    ? (isDark ? AppTokens.gold : const Color(0xFFB45309))
+                    : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
         ],
       ),
+      actions: [
+        VvcCirclePod.refresh(
+          size: AppTokens.sizePodLarge,
+          onRefresh: _fetchNotifications,
+        ),
+      ],
     );
   }
 
   // ===========================================================================
-  // 2. SLEEK FROSTED SEARCH BAR (FULL CAPSULE)
+  // 2. SLEEK FROSTED SEARCH BAR (UNIFIED DESIGN SYSTEM)
   // ===========================================================================
   Widget _buildSearchBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final searchBg = isDark
-        ? (_isScrolled
-            ? const Color(0xFF24272E).withValues(alpha: 0.92)
-            : const Color(0xFF1C1C1E).withValues(alpha: 0.65))
-        : (_isScrolled
-            ? Colors.white.withValues(alpha: 0.94)
-            : Colors.white.withValues(alpha: 0.85));
-    final searchBorder = isDark
-        ? (_isScrolled
-            ? Colors.white.withValues(alpha: 0.20)
-            : Colors.white.withValues(alpha: 0.08))
-        : (_isScrolled
-            ? Colors.black.withValues(alpha: 0.12)
-            : Colors.black.withValues(alpha: 0.06));
-    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
-    final textMuted = isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF94A3B8);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(21),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubic,
-            height: 42,
-            decoration: BoxDecoration(
-              color: searchBg,
-              borderRadius: BorderRadius.circular(21),
-              border: Border.all(
-                color: searchBorder,
-                width: 1.0,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: _isScrolled ? (isDark ? 0.45 : 0.06) : (isDark ? 0.10 : 0.02)),
-                  blurRadius: _isScrolled ? 14 : 4,
-                  offset: Offset(0, _isScrolled ? 4 : 1),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 14),
-                Icon(
-                  CupertinoIcons.search,
-                  color: textMuted,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    style: GoogleFonts.kantumruyPro(
-                      color: textPrimary,
-                      fontSize: 13.5,
-                    ),
-                    cursorColor: const Color(0xFFFFCC00),
-                    decoration: InputDecoration(
-                      filled: false,
-                      fillColor: Colors.transparent,
-                      hintText: 'ស្វែងរកការជូនដំណឹង...',
-                      hintStyle: GoogleFonts.kantumruyPro(
-                        color: textMuted,
-                        fontSize: 13,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      errorBorder: InputBorder.none,
-                      focusedErrorBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-                if (_searchController.text.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      _searchController.clear();
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Icon(
-                        CupertinoIcons.clear_circled_solid,
-                        color: textMuted,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return VvcSearchBar(
+      controller: _searchController,
+      hintText: 'ស្វែងរកការជូនដំណឹង...',
+      isScrolled: _isScrolled,
+      onClear: () {
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -545,78 +327,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
   // 3. FLUID HORIZONTAL TELEGRAM-STYLE CATEGORY FILTER PILLS
   // ===========================================================================
   Widget _buildSegmentedFilterSlider() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final chips = [
-      {'key': 'all', 'label': 'ទាំងអស់ ${_notifications.length}'},
-      {'key': 'unread', 'label': 'មិនទាន់អាន $_unreadCount'},
-      {'key': 'read', 'label': 'បានអាន ${_notifications.length - _unreadCount}'},
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: chips.map((chip) {
-          final key = chip['key'] as String;
-          final label = chip['label'] as String;
-          final isSelected = _filter == key;
-
-          final chipUnselectedBg = isDark
-              ? const Color(0xFF1E222B)
-              : Colors.white.withValues(alpha: 0.85);
-          final chipUnselectedBorder = isDark
-              ? const Color(0xFF333A48)
-              : const Color(0xFFE2E8F0);
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TelegramBounce(
-              scaleFactor: 0.94,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _filter = key);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFFF3D010)
-                      : chipUnselectedBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFFF3D010)
-                        : chipUnselectedBorder,
-                    width: 1.0,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ]
-                      : null,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  label,
-                  style: GoogleFonts.kantumruyPro(
-                    color: isSelected
-                        ? const Color(0xFF0F172A)
-                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
-                    fontSize: 12.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+    return VvcFilterChips(
+      selectedKey: _filter,
+      onSelected: (key) => setState(() => _filter = key),
+      items: [
+        VvcFilterItem(key: 'all', label: 'ទាំងអស់', count: _notifications.length),
+        VvcFilterItem(key: 'unread', label: 'មិនទាន់អាន', count: _unreadCount),
+        VvcFilterItem(key: 'read', label: 'បានអាន', count: _notifications.length - _unreadCount),
+      ],
     );
   }
 
@@ -939,123 +657,31 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Widget _buildEmptyState({double topPadding = 0}) {
     final isFiltered = _searchController.text.trim().isNotEmpty || _filter != 'all';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-      padding: EdgeInsets.only(top: topPadding + 28, bottom: 40, left: 24, right: 24),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E222B) : const Color(0xFFF1F5F9),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isDark ? const Color(0xFF333A48) : const Color(0xFFE2E8F0),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Icon(
-                  isFiltered ? CupertinoIcons.search : CupertinoIcons.bell_slash,
-                  size: 38,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              isFiltered
-                  ? (_filter == 'unread'
-                      ? "គ្មានការជូនដំណឹងមិនទាន់អានទេ"
-                      : "រកមិនឃើញការជូនដំណឹង")
-                  : "មិនទាន់មានការជូនដំណឹងទេ",
-              style: GoogleFonts.kantumruyPro(
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-                fontSize: 16.5,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isFiltered
-                  ? (_filter == 'unread'
-                      ? "អ្នកបានអានការជូនដំណឹងទាំងអស់រួចរាល់ហើយ"
-                      : "សាកល្បងប្តូរពាក្យស្វែងរក ឬ Filter ផ្សេងទៀត")
-                  : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
-              style: GoogleFonts.kantumruyPro(
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                fontSize: 13,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (isFiltered) ...[
-              const SizedBox(height: 24),
-              TelegramBounce(
-                scaleFactor: 0.94,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _filter = 'all';
-                    _searchController.clear();
-                  });
-                },
-                child: Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        CupertinoIcons.list_bullet,
-                        size: 16,
-                        color: Color(0xFF0F172A),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'បង្ហាញការជូនដំណឹងទាំងអស់ (${_notifications.length})',
-                        style: GoogleFonts.kantumruyPro(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return VvcEmptyState(
+      icon: isFiltered ? CupertinoIcons.search : CupertinoIcons.bell_slash,
+      title: isFiltered
+          ? (_filter == 'unread'
+              ? "គ្មានការជូនដំណឹងមិនទាន់អានទេ"
+              : "រកមិនឃើញការជូនដំណឹង")
+          : "មិនទាន់មានការជូនដំណឹងទេ",
+      subtitle: isFiltered
+          ? (_filter == 'unread'
+              ? "អ្នកបានអានការជូនដំណឹងទាំងអស់រួចរាល់ហើយ"
+              : "សាកល្បងប្តូរពាក្យស្វែងរក ឬ Filter ផ្សេងទៀត")
+          : "ការជូនដំណឹងថ្មីៗនឹងបង្ហាញនៅទីនេះ",
+      buttonLabel: isFiltered ? 'បង្ហាញការជូនដំណឹងទាំងអស់ (${_notifications.length})' : null,
+      buttonIcon: isFiltered ? CupertinoIcons.list_bullet : null,
+      onButtonTap: isFiltered
+          ? () {
+              AppTokens.hapticLight();
+              setState(() {
+                _filter = 'all';
+                _searchController.clear();
+              });
+            }
+          : null,
+      topPadding: topPadding,
     );
   }
 

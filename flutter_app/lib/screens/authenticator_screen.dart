@@ -658,31 +658,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       appBar: VvcAppBar(
         backgroundColor: scaffoldBg.withValues(alpha: 0.95),
         elevation: 0,
-        leading: Center(
-          child: TelegramBounce(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C2028) : Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
-                  width: 1.1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 16),
-            ),
-          ),
-        ),
+        leading: VvcCirclePod.back(context, size: AppTokens.sizePodStandard),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -739,43 +715,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 14),
-            child: Center(
-              child: TelegramBounce(
-                onTap: _showAddOptionsSheet,
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1C2028) : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
-                      width: 1.1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(3.0),
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                    ),
-                  ),
-                ),
-              ),
+            child: VvcCirclePod.plus(
+              size: AppTokens.sizePodStandard,
+              onTap: _showAddOptionsSheet,
             ),
           ),
         ],
@@ -1225,64 +1167,23 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Camera Icon button for QR Admin Login (Sleek Rounded Capsule Pill)
-                  TelegramBounce(
+                  VvcPillButton(
+                    text: 'ស្កេន Login',
+                    icon: Icons.qr_code_scanner_rounded,
+                    variant: VvcPillVariant.blue,
+                    size: VvcButtonSize.compact,
                     onTap: () => _openAdminLoginCameraScanner(acc),
-                    scaleFactor: 0.92,
-                    child: Container(
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(19),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.qr_code_scanner_rounded, size: 16, color: Colors.white),
-                          const SizedBox(width: 5),
-                          Text(
-                            'ស្កេន Login',
-                            style: GoogleFonts.kantumruyPro(
-                              color: Colors.white,
-                              fontSize: 12.0,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   // Delete Button (Circular Pod Spring Bounce)
-                  TelegramBounce(
+                  VvcCirclePod(
+                    size: AppTokens.sizePodStandard,
+                    backgroundColor: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.12 : 0.10),
+                    borderColor: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                    icon: Icons.delete_outline_rounded,
+                    iconColor: const Color(0xFFEF4444),
+                    iconSize: 18,
                     onTap: () => _confirmDeleteAccount(acc),
-                    scaleFactor: 0.90,
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.25),
-                          width: 1.0,
-                        ),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
-                      ),
-                    ),
                   ),
                 ],
               ),
