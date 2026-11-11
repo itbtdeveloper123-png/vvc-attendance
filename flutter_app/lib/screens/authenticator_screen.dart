@@ -658,7 +658,6 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       appBar: VvcAppBar(
         backgroundColor: scaffoldBg.withValues(alpha: 0.95),
         elevation: 0,
-        leading: VvcCirclePod.back(context, size: AppTokens.sizePodStandard),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -713,12 +712,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           ],
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: VvcCirclePod.plus(
-              size: AppTokens.sizePodStandard,
-              onTap: _showAddOptionsSheet,
-            ),
+          IconButton(
+            icon: const Icon(CupertinoIcons.add, size: 20),
+            onPressed: _showAddOptionsSheet,
           ),
         ],
       ),

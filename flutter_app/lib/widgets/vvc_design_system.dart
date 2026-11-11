@@ -154,18 +154,17 @@ class VvcCirclePod extends StatelessWidget {
     );
   }
 
-  /// Factory សម្រាប់ Plus Button (+) ដែលមានចិញ្ចៀនពីរបែប Telegram/iOS
+  /// Factory សម្រាប់ Plus Button (+) ដូច Telegram/iOS
   factory VvcCirclePod.plus({
     double size = AppTokens.sizePodStandard,
     VoidCallback? onTap,
-    Color innerColor = const Color(0xFF007AFF),
+    Color? iconColor,
   }) {
     return VvcCirclePod(
       size: size,
-      innerAccentColor: innerColor,
-      icon: Icons.add,
-      iconColor: Colors.white,
-      iconSize: size * 0.45,
+      icon: CupertinoIcons.add,
+      iconColor: iconColor,
+      iconSize: size * 0.48,
       onTap: onTap,
     );
   }
