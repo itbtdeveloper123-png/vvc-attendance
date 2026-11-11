@@ -746,22 +746,33 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: isDark ? const Color(0xFF1C2028) : Colors.white,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
+                      width: 1.1,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF0284C7).withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
+                        color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                  padding: const EdgeInsets.all(3.0),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                    ),
                   ),
                 ),
               ),
