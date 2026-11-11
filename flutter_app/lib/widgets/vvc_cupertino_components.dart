@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../utils/app_theme.dart';
+import 'telegram_bounce.dart';
 
 /// ═══════════════════════════════════════════════════════════════════════════════
 /// APPLE CUPERTINO COLOR TOKENS
@@ -83,8 +84,6 @@ class VvcPopupMenuButton<T> extends StatefulWidget {
 }
 
 class _VvcPopupMenuButtonState<T> extends State<VvcPopupMenuButton<T>> {
-  bool _isPressed = false;
-
   void _showCupertinoMenu() async {
     HapticFeedback.lightImpact();
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
@@ -136,15 +135,8 @@ class _VvcPopupMenuButtonState<T> extends State<VvcPopupMenuButton<T>> {
     final iconColor = widget.triggerIconColor ??
         (isDark ? Colors.white : const Color(0xFF1C1C1E));
 
-    return AnimatedScale(
-      scale: _isPressed ? 0.92 : 1.0,
-      duration: const Duration(milliseconds: 120),
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _isPressed = true),
-        onTapUp: (_) => setState(() => _isPressed = false),
-        onTapCancel: () => setState(() => _isPressed = false),
-        onTap: _showCupertinoMenu,
-        child: Container(
+    final triggerWidget = widget.customTrigger ??
+        Container(
           width: widget.size,
           height: widget.size,
           decoration: BoxDecoration(
@@ -177,8 +169,12 @@ class _VvcPopupMenuButtonState<T> extends State<VvcPopupMenuButton<T>> {
               color: iconColor,
             ),
           ),
-        ),
-      ),
+        );
+
+    return TelegramBounce(
+      onTap: _showCupertinoMenu,
+      scaleFactor: 0.90,
+      child: triggerWidget,
     );
   }
 }
@@ -815,8 +811,6 @@ class VvcButton extends StatefulWidget {
 }
 
 class _VvcButtonState extends State<VvcButton> {
-  bool _isPressed = false;
-
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDarkMode || Theme.of(context).brightness == Brightness.dark;
@@ -961,7 +955,7 @@ class _VvcButtonState extends State<VvcButton> {
       padding: widget.padding ?? const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(widget.height / 2),
+        borderRadius: BorderRadius.circular(14),
         border: border,
         boxShadow: shadows,
       ),
@@ -970,7 +964,7 @@ class _VvcButtonState extends State<VvcButton> {
 
     if (isGlass) {
       buttonBox = ClipRRect(
-        borderRadius: BorderRadius.circular(widget.height / 2),
+        borderRadius: BorderRadius.circular(14),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: buttonBox,
@@ -978,30 +972,10 @@ class _VvcButtonState extends State<VvcButton> {
       );
     }
 
-    return AnimatedScale(
-      scale: _isPressed && !isDisabled ? 0.95 : 1.0,
-      duration: const Duration(milliseconds: 110),
-      curve: Curves.easeOutCubic,
-      child: GestureDetector(
-        onTapDown: (_) {
-          if (!isDisabled && !widget.isLoading) {
-            setState(() => _isPressed = true);
-          }
-        },
-        onTapUp: (_) {
-          if (_isPressed) setState(() => _isPressed = false);
-        },
-        onTapCancel: () {
-          if (_isPressed) setState(() => _isPressed = false);
-        },
-        onTap: () {
-          if (!isDisabled && !widget.isLoading && widget.onPressed != null) {
-            HapticFeedback.lightImpact();
-            widget.onPressed!();
-          }
-        },
-        child: buttonBox,
-      ),
+    return TelegramBounce(
+      onTap: isDisabled || widget.isLoading ? null : widget.onPressed,
+      scaleFactor: 0.94,
+      child: buttonBox,
     );
   }
 }
@@ -1032,8 +1006,6 @@ class VvcIconButton extends StatefulWidget {
 }
 
 class _VvcIconButtonState extends State<VvcIconButton> {
-  bool _isPressed = false;
-
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDarkMode || Theme.of(context).brightness == Brightness.dark;
@@ -1155,30 +1127,14 @@ class _VvcIconButtonState extends State<VvcIconButton> {
       );
     }
 
-    return AnimatedScale(
-      scale: _isPressed && !isDisabled ? 0.92 : 1.0,
-      duration: const Duration(milliseconds: 110),
-      curve: Curves.easeOutCubic,
-      child: GestureDetector(
-        onTapDown: (_) {
-          if (!isDisabled) setState(() => _isPressed = true);
-        },
-        onTapUp: (_) {
-          if (_isPressed) setState(() => _isPressed = false);
-        },
-        onTapCancel: () {
-          if (_isPressed) setState(() => _isPressed = false);
-        },
-        onTap: () {
-          if (!isDisabled && widget.onPressed != null) {
-            HapticFeedback.lightImpact();
-            widget.onPressed!();
-          }
-        },
-        child: widget.tooltip != null
-            ? Tooltip(message: widget.tooltip!, child: buttonBox)
-            : buttonBox,
-      ),
+    Widget iconBtn = TelegramBounce(
+      onTap: isDisabled ? null : widget.onPressed,
+      scaleFactor: 0.90,
+      child: buttonBox,
     );
+
+    return widget.tooltip != null
+        ? Tooltip(message: widget.tooltip!, child: iconBtn)
+        : iconBtn;
   }
 }

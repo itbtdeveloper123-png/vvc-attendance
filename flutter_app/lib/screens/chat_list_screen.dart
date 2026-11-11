@@ -21,6 +21,7 @@ import '../widgets/vvc_liquid_glass_scaffold.dart';
 import '../services/api_service.dart';
 import '../providers/user_provider.dart';
 import '../utils/app_theme.dart';
+import '../widgets/telegram_bounce.dart';
 
 
 // ==========================================
@@ -777,8 +778,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             // Back arrow
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
+            TelegramBounce(
+              scaleFactor: 0.90,
               onTap: () {
                 HapticFeedback.lightImpact();
                 Navigator.pop(context);
@@ -793,14 +794,14 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
               ),
             ),
             // User avatar (Clickable to open profile screen)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
+            TelegramBounce(
+              scaleFactor: 0.92,
               onTap: () {
                 HapticFeedback.lightImpact();
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const ProfileScreen(),
+                  TelegramPageRoute(
+                    page: const ProfileScreen(),
                   ),
                 );
               },
@@ -910,26 +911,28 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           },
         ),
         // Compose Pen action
-        IconButton(
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36.0, minHeight: 36.0),
-          icon: Icon(
-            Icons.edit_rounded,
-            size: 18.0,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-          onPressed: () {
+        TelegramBounce(
+          scaleFactor: 0.90,
+          onTap: () {
             HapticFeedback.lightImpact();
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => NewMessageScreen(
+              TelegramPageRoute(
+                page: NewMessageScreen(
                   allUsers: usersList,
                   currentUserId: currentUserId,
                 ),
               ),
             );
           },
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Icon(
+              Icons.edit_rounded,
+              size: 20.0,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            ),
+          ),
         ),
       ],
     );
@@ -1051,14 +1054,14 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
             itemCount: realStories.length + 1,
             itemBuilder: (context, index) {
               if (index == 0) {
-                return InkWell(
+                return TelegramBounce(
+                  scaleFactor: 0.92,
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const AddStoryScreen()),
+                      TelegramPageRoute(page: const AddStoryScreen()),
                     );
                   },
-                  borderRadius: BorderRadius.circular(30),
                   child: Container(
                     margin: const EdgeInsets.only(right: 14.0),
                     child: Column(
@@ -1167,11 +1170,12 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
 
   // Official VVC Community Channel Tile
   Widget _buildCommunityChannelTile() {
-    return InkWell(
+    return TelegramBounce(
+      scaleFactor: 0.98,
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const CommunityChannelScreen()),
+          TelegramPageRoute(page: const CommunityChannelScreen()),
         );
       },
       child: Padding(
@@ -1246,7 +1250,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           }
         }
 
-        return InkWell(
+        return TelegramBounce(
+          scaleFactor: 0.98,
           onTap:
               () => _navigateToChat(
                 'ALL',
@@ -1349,7 +1354,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     final Timestamp? ts = group['lastTimestamp'] as Timestamp?;
     final String timeStr = ts != null ? _formatTimestamp(ts) : '';
 
-    return InkWell(
+    return TelegramBounce(
+      scaleFactor: 0.98,
       onTap: () => _navigateToChat(groupId, name, '', isGroup: true),
       onLongPress:
           () => _showTelegramChatPeekPreview(
@@ -1490,7 +1496,8 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
           isOnline = data?['isOnline'] == true;
         }
 
-        return InkWell(
+        return TelegramBounce(
+                  scaleFactor: 0.98,
                   onTap: () => _navigateToChat(targetId, title, avatar),
                   onLongPress:
                       () => _showTelegramChatPeekPreview(
@@ -1937,9 +1944,9 @@ class _ChatListScreenState extends State<ChatListScreen> with SingleTickerProvid
     required VoidCallback onTap,
     bool isDanger = false,
   }) {
-    return InkWell(
+    return TelegramBounce(
+      scaleFactor: 0.95,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

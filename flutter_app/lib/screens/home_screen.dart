@@ -1690,7 +1690,8 @@ class _HomeContentState extends State<HomeContent> {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      GestureDetector(
+                      TelegramBounce(
+                        scaleFactor: 0.90,
                         onTap: () {
                           _hapticLight();
                           Navigator.push(
@@ -1734,7 +1735,8 @@ class _HomeContentState extends State<HomeContent> {
                   // Main Scan Action Button (Core Branding Color Highlight)
                   Expanded(
                     flex: 3,
-                    child: GestureDetector(
+                    child: TelegramBounce(
+                      scaleFactor: 0.95,
                       onTap: () {
                         _hapticMedium();
                         _goScan(_nextAction);
@@ -1789,7 +1791,8 @@ class _HomeContentState extends State<HomeContent> {
                   // Outside Attendance Shortcut (Frosted Glass Button)
                   Expanded(
                     flex: 2,
-                    child: GestureDetector(
+                    child: TelegramBounce(
+                      scaleFactor: 0.93,
                       onTap: () {
                         _hapticLight();
                         if (user.isHRM || user.isAdmin) {
@@ -3906,9 +3909,9 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
     Color? primaryGold,
     required VoidCallback onTap,
   }) {
-    return InkWell(
+    return TelegramBounce(
+      scaleFactor: 0.95,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
@@ -3995,9 +3998,9 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
       child: child,
     );
 
-    return GestureDetector(
+    return TelegramBounce(
+      scaleFactor: 0.90,
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: Container(
         width: size,
         height: size,

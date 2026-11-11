@@ -1,12 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
 /// ═══════════════════════════════════════════════════════════════════════════
-/// TelegramBounce (Telegram-style Tactile Micro-Interaction Press Effect)
+/// TelegramBounce — Telegram/iOS-grade Spring Micro-Interaction
 /// ═══════════════════════════════════════════════════════════════════════════
-/// Provides tactile spring scaling and haptic vibration feedback on tap/press,
-/// giving buttons, cards, and tiles the signature modern bounce of Telegram.
+/// Spring physics ពិតៗ: press → shrink → release → overshoot → settle at 1.0
+/// ដូច iOS Haptic ។  scaleFactor = minimum scale ពេល press (default 0.955)
 class TelegramBounce extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -24,7 +25,7 @@ class TelegramBounce extends StatefulWidget {
     this.onLongPress,
     this.onDoubleTap,
     this.scaleFactor = 0.955,
-    this.duration = const Duration(milliseconds: 110),
+    this.duration = const Duration(milliseconds: 100),
     this.enableHaptic = true,
     this.behavior = HitTestBehavior.opaque,
   });
@@ -36,26 +37,21 @@ class TelegramBounce extends StatefulWidget {
 class _TelegramBounceState extends State<TelegramBounce>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
+
+  // ── Spring config (Telegram-tuned): stiffness 400, damping 18 ─────────────
+  static const SpringDescription _spring = SpringDescription(
+    mass: 1.0,
+    stiffness: 400.0,
+    damping: 18.0,
+  );
+
+  bool _isPressed = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: widget.duration,
-      reverseDuration: const Duration(milliseconds: 180),
-    );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: widget.scaleFactor,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutQuad,
-        reverseCurve: Curves.easeOutBack,
-      ),
-    );
+    // upperBound > 1.0 to allow overshoot above 1.0 during release
+    _controller = AnimationController.unbounded(vsync: this)..value = 1.0;
   }
 
   @override
@@ -64,35 +60,40 @@ class _TelegramBounceState extends State<TelegramBounce>
     super.dispose();
   }
 
-  void _onTapDown(TapDownDetails details) {
-    if (widget.onTap != null || widget.onLongPress != null || widget.onDoubleTap != null) {
-      if (widget.enableHaptic) {
-        HapticFeedback.lightImpact();
-      }
-      _controller.forward();
+  void _press() {
+    if (!_isPressed) {
+      _isPressed = true;
+      if (widget.enableHaptic) HapticFeedback.lightImpact();
+      // Spring to scaleFactor (compressed)
+      final sim = SpringSimulation(_spring, _controller.value, widget.scaleFactor, 0.0);
+      _controller.animateWith(sim);
     }
   }
 
-  void _onTapUp(TapUpDetails details) {
-    if (widget.onTap != null || widget.onLongPress != null || widget.onDoubleTap != null) {
-      _controller.reverse();
+  void _release() {
+    if (_isPressed) {
+      _isPressed = false;
+      // Spring back to 1.0 (with natural overshoot = Telegram bounce)
+      final sim = SpringSimulation(_spring, _controller.value, 1.0, 0.0);
+      _controller.animateWith(sim);
     }
   }
 
-  void _onTapCancel() {
-    if (widget.onTap != null || widget.onLongPress != null || widget.onDoubleTap != null) {
-      _controller.reverse();
-    }
+  void _onTapDown(TapDownDetails _) {
+    final bool clickable =
+        widget.onTap != null || widget.onLongPress != null || widget.onDoubleTap != null;
+    if (clickable) _press();
   }
+
+  void _onTapUp(TapUpDetails _) => _release();
+  void _onTapCancel() => _release();
 
   @override
   Widget build(BuildContext context) {
     final bool isClickable =
         widget.onTap != null || widget.onLongPress != null || widget.onDoubleTap != null;
 
-    if (!isClickable) {
-      return widget.child;
-    }
+    if (!isClickable) return widget.child;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -105,14 +106,16 @@ class _TelegramBounceState extends State<TelegramBounce>
         onDoubleTap: widget.onDoubleTap,
         onLongPress: widget.onLongPress != null
             ? () {
-                if (widget.enableHaptic) {
-                  HapticFeedback.mediumImpact();
-                }
+                if (widget.enableHaptic) HapticFeedback.mediumImpact();
                 widget.onLongPress!();
               }
             : null,
-        child: ScaleTransition(
-          scale: _scaleAnimation,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) => Transform.scale(
+            scale: _controller.value.clamp(0.80, 1.08),
+            child: child,
+          ),
           child: widget.child,
         ),
       ),

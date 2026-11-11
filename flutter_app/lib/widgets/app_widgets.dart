@@ -16,6 +16,7 @@ export 'glass_widgets.dart';
 import 'vvc_liquid_glass_scaffold.dart';
 export 'vvc_liquid_glass_scaffold.dart';
 export 'vvc_cupertino_components.dart';
+import 'telegram_bounce.dart';
 export 'telegram_bounce.dart';
 
 /// A reusable flat clean background shell for app screens.
@@ -525,7 +526,7 @@ class AppStatCard extends StatelessWidget {
                 ],
                 stops: const [0.0, 0.55, 1.0],
               ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: effectiveBorderColor,
           width: isDark ? 1.0 : 1.2,
@@ -671,7 +672,7 @@ class AppGridAction extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: effectiveCardColor,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: effectiveBorder,
           width: isBgDark ? 0.9 : 1.1,
@@ -704,7 +705,7 @@ class AppGridAction extends StatelessWidget {
               color: isBgDark
                   ? itemColor.withValues(alpha: 0.18)
                   : itemColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(13),
               border: Border.all(
                 color: isBgDark
                     ? itemColor.withValues(alpha: 0.38)
@@ -752,11 +753,12 @@ class AppGridAction extends StatelessWidget {
       ),
     );
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.93,
       behavior: HitTestBehavior.opaque,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: enableBlur
             ? BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
@@ -999,10 +1001,11 @@ class AttendanceScanCard extends StatelessWidget {
         ),
       );
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.98,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         child: enableBlur
             ? BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
@@ -1031,21 +1034,23 @@ class AttendanceScanCard extends StatelessWidget {
         ? (isBright ? const Color(0xFF0F172A) : Colors.white)
         : color;
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: isLoading ? null : onTap,
+      scaleFactor: 0.94,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        height: 54,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        height: 52,
         decoration: BoxDecoration(
           color: btnColor.withValues(
-            alpha: primaryStyle && isActive ? 0.95 : 0.1,
+            alpha: primaryStyle && isActive ? 0.95 : 0.12,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isActive
-                ? btnColor.withValues(alpha: 0.5)
+                ? btnColor.withValues(alpha: 0.55)
                 : AppTheme.borderColor,
-            width: 1.5,
+            width: 1.2,
           ),
         ),
         child: Stack(
@@ -1136,7 +1141,7 @@ class AppActionButton extends StatelessWidget {
                 ],
                 stops: const [0.0, 0.55, 1.0],
               ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: effectiveBorderColor,
           width: isDark ? 1.0 : 1.2,
@@ -1218,10 +1223,11 @@ class AppActionButton extends StatelessWidget {
       ),
     );
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.96,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: enableBlur
             ? BackdropFilter(
                 filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
@@ -1665,14 +1671,15 @@ class AppUserListTile extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.97,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
@@ -1832,13 +1839,14 @@ class AppUserCard extends StatelessWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
+    return TelegramBounce(
       onTap: onTap,
+      scaleFactor: 0.96,
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 18, 12, 18),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: isDark ? const Color(0x38545458) : const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(

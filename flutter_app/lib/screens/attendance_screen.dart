@@ -22,6 +22,7 @@ import '../utils/perf_config.dart';
 import 'face_setup_screen.dart';
 import '../widgets/vvc_global_alert.dart';
 import '../services/local_db_service.dart';
+import '../widgets/telegram_bounce.dart';
 
 class AttendanceScreen extends StatefulWidget {
   /// If set, auto-submits with this action (skips dialog).
@@ -1487,27 +1488,27 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // Back Button
-                      ClipOval(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.35),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.15),
+                      TelegramBounce(
+                        scaleFactor: 0.90,
+                        onTap: () => Navigator.pop(context),
+                        child: ClipOval(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black.withValues(alpha: 0.35),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                ),
                               ),
-                            ),
-                            child: IconButton(
-                              icon: const Icon(
+                              child: const Icon(
                                 Icons.arrow_back_ios_new_rounded,
                                 color: Colors.white,
                                 size: 18,
                               ),
-                              onPressed: () => Navigator.pop(context),
-                              tooltip: "ត្រឡប់ក្រោយ",
                             ),
                           ),
                         ),
@@ -1575,37 +1576,35 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       ),
 
                       // Quick Switch Icon Button
-                      ClipOval(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                          child: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.35),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.15),
+                      TelegramBounce(
+                        scaleFactor: 0.90,
+                        onTap: () {
+                          if (_useQrScanner) {
+                            _switchToFaceScanner();
+                          } else {
+                            _switchToQrScanner();
+                          }
+                        },
+                        child: ClipOval(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.black.withValues(alpha: 0.35),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                ),
                               ),
-                            ),
-                            child: IconButton(
-                              icon: Icon(
+                              child: Icon(
                                 _useQrScanner
                                     ? Icons.face_rounded
                                     : Icons.qr_code_2_rounded,
                                 color: Colors.white,
                                 size: 20,
                               ),
-                              onPressed: () {
-                                if (_useQrScanner) {
-                                  _switchToFaceScanner();
-                                } else {
-                                  _switchToQrScanner();
-                                }
-                              },
-                              tooltip: _useQrScanner
-                                  ? "ប្ដូរទៅ Face Scan"
-                                  : "ប្ដូរទៅ QR Code",
                             ),
                           ),
                         ),
@@ -1664,7 +1663,8 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                                     ],
                                   ),
                                 )
-                              : InkWell(
+                              : TelegramBounce(
+                                  scaleFactor: 0.94,
                                   onTap: () {
                                     if (_useQrScanner) {
                                       _switchToFaceScanner();
@@ -1672,7 +1672,6 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                                       _switchToQrScanner();
                                     }
                                   },
-                                  borderRadius: BorderRadius.circular(28),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24,

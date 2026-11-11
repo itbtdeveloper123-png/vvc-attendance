@@ -312,7 +312,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       children: [
         // Avatar
-        GestureDetector(
+        TelegramBounce(
+          scaleFactor: 0.94,
           onTap: isMe ? () => _pickImage(context, user) : null,
           child: Stack(
             clipBehavior: Clip.none,
@@ -454,7 +455,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final textPrimary = isDark ? Colors.white : const Color(0xFF1D1D1F);
     final textMuted = isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70);
 
-    return GestureDetector(
+    return TelegramBounce(
+      scaleFactor: 0.96,
       onTap: () => _showKhmerCalendar(context),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -799,13 +801,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       imageUrl = "https://cdn-icons-png.flaticon.com/512/7645/7645366.png";
     }
 
-    return GestureDetector(
+    return TelegramBounce(
+      scaleFactor: 0.92,
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) =>
-                BadgeHoldersScreen(badgeType: type, badgeLabel: label),
+          TelegramPageRoute(
+            page: BadgeHoldersScreen(badgeType: type, badgeLabel: label),
           ),
         );
       },
@@ -1166,56 +1168,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Widget? trailingWidget,
     Color? textColor,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: color.withValues(alpha: 0.1),
-        highlightColor: color.withValues(alpha: 0.05),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      color.withValues(alpha: 0.2),
-                      color.withValues(alpha: 0.08),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: color.withValues(alpha: 0.25),
-                    width: 1,
-                  ),
+    return TelegramBounce(
+      scaleFactor: 0.96,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    color.withValues(alpha: 0.2),
+                    color.withValues(alpha: 0.08),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  label,
-                  style: GoogleFonts.kantumruyPro(
-                    color: isDestructive ? AppTheme.danger : (textColor ?? AppTheme.textPrimary),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: color.withValues(alpha: 0.25),
+                  width: 1,
                 ),
               ),
-              trailingWidget ??
-                  Icon(
-                    CupertinoIcons.chevron_right,
-                    size: 14,
-                    color: textColor?.withValues(alpha: 0.3) ?? AppTheme.textPrimary.withValues(alpha: 0.25),
-                  ),
-            ],
-          ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.kantumruyPro(
+                  color: isDestructive ? AppTheme.danger : (textColor ?? AppTheme.textPrimary),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            trailingWidget ??
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 14,
+                  color: textColor?.withValues(alpha: 0.3) ?? AppTheme.textPrimary.withValues(alpha: 0.25),
+                ),
+          ],
         ),
       ),
     );

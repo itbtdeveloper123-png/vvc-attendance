@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../providers/user_provider.dart';
 import '../services/authenticator_service.dart';
 import '../utils/app_palette.dart';
@@ -638,15 +640,18 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
   Widget build(BuildContext context) {
     final palette = context.palette;
     final isDark = context.isDark;
-    final isWarningTime = _secondsLeft <= 7;
-    final timerColor = isWarningTime ? const Color(0xFFEF4444) : const Color(0xFF10B981);
-    final cardBg = palette.surface;
-    final cardBorder = palette.border;
+    final isCriticalTime = _secondsLeft <= 4;
+    final isWarningTime = _secondsLeft <= 8;
+    final timerColor = isCriticalTime
+        ? const Color(0xFFEF4444)
+        : (isWarningTime ? const Color(0xFFF59E0B) : const Color(0xFF10B981));
+    final cardBg = isDark ? const Color(0xFF161920) : palette.surface;
+    final cardBorder = isDark ? Colors.white.withValues(alpha: 0.12) : palette.border;
     final subtextColor = palette.textSecondary;
-    final scaffoldBg = palette.bg;
+    final scaffoldBg = isDark ? const Color(0xFF0C0E12) : palette.bg;
     final textColor = palette.text;
-    final innerBoxBg = isDark ? const Color(0xFF141416) : const Color(0xFFF1F5F9);
-    final innerBoxBorder = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0);
+    final innerBoxBg = isDark ? const Color(0xFF0F1218) : const Color(0xFFF1F5F9);
+    final innerBoxBorder = isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0);
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -657,12 +662,22 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           child: TelegramBounce(
             onTap: () => Navigator.pop(context),
             child: Container(
-              width: 36,
-              height: 36,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                color: isDark ? const Color(0xFF1C2028) : Colors.white,
                 shape: BoxShape.circle,
-                border: Border.all(color: cardBorder, width: 1.0),
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
+                  width: 1.1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 16),
             ),
@@ -675,12 +690,12 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 color: const Color(0xFF10B981).withValues(alpha: 0.16),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
               ),
-              child: const Icon(Icons.security_rounded, color: Color(0xFF10B981), size: 16),
+              child: const Icon(Icons.shield_rounded, color: Color(0xFF10B981), size: 16),
             ),
-            const SizedBox(width: 9),
+            const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -689,7 +704,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   'កូដផ្ទៀងផ្ទាត់ (Authenticator)',
                   style: GoogleFonts.kantumruyPro(
                     color: textColor,
-                    fontSize: 15.5,
+                    fontSize: 15.0,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -723,27 +738,28 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 14),
             child: TelegramBounce(
               onTap: _showAddOptionsSheet,
               child: Container(
-                padding: const EdgeInsets.all(8),
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFF3D010), Color(0xFFE5BF00)],
+                    colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFF3D010).withValues(alpha: 0.35),
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.35),
                       blurRadius: 10,
-                      offset: const Offset(0, 2),
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-                child: const Icon(Icons.add_rounded, color: Color(0xFF18181B), size: 20),
+                child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
               ),
             ),
           ),
@@ -752,142 +768,160 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF3D010)),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0EA5E9)),
               ),
             )
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: const Color(0xFFF3D010),
+              color: const Color(0xFF0EA5E9),
               backgroundColor: cardBg,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                children: [
-                  // Top 2FA Master Switch Card
-                  _buildMaster2FaSwitchCard(
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    cardBorder: cardBorder,
-                    textColor: textColor,
-                    subtextColor: subtextColor,
-                    innerBoxBg: innerBoxBg,
-                    innerBoxBorder: innerBoxBorder,
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // Section Header: Accounts & Dynamic Timer
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: AnimationLimiter(
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  children: AnimationConfiguration.toStaggeredList(
+                    duration: const Duration(milliseconds: 320),
+                    childAnimationBuilder: (widget) => SlideAnimation(
+                      verticalOffset: 24.0,
+                      child: FadeInAnimation(
+                        child: widget,
+                      ),
+                    ),
                     children: [
+                      // Top 2FA Master Switch Card
+                      _buildMaster2FaSwitchCard(
+                        isDark: isDark,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        textColor: textColor,
+                        subtextColor: subtextColor,
+                        innerBoxBg: innerBoxBg,
+                        innerBoxBorder: innerBoxBorder,
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Section Header: Accounts & Dynamic Timer Pill
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'គណនីផ្ទៀងផ្ទាត់',
-                            style: GoogleFonts.kantumruyPro(
-                              color: textColor,
-                              fontSize: 15.0,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                'គណនីផ្ទៀងផ្ទាត់',
+                                style: GoogleFonts.kantumruyPro(
+                                  color: textColor,
+                                  fontSize: 15.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: innerBoxBg,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: innerBoxBorder,
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: Text(
+                                  '${_accounts.length}',
+                                  style: GoogleFonts.inter(
+                                    color: textColor,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5.5),
                             decoration: BoxDecoration(
-                              color: innerBoxBg,
-                              borderRadius: BorderRadius.circular(10),
+                              color: timerColor.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: innerBoxBorder,
+                                color: timerColor.withValues(alpha: 0.35),
                                 width: 1.0,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: timerColor.withValues(alpha: 0.12),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            child: Text(
-                              '${_accounts.length}',
-                              style: GoogleFonts.inter(
-                                color: textColor,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 13,
+                                  height: 13,
+                                  child: CircularProgressIndicator(
+                                    value: _progress,
+                                    strokeWidth: 2.3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+                                    backgroundColor: isDark
+                                        ? Colors.white.withValues(alpha: 0.12)
+                                        : Colors.black.withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  '$_secondsLeft វិនាទី',
+                                  style: GoogleFonts.kantumruyPro(
+                                    color: timerColor,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: timerColor.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: timerColor.withValues(alpha: 0.35),
-                            width: 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 13,
-                              height: 13,
-                              child: CircularProgressIndicator(
-                                value: _progress,
-                                strokeWidth: 2.2,
-                                valueColor: AlwaysStoppedAnimation<Color>(timerColor),
-                                backgroundColor: isDark
-                                    ? Colors.white.withValues(alpha: 0.12)
-                                    : Colors.black.withValues(alpha: 0.08),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '$_secondsLeft វិនាទី',
-                              style: GoogleFonts.kantumruyPro(
-                                color: timerColor,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+
+                      const SizedBox(height: 12),
+
+                      // Accounts List
+                      if (_accounts.isEmpty)
+                        _buildEmptyState(
+                          isDark: isDark,
+                          textColor: textColor,
+                          subtextColor: subtextColor,
+                          cardBg: cardBg,
+                          cardBorder: cardBorder,
+                        )
+                      else
+                        ..._accounts.map((acc) => _buildOtpAccountCard(
+                              acc,
+                              timerColor,
+                              isDark: isDark,
+                              isWarningTime: isWarningTime,
+                              cardBg: cardBg,
+                              cardBorder: cardBorder,
+                              innerBoxBg: innerBoxBg,
+                              innerBoxBorder: innerBoxBorder,
+                              subtextColor: subtextColor,
+                              textColor: textColor,
+                            )),
+
+                      const SizedBox(height: 18),
+
+                      // Info Tips Banner
+                      _buildInfoSecurityBanner(
+                        isDark: isDark,
+                        cardBg: cardBg,
+                        cardBorder: cardBorder,
+                        textColor: textColor,
+                        subtextColor: subtextColor,
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 12),
-
-                  // Accounts List
-                  if (_accounts.isEmpty)
-                    _buildEmptyState(
-                      isDark: isDark,
-                      textColor: textColor,
-                      subtextColor: subtextColor,
-                      cardBg: cardBg,
-                      cardBorder: cardBorder,
-                    )
-                  else
-                    ..._accounts.map((acc) => _buildOtpAccountCard(
-                          acc,
-                          timerColor,
-                          isDark: isDark,
-                          isWarningTime: isWarningTime,
-                          cardBg: cardBg,
-                          cardBorder: cardBorder,
-                          innerBoxBg: innerBoxBg,
-                          innerBoxBorder: innerBoxBorder,
-                          subtextColor: subtextColor,
-                          textColor: textColor,
-                        )),
-
-                  const SizedBox(height: 20),
-
-                  // Info Tips Banner
-                  _buildInfoSecurityBanner(
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    cardBorder: cardBorder,
-                    textColor: textColor,
-                    subtextColor: subtextColor,
-                  ),
-                ],
+                ),
               ),
             ),
     );
@@ -907,17 +941,17 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: _is2FaEnabled
-              ? emerald.withValues(alpha: 0.40)
+              ? emerald.withValues(alpha: 0.38)
               : cardBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
             color: _is2FaEnabled
-                ? emerald.withValues(alpha: 0.08)
+                ? emerald.withValues(alpha: 0.10)
                 : (isDark ? Colors.black.withValues(alpha: 0.30) : Colors.black.withValues(alpha: 0.04)),
             blurRadius: 18,
             offset: const Offset(0, 4),
@@ -940,7 +974,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           end: Alignment.bottomRight,
                         )
                       : null,
-                  color: _is2FaEnabled ? null : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE2E8F0)),
+                  color: _is2FaEnabled ? null : (isDark ? const Color(0xFF242730) : const Color(0xFFE2E8F0)),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: _is2FaEnabled
                       ? [
@@ -980,6 +1014,14 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           decoration: BoxDecoration(
                             color: _is2FaEnabled ? emerald : const Color(0xFF64748B),
                             shape: BoxShape.circle,
+                            boxShadow: _is2FaEnabled
+                                ? [
+                                    BoxShadow(
+                                      color: emerald.withValues(alpha: 0.6),
+                                      blurRadius: 4,
+                                    ),
+                                  ]
+                                : null,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -989,7 +1031,9 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                                 ? 'កំពុងការពារការ Login លើ Admin Panel'
                                 : 'បានបិទ (ចូល Login លើ Admin Panel ផ្ទាល់)',
                             style: GoogleFonts.kantumruyPro(
-                              color: _is2FaEnabled ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)) : subtextColor,
+                              color: _is2FaEnabled
+                                  ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                  : subtextColor,
                               fontSize: 12.0,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1011,14 +1055,11 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 )
               else
                 Transform.scale(
-                  scale: 0.92,
-                  child: Switch(
+                  scale: 0.88,
+                  child: CupertinoSwitch(
                     value: _is2FaEnabled,
                     onChanged: _toggle2Fa,
-                    activeThumbColor: Colors.white,
                     activeTrackColor: emerald,
-                    inactiveThumbColor: const Color(0xFF94A3B8),
-                    inactiveTrackColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFCBD5E1),
                   ),
                 ),
             ],
@@ -1042,7 +1083,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   child: Icon(
                     Icons.info_outline_rounded,
                     size: 16,
-                    color: _is2FaEnabled ? emerald : subtextColor,
+                    color: _is2FaEnabled ? const Color(0xFF38BDF8) : subtextColor,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -1088,17 +1129,17 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isWarningTime
-              ? const Color(0xFFEF4444).withValues(alpha: 0.40)
+              ? timerColor.withValues(alpha: 0.40)
               : cardBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
             color: isDark ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
+            blurRadius: 18,
             offset: const Offset(0, 5),
           ),
         ],
@@ -1114,15 +1155,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                 child: Row(
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 42,
+                      height: 42,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(13),
                         boxShadow: [
                           BoxShadow(
                             color: const Color(0xFFF59E0B).withValues(alpha: 0.30),
@@ -1131,7 +1172,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
+                      child: const Icon(Icons.lock_rounded, color: Colors.white, size: 21),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1144,7 +1185,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.kantumruyPro(
                               color: textColor,
-                              fontSize: 15,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1168,21 +1209,24 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Camera Icon button for QR Admin Login
+                  // Camera Icon button for QR Admin Login (Squircle Spring Bounce)
                   TelegramBounce(
                     onTap: () => _openAdminLoginCameraScanner(acc),
+                    scaleFactor: 0.92,
                     child: Container(
-                      height: 34,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 11),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.30),
-                            blurRadius: 6,
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.32),
+                            blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
                         ],
@@ -1190,7 +1234,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.qr_code_scanner_rounded, size: 14, color: Colors.white),
+                          const Icon(Icons.qr_code_scanner_rounded, size: 15, color: Colors.white),
                           const SizedBox(width: 5),
                           Text(
                             'ស្កេន Login',
@@ -1204,22 +1248,24 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
+                  // Delete Button (Squircle Spring Bounce)
                   TelegramBounce(
                     onTap: () => _confirmDeleteAccount(acc),
+                    scaleFactor: 0.90,
                     child: Container(
-                      width: 34,
-                      height: 34,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.20),
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.22),
                           width: 1.0,
                         ),
                       ),
                       child: const Center(
-                        child: Icon(Icons.delete_outline_rounded, size: 17, color: Color(0xFFEF4444)),
+                        child: Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
                       ),
                     ),
                   ),
@@ -1233,14 +1279,15 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           // Live 6-Digit Code Hero Row with Spring Micro-Bounce & Animated Copy Feedback
           TelegramBounce(
             onTap: () => _copyOtpCode(otpCode, acc.name, acc.secret),
+            scaleFactor: 0.96,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               decoration: BoxDecoration(
                 color: innerBoxBg,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isWarningTime
-                      ? const Color(0xFFEF4444).withValues(alpha: 0.40)
+                      ? timerColor.withValues(alpha: 0.40)
                       : innerBoxBorder,
                   width: 1.2,
                 ),
@@ -1258,18 +1305,22 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                           Text(
                             part1,
                             style: GoogleFonts.jetBrainsMono(
-                              color: isWarningTime ? const Color(0xFFEF4444) : textColor,
-                              fontSize: 28,
+                              color: isWarningTime
+                                  ? timerColor
+                                  : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7)),
+                              fontSize: 29,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 4.0,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 14),
                           Text(
                             part2,
                             style: GoogleFonts.jetBrainsMono(
-                              color: isWarningTime ? const Color(0xFFEF4444) : textColor,
-                              fontSize: 28,
+                              color: isWarningTime
+                                  ? timerColor
+                                  : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7)),
+                              fontSize: 29,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 4.0,
                             ),
@@ -1278,22 +1329,37 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: 34,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    height: 36,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
+                      gradient: isCopied
+                          ? const LinearGradient(
+                              colors: [Color(0xFF10B981), Color(0xFF059669)],
+                            )
+                          : null,
                       color: isCopied
-                          ? const Color(0xFF10B981)
-                          : (isDark ? const Color(0xFF38383A) : const Color(0xFFE2E8F0)),
-                      borderRadius: BorderRadius.circular(10),
+                          ? null
+                          : (isDark ? const Color(0xFF222630) : const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(
                         color: isCopied
                             ? const Color(0xFF10B981)
-                            : (isDark ? const Color(0xFF48484A) : const Color(0xFFCBD5E1)),
+                            : (isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFCBD5E1)),
                         width: 1.0,
                       ),
+                      boxShadow: isCopied
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1322,7 +1388,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
 
           const SizedBox(height: 14),
 
-          // Linear Progress Indicator
+          // Linear Progress Indicator with Rounded Squircle Shape
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
@@ -1350,7 +1416,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: cardBorder,
         ),
@@ -1360,10 +1426,10 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+              color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.security_rounded, size: 40, color: Color(0xFF2563EB)),
+            child: const Icon(Icons.security_rounded, size: 40, color: Color(0xFF0EA5E9)),
           ),
           const SizedBox(height: 14),
           Text(
@@ -1417,12 +1483,24 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: const Icon(Icons.verified_user_rounded, color: Color(0xFF2563EB), size: 20),
+            child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1433,7 +1511,7 @@ class _AuthenticatorScreenState extends State<AuthenticatorScreen>
                   'VVC In-App Authenticator (ជំនួស Google Authenticator)',
                   style: GoogleFonts.kantumruyPro(
                     color: textColor,
-                    fontSize: 13.0,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

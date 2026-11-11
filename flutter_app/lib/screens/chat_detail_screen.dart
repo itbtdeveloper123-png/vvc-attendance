@@ -38,6 +38,7 @@ import 'user_profile_screen.dart';
 import '../services/call_service.dart';
 import 'call/active_call_screen.dart';
 import '../utils/app_theme.dart';
+import '../widgets/telegram_bounce.dart';
 
 Color _getAvatarBgColor(String name) {
   if (name.isEmpty) return const Color(0xFF0084FF);
@@ -853,9 +854,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               Row(
                 children: [
                   // 1. Back Button with Unread Badge
-                  InkWell(
+                  TelegramBounce(
+                    scaleFactor: 0.90,
                     onTap: () => Navigator.pop(context),
-                    borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
                       child: Row(
@@ -902,9 +903,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
                   // 2. Middle Profile Info (Avatar + Name + Status) Edge-to-Edge layout without floating rounded capsule
                   Expanded(
-                    child: InkWell(
+                    child: TelegramBounce(
+                      scaleFactor: 0.97,
                       onTap: _onHeaderTap,
-                      borderRadius: BorderRadius.circular(12),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
                         child: Row(
@@ -980,9 +981,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
                   // 3. Audio Call Button
                   if (!widget.isGroup)
-                    InkWell(
+                    TelegramBounce(
+                      scaleFactor: 0.88,
                       onTap: () => _initiateCall('audio'),
-                      borderRadius: BorderRadius.circular(20),
                       child: Padding(
                         padding: const EdgeInsets.all(6.0),
                         child: Icon(LucideIcons.phone, color: AppTheme.textPrimary, size: 20),
@@ -991,9 +992,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   
                   // 4. Video Call Button
                   if (!widget.isGroup)
-                    InkWell(
+                    TelegramBounce(
+                      scaleFactor: 0.88,
                       onTap: () => _initiateCall('video'),
-                      borderRadius: BorderRadius.circular(20),
                       child: Padding(
                         padding: const EdgeInsets.all(6.0),
                         child: Icon(LucideIcons.video, color: AppTheme.textPrimary, size: 20),
@@ -1001,9 +1002,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     ),
 
                   // 5. Right Search Button
-                  InkWell(
+                  TelegramBounce(
+                    scaleFactor: 0.88,
                     onTap: () => setState(() => _isSearchMode = true),
-                    borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.all(6.0),
                       child: Icon(LucideIcons.search, color: AppTheme.textPrimary, size: 20),
@@ -4579,7 +4580,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     style: GoogleFonts.inter(color: AppTheme.textPrimary, fontSize: 13.0, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(width: 10.0),
-                  GestureDetector(
+                  TelegramBounce(
+                    scaleFactor: 0.88,
                     onTap: _stopAndSendRecording,
                     child: Container(
                       width: 36.0,
@@ -4616,9 +4618,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // 1. Telegram Paperclip Icon (Rotated Clip) 📎
-              InkWell(
+              TelegramBounce(
+                scaleFactor: 0.88,
                 onTap: _showVvcAttachmentSheet,
-                borderRadius: BorderRadius.circular(20),
                 child: Container(
                   width: 38,
                   height: 38,
@@ -4673,9 +4675,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                      InkWell(
+                      TelegramBounce(
+                        scaleFactor: 0.88,
                         onTap: _showGiphyStickerPicker,
-                        borderRadius: BorderRadius.circular(16),
                         child: Padding(
                           padding: const EdgeInsets.all(4.0),
                           child: Icon(
@@ -4699,10 +4701,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   return AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                    child: InkWell(
+                    child: TelegramBounce(
                       key: ValueKey<bool>(hasText),
+                      scaleFactor: 0.88,
                       onTap: hasText ? _sendMessage : _startRecording,
-                      borderRadius: BorderRadius.circular(20),
                       child: Container(
                         width: 38,
                         height: 38,

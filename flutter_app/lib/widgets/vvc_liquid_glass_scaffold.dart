@@ -334,15 +334,15 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
     final hasLabel = item.label != null && item.label!.isNotEmpty;
 
     final unselectedColor = widget.unselectedItemColor ??
-        (isDark ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF64748B));
+        (isDark ? Colors.white.withValues(alpha: 0.65) : const Color(0xFF64748B));
 
     return TelegramBounce(
       onTap: onItemTap,
-      scaleFactor: 0.94,
+      scaleFactor: 0.92,
       enableHaptic: false, // _animateTo handles haptics
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 2.0),
-        padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 3.0),
         color: Colors.transparent,
         child: Stack(
           clipBehavior: Clip.none,
@@ -352,30 +352,36 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TweenAnimationBuilder<Color?>(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  tween: ColorTween(
-                    begin: unselectedColor,
-                    end: isSelected ? activeColor : unselectedColor,
+                AnimatedScale(
+                  scale: isSelected ? 1.08 : 1.0,
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutBack,
+                  child: TweenAnimationBuilder<Color?>(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    tween: ColorTween(
+                      begin: unselectedColor,
+                      end: isSelected ? activeColor : unselectedColor,
+                    ),
+                    builder: (context, color, _) {
+                      return Icon(
+                        iconData,
+                        color: color,
+                        size: 21.0,
+                      );
+                    },
                   ),
-                  builder: (context, color, _) {
-                    return Icon(
-                      iconData,
-                      color: color,
-                      size: 22.0,
-                    );
-                  },
                 ),
                 if (hasLabel) ...[
-                  const SizedBox(height: 3.0),
+                  const SizedBox(height: 2.5),
                   AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOutCubic,
                     style: GoogleFonts.kantumruyPro(
-                      fontSize: 11.0,
+                      fontSize: 10.5,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                       color: isSelected ? activeColor : unselectedColor,
+                      letterSpacing: isSelected ? 0.1 : 0.0,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -413,58 +419,60 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
 
   @override
   Widget build(BuildContext context) {
-    final double bottomMargin = widget.bottomInset > 0 ? widget.bottomInset + 4.0 : 14.0;
+    final double bottomMargin = widget.bottomInset > 0 ? widget.bottomInset + 4.0 : 12.0;
     final effectiveAccent = widget.accentColor ?? const Color(0xFF0A84FF); // Apple Blue
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const double dockHeight = 64.0;
+    const double dockHeight = 60.0;
+    const double dockRadius = 24.0;
+    const double indicatorRadius = 16.0;
     final hasGlass = widget.alwaysShowGlass || widget.isScrolled;
 
     final targetBorder = widget.borderColor ??
         (isDark
-            ? const Color(0x38545458)
+            ? Colors.white.withValues(alpha: 0.14)
             : const Color(0xFFE2E8F0));
 
     final targetBg = widget.backgroundColor != null
         ? (widget.backgroundColor!.a >= 0.99
-            ? widget.backgroundColor!.withValues(alpha: isDark ? 0.88 : 0.92)
+            ? widget.backgroundColor!.withValues(alpha: isDark ? 0.85 : 0.90)
             : widget.backgroundColor!)
         : (isDark
-            ? const Color(0xFF1C1C1E).withValues(alpha: 0.88)
-            : const Color(0xFFF1F3F6).withValues(alpha: 0.92));
+            ? const Color(0xFF181A20).withValues(alpha: 0.86)
+            : const Color(0xFFFFFFFF).withValues(alpha: 0.90));
 
     final effectiveBorder = hasGlass ? targetBorder : Colors.transparent;
     final effectiveBg = hasGlass ? targetBg : Colors.transparent;
     final effectiveShadow = hasGlass
         ? [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.08),
-              blurRadius: 18.0,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+              blurRadius: 20.0,
+              offset: const Offset(0, 5),
             ),
           ]
         : <BoxShadow>[];
 
     final activePillBg = isDark
-        ? Colors.white.withValues(alpha: 0.14)
-        : Colors.black.withValues(alpha: 0.08);
+        ? Colors.white.withValues(alpha: 0.12)
+        : effectiveAccent.withValues(alpha: 0.10);
 
     return Container(
       margin: EdgeInsets.fromLTRB(16.0, 0, 16.0, bottomMargin),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 1. LEFT MAIN NAVIGATION DOCK CAPSULE
+          // 1. LEFT MAIN NAVIGATION DOCK CAPSULE (Squircle Frosted Glass)
           Expanded(
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeInOutCubic,
               height: dockHeight,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(36.0),
+                borderRadius: BorderRadius.circular(dockRadius),
                 boxShadow: effectiveShadow,
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(36.0),
+                borderRadius: BorderRadius.circular(dockRadius),
                 child: TweenAnimationBuilder<double>(
                   tween: Tween<double>(begin: 0.0, end: hasGlass ? widget.blurSigma : 0.0),
                   duration: const Duration(milliseconds: 240),
@@ -480,10 +488,10 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                   },
                   child: Container(
                     height: dockHeight,
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 5.0),
                     decoration: BoxDecoration(
                       color: effectiveBg,
-                      borderRadius: BorderRadius.circular(36.0),
+                      borderRadius: BorderRadius.circular(dockRadius),
                       border: Border.all(
                         color: effectiveBorder,
                         width: 1.2,
@@ -509,10 +517,10 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                             final double progress =
                                 (1.0 - (2 * (t - 0.5)).abs()).clamp(0.0, 1.0);
 
-                            // Requirement 2: Horizontal stretching (+16px viscous droplet)
+                            // Requirement 2: Horizontal stretching (+14px viscous droplet)
                             final double basePillWidth =
                                 (itemWidth - 4.0).clamp(24.0, double.infinity);
-                            final double stretch = progress * 16.0;
+                            final double stretch = progress * 14.0;
                             final double currentPillWidth = basePillWidth + stretch;
 
                             final double centerX = (currentPos + 0.5) * itemWidth;
@@ -521,7 +529,7 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                             return Stack(
                               clipBehavior: Clip.none,
                               children: [
-                                // 1. Moving Active Bubble Indicator Capsule (Apple / Telegram Liquid Water)
+                                // 1. Moving Active Bubble Indicator (Apple / Telegram Squircle Liquid Lens)
                                 Positioned(
                                   left: pillLeft,
                                   top: 0.0,
@@ -529,8 +537,7 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                                   height: itemHeight,
                                   child: IgnorePointer(
                                     child: ClipRRect(
-                                      borderRadius:
-                                          BorderRadius.circular(itemHeight / 2),
+                                      borderRadius: BorderRadius.circular(indicatorRadius),
                                       child: Stack(
                                         fit: StackFit.expand,
                                         children: [
@@ -538,34 +545,33 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                                           if (progress > 0.01)
                                             BackdropFilter(
                                               filter: ui.ImageFilter.blur(
-                                                sigmaX: progress * 8.0,
-                                                sigmaY: progress * 8.0,
+                                                sigmaX: progress * 6.0,
+                                                sigmaY: progress * 6.0,
                                               ),
                                               child: const SizedBox.expand(),
                                             ),
 
-                                          // Active Pill Capsule Glass Surface
+                                          // Active Pill Squircle Glass Surface
                                           Container(
                                             decoration: BoxDecoration(
                                               color: activePillBg,
-                                              borderRadius: BorderRadius.circular(
-                                                  itemHeight / 2),
+                                              borderRadius: BorderRadius.circular(indicatorRadius),
                                               border: Border.all(
                                                 color: isDark
                                                     ? Colors.white.withValues(
-                                                        alpha: 0.12 + (progress * 0.08))
-                                                    : Colors.white.withValues(
-                                                        alpha: 0.40 + (progress * 0.20)),
+                                                        alpha: 0.14 + (progress * 0.08))
+                                                    : effectiveAccent.withValues(
+                                                        alpha: 0.25 + (progress * 0.15)),
                                                 width: 1.0,
                                               ),
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: (isDark
                                                           ? Colors.black
-                                                          : const Color(0xFF64748B))
+                                                          : effectiveAccent)
                                                       .withValues(
-                                                          alpha: isDark ? 0.25 : 0.08),
-                                                  blurRadius: 8.0 + (progress * 4.0),
+                                                          alpha: isDark ? 0.20 : 0.08),
+                                                  blurRadius: 6.0 + (progress * 4.0),
                                                   offset: const Offset(0, 2),
                                                 ),
                                               ],
@@ -609,11 +615,11 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
             ),
           ),
 
-          // 2. RIGHT STANDALONE CIRCULAR ACTION POD (Quick Scan QR / Face)
+          // 2. RIGHT STANDALONE SQUIRCLE ACTION POD (Quick Scan QR / Face)
           if (widget.trailingAction != null) ...[
             const SizedBox(width: 10.0),
             TelegramBounce(
-              scaleFactor: 0.92,
+              scaleFactor: 0.90,
               enableHaptic: false,
               onTap: () {
                 _triggerHaptic();
@@ -625,10 +631,11 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                 width: dockHeight,
                 height: dockHeight,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(20.0),
                   boxShadow: effectiveShadow,
                 ),
-                child: ClipOval(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20.0),
                   child: TweenAnimationBuilder<double>(
                     tween: Tween<double>(
                         begin: 0.0, end: hasGlass ? widget.blurSigma : 0.0),
@@ -647,7 +654,7 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                       width: dockHeight,
                       height: dockHeight,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(20.0),
                         color: effectiveBg,
                         border: Border.all(
                           color: effectiveBorder,
@@ -691,59 +698,56 @@ class VvcLiquidGlassCircleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
-      onTap: () {
-        if (onTap != null) {
-          HapticFeedback.lightImpact();
-          onTap!();
-        }
+    final btnContent = TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: isScrolled ? 16.0 : 0.0),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeInOutCubic,
+      builder: (context, blur, innerChild) {
+        if (blur <= 0.05) return innerChild!;
+        return ClipOval(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: innerChild,
+          ),
+        );
       },
-      behavior: HitTestBehavior.opaque,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0.0, end: isScrolled ? 16.0 : 0.0),
+      child: AnimatedContainer(
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeInOutCubic,
-        builder: (context, blur, innerChild) {
-          if (blur <= 0.05) return innerChild!;
-          return ClipOval(
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-              child: innerChild,
-            ),
-          );
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeInOutCubic,
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isScrolled
+              ? (isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6))
+              : Colors.transparent,
+          border: Border.all(
             color: isScrolled
-                ? (isDark ? const Color(0xFF222630) : const Color(0xFFF1F3F6))
+                ? (borderColor ??
+                    (isDark
+                        ? Colors.white.withValues(alpha: 0.12)
+                        : const Color(0xFFE2E8F0)))
                 : Colors.transparent,
-            border: Border.all(
-              color: isScrolled
-                  ? (borderColor ??
-                      (isDark
-                          ? Colors.white.withValues(alpha: 0.12)
-                          : const Color(0xFFE2E8F0)))
-                  : Colors.transparent,
-              width: 1.2,
-            ),
-            boxShadow: isScrolled
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-                      blurRadius: 10.0,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
+            width: 1.2,
           ),
-          child: Center(child: child),
+          boxShadow: isScrolled
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+                    blurRadius: 10.0,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
         ),
+        child: Center(child: child),
       ),
+    );
+
+    return TelegramBounce(
+      onTap: onTap,
+      scaleFactor: 0.90,
+      child: btnContent,
     );
   }
 }
@@ -959,7 +963,9 @@ class VvcFloatingHeaderPods extends StatelessWidget {
     );
 
     if (tapHandler != null || onLeadingTap != null) {
-      return GestureDetector(
+      return TelegramBounce(
+        scaleFactor: 0.90,
+        enableHaptic: false,
         onTap: () {
           HapticFeedback.lightImpact();
           if (tapHandler != null) {
@@ -1094,7 +1100,9 @@ class VvcFloatingHeaderPods extends StatelessWidget {
       final act = actions!.first;
       Widget actChild = act;
       if (act is IconButton) {
-        actChild = GestureDetector(
+        actChild = TelegramBounce(
+          scaleFactor: 0.90,
+          enableHaptic: false,
           onTap: () {
             HapticFeedback.lightImpact();
             act.onPressed?.call();

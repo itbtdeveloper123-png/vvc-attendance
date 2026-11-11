@@ -470,20 +470,18 @@ class _RequestListScreenState extends State<RequestListScreen> {
                     ),
                   ],
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.maybePop(context);
-                    },
-                    child: const Center(
-                      child: Icon(
-                        CupertinoIcons.chevron_back,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                child: TelegramBounce(
+                  scaleFactor: 0.90,
+                  enableHaptic: false,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.maybePop(context);
+                  },
+                  child: const Center(
+                    child: Icon(
+                      CupertinoIcons.chevron_back,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
                 ),
@@ -593,21 +591,19 @@ class _RequestListScreenState extends State<RequestListScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Refresh button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(22)),
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          _loadData();
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-                          child: Icon(
-                            CupertinoIcons.arrow_clockwise,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                    TelegramBounce(
+                      scaleFactor: 0.90,
+                      enableHaptic: false,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _loadData();
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+                        child: Icon(
+                          CupertinoIcons.arrow_clockwise,
+                          color: Colors.white,
+                          size: 18,
                         ),
                       ),
                     ),
@@ -620,23 +616,21 @@ class _RequestListScreenState extends State<RequestListScreen> {
                     ),
 
                     // Trash / Action button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(22)),
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          _viewTrash();
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-                          child: Icon(
-                            _isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash,
-                            color: _isViewingTrash
-                                ? const Color(0xFF0A84FF)
-                                : Colors.white.withValues(alpha: 0.85),
-                            size: 18,
-                          ),
+                    TelegramBounce(
+                      scaleFactor: 0.90,
+                      enableHaptic: false,
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _viewTrash();
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+                        child: Icon(
+                          _isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash,
+                          color: _isViewingTrash
+                              ? const Color(0xFF0A84FF)
+                              : Colors.white.withValues(alpha: 0.85),
+                          size: 18,
                         ),
                       ),
                     ),
@@ -1002,44 +996,43 @@ class _RequestListScreenState extends State<RequestListScreen> {
     final badgeBg = _typeBadgeBg(type);
     final badgeColor = _typeBadgeColor(type);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
-            ? const Color(0xFF1C1C1E)
-            : Colors.white.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
+    return TelegramBounce(
+      scaleFactor: 0.97,
+      onTap: () => _showDetails(item),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
           color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
-              ? const Color(0x38545458)
-              : Colors.white,
-          width: 1.5,
+              ? const Color(0xFF1C1C1E)
+              : Colors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: (Theme.of(context).brightness == Brightness.dark || AppTheme.isDarkMode)
+                ? const Color(0x38545458)
+                : Colors.white,
+            width: 1.5,
+          ),
+          boxShadow: AppTheme.cardShadow,
         ),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _showDetails(item),
-            child: Column(
-              children: [
-                // Colored top accent based on status
-                Container(
-                  height: 3,
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(18),
-                    ),
-                    color: statusColor.withValues(alpha: 0.7),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            children: [
+              // Colored top accent based on status
+              Container(
+                height: 3,
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
                   ),
+                  color: statusColor.withValues(alpha: 0.7),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                       // Row 1: Type badge + Status
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1257,8 +1250,7 @@ class _RequestListScreenState extends State<RequestListScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   void _showDetails(Map<String, dynamic> item) {

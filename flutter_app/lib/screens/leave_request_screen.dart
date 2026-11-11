@@ -226,9 +226,13 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
   Widget build(BuildContext context) {
     return DynamicAppBarWrapper(
       title: "ស្នើសុំច្បាប់ឈប់សម្រាក",
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-        onPressed: () => Navigator.pop(context),
+      leading: TelegramBounce(
+        scaleFactor: 0.90,
+        onTap: () => Navigator.pop(context),
+        child: const Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Icon(Icons.arrow_back_ios_new_rounded),
+        ),
       ),
       bottomNavigationBar: VvcFrostedBottomBar(
         child: _isLoading
@@ -236,31 +240,26 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
                 height: 52,
                 child: Center(child: CircularProgressIndicator()),
               )
-            : Container(
-                width: double.infinity,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFD97706).withValues(alpha: 0.35),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
+            : TelegramBounce(
+                scaleFactor: 0.96,
+                onTap: _submit,
+                child: Container(
+                  width: double.infinity,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                     ),
-                  ],
-                ),
-                child: ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFD97706).withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
+                  alignment: Alignment.center,
                   child: Text(
                     widget.initialData != null
                         ? "រក្សាទុកការកែសម្រួល"
@@ -523,7 +522,8 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
     Function(DateTime) onPicked, {
     DateTime? firstDate,
   }) {
-    return InkWell(
+    return TelegramBounce(
+      scaleFactor: 0.97,
       onTap: () async {
         final picked = await showDatePicker(
           context: context,
