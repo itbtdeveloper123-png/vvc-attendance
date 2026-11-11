@@ -419,12 +419,12 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
 
   @override
   Widget build(BuildContext context) {
-    final double bottomMargin = widget.bottomInset > 0 ? widget.bottomInset + 4.0 : 12.0;
+    final double bottomMargin = widget.bottomInset > 0 ? widget.bottomInset + 8.0 : 18.0;
     final effectiveAccent = widget.accentColor ?? const Color(0xFF0A84FF); // Apple Blue
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const double dockHeight = 60.0;
-    const double dockRadius = 24.0;
-    const double indicatorRadius = 16.0;
+    const double dockHeight = 64.0;
+    const double dockRadius = 32.0;
+    const double indicatorRadius = 26.0;
     final hasGlass = widget.alwaysShowGlass || widget.isScrolled;
 
     final targetBorder = widget.borderColor ??
@@ -488,7 +488,7 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                   },
                   child: Container(
                     height: dockHeight,
-                    padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 5.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
                     decoration: BoxDecoration(
                       color: effectiveBg,
                       borderRadius: BorderRadius.circular(dockRadius),
@@ -517,10 +517,10 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                             final double progress =
                                 (1.0 - (2 * (t - 0.5)).abs()).clamp(0.0, 1.0);
 
-                            // Requirement 2: Horizontal stretching (+14px viscous droplet)
+                            // Requirement 2: Horizontal stretching (+10px viscous droplet)
                             final double basePillWidth =
-                                (itemWidth - 4.0).clamp(24.0, double.infinity);
-                            final double stretch = progress * 14.0;
+                                (itemWidth - 6.0).clamp(32.0, double.infinity);
+                            final double stretch = progress * 10.0;
                             final double currentPillWidth = basePillWidth + stretch;
 
                             final double centerX = (currentPos + 0.5) * itemWidth;
@@ -532,9 +532,9 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                                 // 1. Moving Active Bubble Indicator (Apple / Telegram Squircle Liquid Lens)
                                 Positioned(
                                   left: pillLeft,
-                                  top: 0.0,
+                                  top: 1.0,
                                   width: currentPillWidth,
-                                  height: itemHeight,
+                                  height: itemHeight - 2.0,
                                   child: IgnorePointer(
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(indicatorRadius),
@@ -615,7 +615,7 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
             ),
           ),
 
-          // 2. RIGHT STANDALONE SQUIRCLE ACTION POD (Quick Scan QR / Face)
+          // 2. RIGHT STANDALONE CIRCLE ACTION POD (Quick Scan QR / Face)
           if (widget.trailingAction != null) ...[
             const SizedBox(width: 10.0),
             TelegramBounce(
@@ -631,11 +631,10 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                 width: dockHeight,
                 height: dockHeight,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20.0),
+                  shape: BoxShape.circle,
                   boxShadow: effectiveShadow,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20.0),
+                child: ClipOval(
                   child: TweenAnimationBuilder<double>(
                     tween: Tween<double>(
                         begin: 0.0, end: hasGlass ? widget.blurSigma : 0.0),
@@ -654,7 +653,7 @@ class _VvcLiquidGlassFloatingDockState extends State<_VvcLiquidGlassFloatingDock
                       width: dockHeight,
                       height: dockHeight,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20.0),
+                        shape: BoxShape.circle,
                         color: effectiveBg,
                         border: Border.all(
                           color: effectiveBorder,

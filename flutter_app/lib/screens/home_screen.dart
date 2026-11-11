@@ -1732,7 +1732,7 @@ class _HomeContentState extends State<HomeContent> {
               // Bottom Action Buttons
               Row(
                 children: [
-                  // Main Scan Action Button (Core Branding Color Highlight)
+                  // Main Scan Action Button (Core Branding Color Highlight - Sleek Full Capsule)
                   Expanded(
                     flex: 3,
                     child: TelegramBounce(
@@ -1742,7 +1742,7 @@ class _HomeContentState extends State<HomeContent> {
                         _goScan(_nextAction);
                       },
                       child: Container(
-                        height: 48,
+                        height: 52,
                         decoration: BoxDecoration(
                            gradient: isNextCheckIn
                               ? const LinearGradient(
@@ -1751,14 +1751,14 @@ class _HomeContentState extends State<HomeContent> {
                               : const LinearGradient(
                                   colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
                                 ),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(26),
                           boxShadow: [
                             BoxShadow(
                               color: (isNextCheckIn
                                       ? const Color(0xFFF3D010)
                                       : const Color(0xFFEF4444))
                                   .withValues(alpha: 0.35),
-                              blurRadius: 10,
+                              blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
                           ],
@@ -1788,7 +1788,7 @@ class _HomeContentState extends State<HomeContent> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  // Outside Attendance Shortcut (Frosted Glass Button)
+                  // Outside Attendance Shortcut (Frosted Glass Full Capsule Button)
                   Expanded(
                     flex: 2,
                     child: TelegramBounce(
@@ -1808,10 +1808,10 @@ class _HomeContentState extends State<HomeContent> {
                         }
                       },
                       child: Container(
-                        height: 48,
+                        height: 52,
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF232733) : Colors.white.withValues(alpha: 0.75),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(26),
                           border: Border.all(
                             color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
                             width: 1.2,
@@ -1970,14 +1970,14 @@ class _HomeContentState extends State<HomeContent> {
                       child: Icon(icon, color: brandAccent, size: 20),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5.5),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF3D010),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
                             color: const Color(0xFFF3D010).withValues(alpha: 0.35),
-                            blurRadius: 6,
+                            blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
                         ],
