@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'telegram_bounce.dart';
+import 'vvc_lottie.dart';
+export 'vvc_lottie.dart';
 
 /// ═══════════════════════════════════════════════════════════════════════════════
 /// VVC UNIFIED DESIGN SYSTEM (DESIGN TOKENS & ATOMIC COMPONENTS)
@@ -997,16 +999,20 @@ class VvcEmptyState extends StatelessWidget {
   final IconData? buttonIcon;
   final VoidCallback? onButtonTap;
   final double topPadding;
+  final bool useLottie;
+  final String? lottieAsset;
 
   const VvcEmptyState({
     super.key,
-    required this.icon,
+    this.icon = CupertinoIcons.tray,
     required this.title,
     required this.subtitle,
     this.buttonLabel,
     this.buttonIcon,
     this.onButtonTap,
     this.topPadding = 0,
+    this.useLottie = true,
+    this.lottieAsset,
   });
 
   @override
@@ -1025,33 +1031,17 @@ class VvcEmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Circular Chamber
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: isDark ? AppTokens.chipInactiveDark : const Color(0xFFF1F5F9),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isDark ? AppTokens.podBorderDark : AppTokens.podBorderLight,
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Icon(
-                  icon,
-                  size: 38,
-                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                ),
-              ),
-            ),
+            // Animation or Circular Chamber
+            if (useLottie)
+              VvcLottie(
+                assetPath: lottieAsset ?? 'assets/lottie/empty.json',
+                width: 120,
+                height: 120,
+                repeat: true,
+                fallback: _buildIconChamber(isDark),
+              )
+            else
+              _buildIconChamber(isDark),
             const SizedBox(height: 20),
 
             // Title
@@ -1089,6 +1079,35 @@ class VvcEmptyState extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIconChamber(bool isDark) {
+    return Container(
+      width: 84,
+      height: 84,
+      decoration: BoxDecoration(
+        color: isDark ? AppTokens.chipInactiveDark : const Color(0xFFF1F5F9),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isDark ? AppTokens.podBorderDark : AppTokens.podBorderLight,
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Icon(
+          icon,
+          size: 38,
+          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
         ),
       ),
     );
