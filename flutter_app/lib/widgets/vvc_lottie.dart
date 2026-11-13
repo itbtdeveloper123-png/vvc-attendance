@@ -118,3 +118,4 @@ class VvcLottie extends StatelessWidget {
     );
   }
 }
+

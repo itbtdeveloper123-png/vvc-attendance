@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
@@ -437,307 +438,50 @@ class _RequestListScreenState extends State<RequestListScreen> {
   // 1. LIQUID GLASS HEADER PODS
   // ===========================================================================
   Widget _buildHeaderPods(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          // Left Pod: 44x44 circular frosted glass button with CupertinoIcons.chevron_back
-          ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOutCubic,
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: _isScrolled
-                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.22)
-                        : Colors.white.withValues(alpha: 0.10),
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
-                      blurRadius: _isScrolled ? 16 : 4,
-                      offset: Offset(0, _isScrolled ? 4 : 2),
-                    ),
-                  ],
-                ),
-                child: TelegramBounce(
-                  scaleFactor: 0.90,
-                  enableHaptic: false,
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.maybePop(context);
-                  },
-                  child: const Center(
-                    child: Icon(
-                      CupertinoIcons.chevron_back,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Center Pod: Title "បញ្ជីសំណើ" (15pt, bold) with subtle counter capsule
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOutCubic,
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: _isScrolled
-                        ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                        : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: _isScrolled
-                          ? Colors.white.withValues(alpha: 0.22)
-                          : Colors.white.withValues(alpha: 0.10),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
-                        blurRadius: _isScrolled ? 16 : 4,
-                        offset: Offset(0, _isScrolled ? 4 : 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          _isViewingTrash ? 'ប៊ូតុងស្តារ' : 'បញ្ជីសំណើ',
-                          style: GoogleFonts.kantumruyPro(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '${_filtered.length}',
-                          style: GoogleFonts.inter(
-                            color: Colors.white.withValues(alpha: 0.75),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Right Pod: Capsule height 44px containing Refresh & Trash icons separated by 0.5px vertical divider
-          ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOutCubic,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: _isScrolled
-                      ? const Color(0xFF24272E).withValues(alpha: 0.94)
-                      : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: _isScrolled
-                        ? Colors.white.withValues(alpha: 0.22)
-                        : Colors.white.withValues(alpha: 0.10),
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: _isScrolled ? 0.55 : 0.15),
-                      blurRadius: _isScrolled ? 16 : 4,
-                      offset: Offset(0, _isScrolled ? 4 : 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Refresh button
-                    TelegramBounce(
-                      scaleFactor: 0.90,
-                      enableHaptic: false,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        _loadData();
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-                        child: Icon(
-                          CupertinoIcons.arrow_clockwise,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-
-                    // Subtle 0.5px vertical divider
-                    Container(
-                      width: 0.5,
-                      height: 16,
-                      color: Colors.white.withValues(alpha: 0.15),
-                    ),
-
-                    // Trash / Action button
-                    TelegramBounce(
-                      scaleFactor: 0.90,
-                      enableHaptic: false,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        _viewTrash();
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
-                        child: Icon(
-                          _isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash,
-                          color: _isViewingTrash
-                              ? const Color(0xFF0A84FF)
-                              : Colors.white.withValues(alpha: 0.85),
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return VvcHeaderPodBar(
+      title: _isViewingTrash ? 'ធុងសំរាម' : 'បញ្ជីសំណើ',
+      counterBadge: _filtered.length,
+      isScrolled: _isScrolled,
+      actions: [
+        VvcCirclePod(
+          size: AppTokens.sizePodLarge,
+          icon: CupertinoIcons.arrow_clockwise,
+          iconSize: 18,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _loadData();
+          },
+        ),
+        VvcCirclePod(
+          size: AppTokens.sizePodLarge,
+          icon: _isViewingTrash ? CupertinoIcons.list_bullet : CupertinoIcons.trash,
+          iconColor: _isViewingTrash ? const Color(0xFF0A84FF) : null,
+          iconSize: 18,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _viewTrash();
+          },
+        ),
+      ],
     );
   }
 
   // ===========================================================================
-  // 2. TELEGRAM-STYLE SLEEK SEARCH FIELD
+  // 2. UNIFIED SEARCH BAR (CAPSULE 100%)
   // ===========================================================================
   Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOutCubic,
-            height: 42,
-            decoration: BoxDecoration(
-              color: _isScrolled
-                  ? const Color(0xFF24272E).withValues(alpha: 0.92)
-                  : const Color(0xFF1C1C1E).withValues(alpha: 0.65),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: _isScrolled
-                    ? Colors.white.withValues(alpha: 0.20)
-                    : Colors.white.withValues(alpha: 0.08),
-                width: 1.0,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: _isScrolled ? 0.45 : 0.10),
-                  blurRadius: _isScrolled ? 14 : 4,
-                  offset: Offset(0, _isScrolled ? 4 : 1),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                Icon(
-                  CupertinoIcons.search,
-                  color: Colors.white.withValues(alpha: 0.45),
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    style: GoogleFonts.kantumruyPro(
-                      color: Colors.white,
-                      fontSize: 13.5,
-                    ),
-                    cursorColor: const Color(0xFF0A84FF),
-                    decoration: InputDecoration(
-                      filled: false,
-                      fillColor: Colors.transparent,
-                      hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
-                      hintStyle: GoogleFonts.kantumruyPro(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        fontSize: 13,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      errorBorder: InputBorder.none,
-                      focusedErrorBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-                if (_searchController.text.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      _searchController.clear();
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Icon(
-                        CupertinoIcons.clear_circled_solid,
-                        color: Colors.white.withValues(alpha: 0.45),
-                        size: 16,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return VvcSearchBar(
+      controller: _searchController,
+      hintText: 'ស្វែងរក ID, ឈ្មោះ, ប្រភេទ, ឬផ្នែក...',
+      isScrolled: _isScrolled,
+      onClear: () {
+        if (mounted) setState(() {});
+      },
     );
   }
 
   // ===========================================================================
-  // 3. DYNAMIC STATUS FILTER PILLS (HORIZONTAL SCROLLABLE STRIP)
+  // 3. UNIFIED STATUS FILTER CHIPS (TELEGRAM STYLE)
   // ===========================================================================
   Widget _buildStatusFilterPills() {
     int pending = _requests
@@ -750,236 +494,61 @@ class _RequestListScreenState extends State<RequestListScreen> {
         .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'rejected')
         .length;
 
-    final chips = [
-      {
-        'key': 'all',
-        'label': 'ទាំងអស់ ${_requests.length}',
-        'emoji': '',
-        'accent': const Color(0xFF0A84FF),
-        'textColor': const Color(0xFF38BDF8),
+    return VvcFilterChips(
+      selectedKey: _selectedStatusFilter,
+      onSelected: (key) {
+        setState(() {
+          _selectedStatusFilter = key;
+        });
+        _applyFilters();
       },
-      {
-        'key': 'pending',
-        'label': 'រង់ចាំ $pending',
-        'emoji': '🟡',
-        'accent': const Color(0xFFF59E0B),
-        'textColor': const Color(0xFFFBBF24),
-      },
-      {
-        'key': 'approved',
-        'label': 'បានអនុម័ត $approved',
-        'emoji': '🟢',
-        'accent': const Color(0xFF10B981),
-        'textColor': const Color(0xFF34D399),
-      },
-      {
-        'key': 'rejected',
-        'label': 'បដិសេធ $rejected',
-        'emoji': '🔴',
-        'accent': const Color(0xFFE11D48),
-        'textColor': const Color(0xFFFB7185),
-      },
-    ];
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final unselectedChipBg = isDark
-        ? (_isScrolled ? const Color(0xFF1C1C1E).withValues(alpha: 0.82) : const Color(0xFF1C1C1E).withValues(alpha: 0.52))
-        : (_isScrolled ? const Color(0xFFFFFFFF).withValues(alpha: 0.94) : const Color(0xFFF1F5F9).withValues(alpha: 0.88));
-    final unselectedChipBorder = isDark
-        ? (_isScrolled ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.07))
-        : const Color(0xFFE2E8F0);
-    final unselectedTextColor = isDark
-        ? Colors.white.withValues(alpha: 0.70)
-        : const Color(0xFF64748B);
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: chips.map((chip) {
-          final key = chip['key'] as String;
-          final isSelected = _selectedStatusFilter == key;
-          final accent = chip['accent'] as Color;
-          final textColor = chip['textColor'] as Color;
-          final emoji = chip['emoji'] as String;
-          final label = chip['label'] as String;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TelegramBounce(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() {
-                  _selectedStatusFilter = key;
-                });
-                _applyFilters();
-              },
-              scaleFactor: 0.94,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? accent.withValues(alpha: isDark ? 0.22 : 0.15)
-                          : unselectedChipBg,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected
-                            ? accent.withValues(alpha: isDark ? 0.70 : 0.60)
-                            : unselectedChipBorder,
-                        width: isSelected ? 1.2 : 1.0,
-                      ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: accent.withValues(alpha: 0.25),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (emoji.isNotEmpty) ...[
-                          Text(emoji, style: const TextStyle(fontSize: 10)),
-                          const SizedBox(width: 5),
-                        ],
-                        Text(
-                          label,
-                          style: GoogleFonts.kantumruyPro(
-                            color: isSelected ? textColor : unselectedTextColor,
-                            fontSize: 11.5,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+      items: [
+        VvcFilterItem(key: 'all', label: 'ទាំងអស់', count: _requests.length),
+        VvcFilterItem(key: 'pending', label: 'រង់ចាំ', count: pending),
+        VvcFilterItem(key: 'approved', label: 'បានអនុម័ត', count: approved),
+        VvcFilterItem(key: 'rejected', label: 'បដិសេធ', count: rejected),
+      ],
     );
   }
 
   Widget _buildEmptyState({double topPadding = 0}) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: BouncingScrollPhysics(),
-      ),
-      padding: EdgeInsets.only(
-        top: topPadding,
-        bottom: AppResponsive.bottomPadding(
-          context,
-          hasBottomNav: ModalRoute.of(context)?.isFirst ?? false,
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 60),
-              // Show error icon if there's an error
-              Icon(
-                _errorMessage.isNotEmpty
-                    ? Icons.wifi_off_rounded
-                    : Icons.folder_open_rounded,
-                size: 80,
-                color: _errorMessage.isNotEmpty
-                    ? Colors.redAccent.withValues(alpha: 0.4)
-                    : AppTheme.textPrimary.withValues(alpha: 0.15),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage.isNotEmpty
-                    ? (_errorMessage.toLowerCase().contains('unauthorized')
-                          ? 'Session អស់សុពលភាព\nសូម Login ម្ដងទៀត'
-                          : _errorMessage)
-                    : (_searchController.text.isEmpty
-                          ? "មិនទាន់មានការស្នើសុំណាមួយ"
-                          : "រកមិនឃើញ \"${_searchController.text}\""),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.kantumruyPro(
-                  color: _errorMessage.isNotEmpty
-                      ? Colors.redAccent.withValues(alpha: 0.8)
-                      : AppTheme.textPrimary.withValues(alpha: 0.38),
-                  fontSize: 16,
-                ),
-              ),
-              if (_errorMessage.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _loadData,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: Text(
-                    'ព្យាយាមម្ដងទៀត',
-                    style: GoogleFonts.kantumruyPro(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4f46e5),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-              if (_debugInfo.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.orange.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '🔍 DEBUG INFO',
-                        style: GoogleFonts.inter(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _debugInfo,
-                        style: GoogleFonts.inter(
-                          color: AppTheme.textPrimary.withValues(alpha: 0.60),
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    if (_errorMessage.isNotEmpty) {
+      final detail = kDebugMode && _debugInfo.isNotEmpty
+          ? '$_errorMessage\n($_debugInfo)'
+          : _errorMessage;
+      return VvcEmptyState(
+        icon: CupertinoIcons.wifi_exclamationmark,
+        title: _errorMessage.toLowerCase().contains('unauthorized')
+            ? 'Session អស់សុពលភាព'
+            : 'មានបញ្ហាតភ្ជាប់',
+        subtitle: _errorMessage.toLowerCase().contains('unauthorized')
+            ? 'សូម Login ម្ដងទៀតដើម្បីបន្ត'
+            : detail,
+        buttonLabel: 'ព្យាយាមម្ដងទៀត',
+        buttonIcon: CupertinoIcons.refresh,
+        onButtonTap: _loadData,
+        topPadding: topPadding,
+        useLottie: false,
+      );
+    }
+
+    final hasSearch = _searchController.text.isNotEmpty;
+    return VvcEmptyState(
+      icon: hasSearch ? CupertinoIcons.search : CupertinoIcons.doc_text_search,
+      title: hasSearch ? 'រកមិនឃើញទិន្នន័យ' : 'មិនទាន់មានការស្នើសុំ',
+      subtitle: hasSearch
+          ? 'រកមិនឃើញ "${_searchController.text}" សូមសាកល្បងពាក្យគន្លឹះផ្សេង'
+          : 'រាល់សំណើច្បាប់ ថែមម៉ោង ឬបេសកកម្ម នឹងបង្ហាញនៅទីនេះ',
+      buttonLabel: hasSearch ? 'សម្អាតការស្វែងរក' : null,
+      buttonIcon: hasSearch ? CupertinoIcons.clear_circled : null,
+      onButtonTap: hasSearch
+          ? () {
+              HapticFeedback.lightImpact();
+              _searchController.clear();
+            }
+          : null,
+      topPadding: topPadding,
+      useLottie: !hasSearch,
     );
   }
 

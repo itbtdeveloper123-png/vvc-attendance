@@ -197,3 +197,4 @@ VvcLottie.bell(size: 70)
 | រុំប៊ូតុងក្នុង `Center()` បើដាក់ក្នុង AppBar ដើម្បីការពារការ stretch | កុំញាត់ `VvcCirclePod` ចូលក្នុង `VvcAppBar` នាំឱ្យក្លាយជារង្វង់ត្រួតគ្នាច្រើនជាន់ |
 | ប្រើ `TelegramBounce` សម្រាប់រាល់ការ Touch/Press | កុំប្រើ `InkWell` ឬ `GestureDetector` សុទ្ធដែលគ្មាន Spring Scale Feedback |
 | ប្រើពុម្ពអក្សរ `Kantumruy Pro` សម្រាប់អក្សរខ្មែរ | កុំលាយពុម្ពអក្សរខ្មែរខុសគ្នាលើទំព័រតែមួយ |
+
