@@ -1636,28 +1636,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 18),
                   ],
-                  ElevatedButton(
-                    onPressed: () {
+                  VvcPillButton(
+                    text: 'បន្ថែមគណនីថ្មី',
+                    icon: Icons.person_add_rounded,
+                    variant: VvcPillVariant.blue,
+                    isFullWidth: true,
+                    onTap: () {
                       Navigator.of(ctx).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const LoginScreen()),
                       );
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      'បន្ថែមគណនីថ្មី',
-                      style: GoogleFonts.kantumruyPro(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -1738,8 +1727,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: GoogleFonts.kantumruyPro(color: AppTheme.textMuted),
             ),
           ),
-          ElevatedButton(
-            onPressed: () async {
+          VvcPillButton(
+            text: 'ចេញ',
+            variant: VvcPillVariant.danger,
+            onTap: () async {
               await user.logout();
               if (context.mounted) {
                 Navigator.of(context).pushAndRemoveUntil(
@@ -1748,19 +1739,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.danger,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(
-              "ចេញ",
-              style: GoogleFonts.kantumruyPro(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
           ),
         ],
       ),
